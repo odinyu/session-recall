@@ -121,6 +121,12 @@ let searchTimer: number | undefined;
 let pollTimer: number | undefined;
 let lastSearchHash = "#/search";
 let themeMode: ThemeMode = "auto";
+let briefDate = localDateKey();
+
+function localDateKey(date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
 
 function defaultState(): UiState {
   return {
@@ -523,13 +529,26 @@ function bindShell(): void {
   });
 
   byId<HTMLDivElement>("rail-foot")?.addEventListener("click", (event) => {
-    const themeButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-theme-mode]");
+    const themeButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "button[data-theme-mode]",
+    );
     if (themeButton) {
       applyTheme(themeButton.dataset.themeMode as ThemeMode);
       renderFoot();
       return;
     }
+    if ((event.target as HTMLElement).closest("[data-brief]")) {
+      void generateBriefFile();
+      return;
+    }
     if ((event.target as HTMLElement).closest("[data-refresh]")) void refreshIndex();
+  });
+
+  byId<HTMLDivElement>("rail-foot")?.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.id === "brief-date") {
+      briefDate = target.value || localDateKey();
+    }
   });
 
   document.addEventListener("keydown", (event) => {
@@ -647,6 +666,11 @@ function renderFoot(): void {
     : "尚未索引";
   foot.innerHTML = `
     ${themeSwitchHtml()}
+    <div class="brief-row">
+      <input id="brief-date" class="brief-date" type="date" value="${escapeAttr(briefDate)}" aria-label="简报日期">
+      <button class="brief-button" type="button" data-brief>生成简报</button>
+    </div>
+    <div class="brief-status" id="brief-status" aria-live="polite"></div>
     <div class="foot-stats"><strong>${formatCount(sessions)}</strong> 会话 · <strong>${formatCount(turns)}</strong> 问答</div>
     <div class="foot-row">
       <span class="foot-muted">${scanned}</span>
@@ -955,6 +979,39 @@ function renderError(error: unknown): void {
     if (state.view === "session") void renderSession(state.sessionId);
     else void runSearch();
   });
+}
+
+async function generateBriefFile(): Promise<void> {
+  const status = byId<HTMLDivElement>("brief-status");
+  const input = byId<HTMLInputElement>("brief-date");
+  const date = input?.value || briefDate || localDateKey();
+  briefDate = date;
+  if (status) status.innerHTML = `<span class="foot-muted">正在生成…</span>`;
+  try {
+    const response = await fetch(
+      `/api/brief?date=${encodeURIComponent(date)}`,
+      { method: "POST" },
+    );
+    const body = (await response.json().catch(() => null)) as
+      | {
+          error?: string;
+          path?: string;
+          relativePath?: string;
+          download?: string;
+        }
+      | null;
+    if (!response.ok || !body?.download) {
+      throw new Error(body?.error ?? `请求失败 (${response.status})`);
+    }
+    if (status) {
+      status.innerHTML = `已生成 <a href="${escapeAttr(body.download)}" download title="${escapeAttr(body.path ?? "")}">${escapeHtml(body.relativePath ?? `${date}.md`)}</a>`;
+    }
+  } catch (error) {
+    if (status) {
+      const message = error instanceof Error ? error.message : String(error);
+      status.innerHTML = `<span class="foot-muted">生成失败：${escapeHtml(message)}</span>`;
+    }
+  }
 }
 
 async function refreshIndex(): Promise<void> {

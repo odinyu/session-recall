@@ -1,12 +1,13 @@
 {
   "name": "session-recall",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Local, read-only full-text recall across coding-agent sessions.",
   "scripts": {
     "build": "bun run scripts/build.ts",
     "scan": "bun run src/cli.ts scan",
+    "brief": "bun run src/cli.ts brief",
     "serve": "bun run src/cli.ts serve",
     "start": "bun run build && bun run src/cli.ts serve",
     "test": "bun test"

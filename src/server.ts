@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
+import { generateBrief, parseBriefDate, readBrief } from "./brief.ts";
 import { eventCountsFor, eventsForTurn, openDb } from "./db.ts";
 import type { IndexedDatabase } from "./db.ts";
 import { facets, getSessionDetail, searchTurns } from "./search.ts";
@@ -142,6 +143,34 @@ async function api(request: Request, url: URL): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/facets") {
     if (!db) return json({ error: "index not open" }, 500);
     return json(facets(db));
+  }
+  if (request.method === "POST" && url.pathname === "/api/brief") {
+    if (!db) return json({ error: "index not open" }, 500);
+    const date = parseBriefDate(url.searchParams.get("date"));
+    if (!date) return json({ error: "invalid date" }, 400);
+    const result = generateBrief(db, date.key);
+    return json({
+      date: result.date,
+      path: result.path,
+      relativePath: result.relativePath,
+      sessions: result.sessions,
+      turns: result.turns,
+      projects: result.projects,
+      download: `/api/brief/file?date=${encodeURIComponent(result.date)}`,
+    });
+  }
+  if (request.method === "GET" && url.pathname === "/api/brief/file") {
+    const date = parseBriefDate(url.searchParams.get("date"));
+    if (!date) return json({ error: "invalid date" }, 400);
+    const content = readBrief(date.key);
+    if (content === null) return json({ error: "brief not found" }, 404);
+    return new Response(content, {
+      headers: {
+        "content-type": "text/markdown; charset=utf-8",
+        "content-disposition": `attachment; filename="${date.key}.md"`,
+        "cache-control": "no-store",
+      },
+    });
   }
   if (request.method === "GET" && url.pathname === "/api/status") {
     return json({

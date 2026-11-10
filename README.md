@@ -64,6 +64,25 @@ The path is shell-quoted; the omp uuid is the suffix after the timestamp in the
 stored session filename. Cursor has no equivalent local resume command, so its
 pages omit the block.
 
+## Daily brief
+
+Generate a Markdown work log for one local day:
+
+```bash
+bun run brief              # today
+bun run brief 2026-11-10   # a specific date
+```
+
+The file is written to `brief/YYYY-MM-DD.md` and is git-ignored by default. It
+groups sessions by project, shows the day's prompts, a short answer excerpt,
+tool/reasoning counts, the resume command, and a local session link. Sessions
+with no turn timestamps (Cursor) are included by their last-updated date and
+marked as a recent-turn excerpt. The web UI also has a date picker and
+`生成简报` button in the rail footer.
+
+API: `POST /api/brief?date=YYYY-MM-DD` generates the file;
+`GET /api/brief/file?date=YYYY-MM-DD` downloads it.
+
 ## Search
 
 - SQLite FTS5, two indexes over the same turns:
@@ -90,6 +109,7 @@ pages omit the block.
 ```text
 src/
   adapters/       omp, OpenCode, Cursor parsers
+  brief.ts        daily Markdown brief generation
   db.ts           schema, FTS triggers, upserts
   scan.ts         incremental scan orchestration
   search.ts       query building, ranking, facets
@@ -99,13 +119,14 @@ web/
   markdown.ts     safe Markdown renderer
   styles.css      design tokens and components
 scripts/build.ts  Bun.build bundle
-test/             markdown and search tests
+test/             markdown, search, events, brief tests
+brief/            generated daily briefs (git-ignored)
 ```
 
 ## Development
 
 ```bash
-bun test          # 13 tests: markdown, search, process event storage/caps
+bun test          # 16 tests: markdown, search, process events, daily brief
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

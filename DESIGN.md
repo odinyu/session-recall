@@ -60,6 +60,8 @@ on dots and labels.
   Reasoning and tool rows start collapsed; inputs and outputs use mono `pre`.
 - Resume command: a bordered mono row under the session meta with a copy button;
   shown only when the agent has a local resume command (omp, OpenCode).
+- Daily brief: a date input plus `生成简报` in the rail footer; success becomes a
+  direct download link to `brief/YYYY-MM-DD.md`.
 - Empty state: dashed hairline box, direct recovery copy.
 - Focus: 2px accent outline, offset 2px.
 - Scrollbars: thin, palette-tinted, 2px transparent border.
