@@ -1,0 +1,223 @@
+import { existsSync, readFileSync } from "node:fs";
+import { extname, join, normalize, resolve } from "node:path";
+import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
+import { eventCountsFor, eventsForTurn, openDb } from "./db.ts";
+import type { IndexedDatabase } from "./db.ts";
+import { facets, getSessionDetail, searchTurns } from "./search.ts";
+import type { SearchParams, SearchRole } from "./search.ts";
+import { scan } from "./scan.ts";
+import type { ScanReport } from "./scan.ts";
+import type { AgentId } from "./adapters/types.ts";
+
+const AGENTS: AgentId[] = ["omp", "opencode", "cursor"];
+const ROLES: SearchRole[] = ["all", "user", "assistant"];
+
+let db: IndexedDatabase | null = null;
+let scanning = false;
+let lastReport: ScanReport | null = null;
+
+function json(data: unknown, status = 200): Response {
+  return Response.json(data, {
+    status,
+    headers: { "cache-control": "no-store" },
+  });
+}
+
+function parseAgentList(value: string | null): AgentId[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part): part is AgentId => AGENTS.includes(part as AgentId));
+}
+
+function parseRole(value: string | null): SearchRole {
+  return ROLES.includes(value as SearchRole) ? (value as SearchRole) : "all";
+}
+
+function parseTime(value: string | null): number | null {
+  if (!value) return null;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function searchParams(url: URL): SearchParams {
+  return {
+    q: (url.searchParams.get("q") ?? "").trim(),
+    agents: parseAgentList(url.searchParams.get("agents")),
+    project: url.searchParams.get("project") ?? "",
+    from: parseTime(url.searchParams.get("from")),
+    to: parseTime(url.searchParams.get("to")),
+    role: parseRole(url.searchParams.get("role")),
+    limit: Number(url.searchParams.get("limit") ?? 30),
+    offset: Number(url.searchParams.get("offset") ?? 0),
+  };
+}
+
+async function runScan(): Promise<ScanReport | null> {
+  if (!db || scanning) return lastReport;
+  scanning = true;
+  try {
+    lastReport = await scan(db, undefined, {
+      onProgress: (message) => console.log(message),
+    });
+    return lastReport;
+  } catch (error) {
+    console.error("scan failed", error);
+    return lastReport;
+  } finally {
+    scanning = false;
+  }
+}
+
+function sessionDetail(id: string): Response {
+  if (!db) return json({ error: "index not open" }, 500);
+  const raw = getSessionDetail(db, id) as {
+    session: {
+      id: string;
+      agent: AgentId;
+      title: string;
+      project_path: string;
+      started_at: number;
+      updated_at: number;
+      turn_count: number;
+      source_kind: string;
+      source_path: string;
+    };
+    turns: {
+      idx: number;
+      ts: number;
+      user_text: string;
+      assistant_text: string;
+      model: string | null;
+      truncated: number;
+    }[];
+  } | null;
+  if (!raw) return json({ error: "session not found" }, 404);
+  const counts = eventCountsFor(db, raw.session.id);
+  return json({
+    session: {
+      id: raw.session.id,
+      agent: raw.session.agent,
+      title: raw.session.title,
+      projectPath: raw.session.project_path,
+      startedAt: raw.session.started_at,
+      updatedAt: raw.session.updated_at,
+      turnCount: raw.session.turn_count,
+      sourceKind: raw.session.source_kind,
+    },
+    turns: raw.turns.map((turn) => ({
+      idx: turn.idx,
+      ts: turn.ts,
+      userText: turn.user_text,
+      assistantText: turn.assistant_text,
+      model: turn.model,
+      truncated: turn.truncated === 1,
+      eventCount: counts.get(turn.idx) ?? 0,
+    })),
+  });
+}
+
+async function api(request: Request, url: URL): Promise<Response> {
+  if (request.method === "GET" && url.pathname === "/api/search") {
+    if (!db) return json({ error: "index not open" }, 500);
+    return json(searchTurns(db, searchParams(url)));
+  }
+  if (request.method === "GET" && url.pathname.startsWith("/api/session/")) {
+    const rest = url.pathname.slice("/api/session/".length);
+    if (rest.endsWith("/events")) {
+      if (!db) return json({ error: "index not open" }, 500);
+      const id = decodeURIComponent(rest.slice(0, -"/events".length));
+      const turn = Number(url.searchParams.get("turn") ?? "-1");
+      if (!Number.isInteger(turn) || turn < 0) {
+        return json({ error: "invalid turn" }, 400);
+      }
+      return json({ turn, events: eventsForTurn(db, id, turn) });
+    }
+    const id = decodeURIComponent(rest);
+    return sessionDetail(id);
+  }
+  if (request.method === "GET" && url.pathname === "/api/facets") {
+    if (!db) return json({ error: "index not open" }, 500);
+    return json(facets(db));
+  }
+  if (request.method === "GET" && url.pathname === "/api/status") {
+    return json({
+      scanning,
+      lastReport,
+      port: PORT,
+    });
+  }
+  if (request.method === "POST" && url.pathname === "/api/scan") {
+    if (scanning) return json({ scanning: true }, 202);
+    void runScan();
+    return json({ scanning: true }, 202);
+  }
+  return json({ error: "not found" }, 404);
+}
+
+const MIME: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".json": "application/json; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+};
+
+function staticResponse(pathname: string): Response {
+  const requested = pathname === "/" ? "/index.html" : pathname;
+  const filePath = resolve(WEB_DIST, `.${normalize(requested)}`);
+  if (!filePath.startsWith(resolve(WEB_DIST))) {
+    return new Response("forbidden", { status: 403 });
+  }
+  if (!existsSync(filePath)) {
+    if (requested === "/index.html") {
+      return new Response("Run `bun run build` to build the web UI.", {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8" },
+      });
+    }
+    return new Response("not found", { status: 404 });
+  }
+  return new Response(readFileSync(filePath), {
+    headers: {
+      "content-type": MIME[extname(filePath)] ?? "application/octet-stream",
+      "cache-control": "no-cache",
+    },
+  });
+}
+
+export function serve(): void {
+  db = openDb(DB_PATH);
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: PORT,
+    async fetch(request) {
+      const url = new URL(request.url);
+      if (url.pathname.startsWith("/api/")) {
+        try {
+          return await api(request, url);
+        } catch (error) {
+          console.error(error);
+          return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+        }
+      }
+      return staticResponse(url.pathname);
+    },
+  });
+
+  console.log(`session-recall  http://127.0.0.1:${server.port}`);
+  void runScan();
+  setInterval(() => {
+    void runScan();
+  }, 90_000);
+
+  process.on("SIGINT", () => {
+    server.stop();
+    db?.close();
+    process.exit(0);
+  });
+}

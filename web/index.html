@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>session recall</title>
+    <meta
+      name="description"
+      content="本机 coding agent 会话的只读检索库：搜索过去的提问与回答。"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script>
+      (() => {
+        let saved = "auto";
+        try {
+          saved = localStorage.getItem("session-recall-theme") || "auto";
+        } catch {}
+        const mode = saved === "light" || saved === "dark" ? saved : "auto";
+        const dark =
+          mode === "dark" ||
+          (mode === "auto" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.dataset.themeMode = mode;
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
