@@ -767,6 +767,29 @@ mark {
   color: var(--accent);
 }
 
+.brief-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.brief-download {
+  flex: none;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.brief-view {
+  padding-top: 18px;
+}
+
 .turns {
   padding-top: 10px;
 }

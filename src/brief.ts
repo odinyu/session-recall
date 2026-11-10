@@ -12,7 +12,6 @@ const AGENT_LABELS: Record<AgentId, string> = {
 
 const MAX_PROMPTS = 3;
 const MAX_PROMPT_CHARS = 220;
-const MAX_OUTCOME_CHARS = 420;
 const MAX_TITLE_CHARS = 80;
 const FALLBACK_TURNS = 12;
 
@@ -119,24 +118,6 @@ function clip(value: string, max: number): string {
   const chars = [...oneLine(value)];
   if (chars.length <= max) return chars.join("");
   return `${chars.slice(0, max).join("").trimEnd()}…`;
-}
-
-function excerpt(value: string, max: number): string {
-  const text = oneLine(value);
-  const chars = [...text];
-  if (chars.length <= max) return text;
-  const cut = chars.slice(0, max).join("");
-  const boundary = Math.max(
-    cut.lastIndexOf("。"),
-    cut.lastIndexOf("！"),
-    cut.lastIndexOf("？"),
-    cut.lastIndexOf(". "),
-    cut.lastIndexOf("；"),
-  );
-  if (boundary >= Math.floor(max * 0.55)) {
-    return `${cut.slice(0, boundary + 1).trimEnd()}…`;
-  }
-  return `${cut.trimEnd()}…`;
 }
 
 function projectName(path: string): string {
@@ -317,14 +298,6 @@ function sessionBlock(session: BriefSession): string {
       lines.push(`- 另有 ${prompts.length - MAX_PROMPTS} 轮提问未列出。`);
     }
     lines.push("");
-  }
-
-  const outcome = [...session.turns]
-    .reverse()
-    .map((turn) => oneLine(turn.assistant_text))
-    .find(Boolean);
-  if (outcome) {
-    lines.push("**结果摘录**", "", `> ${excerpt(outcome, MAX_OUTCOME_CHARS)}`, "");
   }
 
   const resume = resumeCommand(session);

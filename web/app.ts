@@ -76,9 +76,21 @@ interface SessionDetail {
   }[];
 }
 
+interface BriefPayload {
+  date: string;
+  path: string;
+  relativePath: string;
+  sessions: number;
+  turns: number;
+  projects: number;
+  markdown: string;
+  download: string;
+}
+
 interface UiState {
-  view: "search" | "session";
+  view: "search" | "session" | "brief";
   sessionId: string;
+  briefDate: string;
   turnIdx: number | null;
   q: string;
   agents: AgentId[];
@@ -132,6 +144,7 @@ function defaultState(): UiState {
   return {
     view: "search",
     sessionId: "",
+    briefDate: "",
     turnIdx: null,
     q: "",
     agents: [],
@@ -183,6 +196,14 @@ function parseTerms(value: string): string[] {
 
 function parseHash(): UiState {
   const raw = location.hash.replace(/^#/, "");
+  if (raw.startsWith("/brief/")) {
+    const [path] = raw.split("?");
+    return {
+      ...defaultState(),
+      view: "brief",
+      briefDate: decodeURIComponent(path.slice("/brief/".length)),
+    };
+  }
   if (raw.startsWith("/session/")) {
     const [path, query] = raw.split("?");
     const id = decodeURIComponent(path.slice("/session/".length));
@@ -213,6 +234,14 @@ function parseHash(): UiState {
 }
 
 function syncHash(): void {
+  if (state.view === "brief") {
+    history.replaceState(
+      null,
+      "",
+      `#/brief/${encodeURIComponent(state.briefDate)}`,
+    );
+    return;
+  }
   if (state.view === "session") {
     history.replaceState(null, "", `#/session/${encodeURIComponent(state.sessionId)}${state.turnIdx !== null ? `?turn=${state.turnIdx}` : ""}`);
     return;
@@ -233,6 +262,7 @@ function ensureSearchView(): void {
   if (state.view === "search") return;
   state.view = "search";
   state.sessionId = "";
+  state.briefDate = "";
   state.turnIdx = null;
   syncHash();
 }
@@ -684,7 +714,9 @@ function route(): void {
   const input = byId<HTMLInputElement>("search");
   if (input && input.value !== state.q) input.value = state.q;
   renderControls();
-  if (state.view === "session") {
+  if (state.view === "brief") {
+    void renderBrief(state.briefDate);
+  } else if (state.view === "session") {
     void renderSession(state.sessionId, state.turnIdx);
   } else {
     lastSearchHash = location.hash && location.hash.startsWith("#/search") ? location.hash : "#/search";
@@ -817,6 +849,40 @@ function hitBlock(hit: Hit, session: ResultSession, terms: string[]): string {
     <p class="hit-primary">${highlight(prompt || "（无提问记录）", terms)}</p>
     ${answerText ? `<p class="hit-secondary"><span class="hit-answer-label">回答</span>${highlight(answerText, terms)}</p>` : ""}
   </a>`;
+}
+
+async function renderBrief(date: string): Promise<void> {
+  const content = byId<HTMLDivElement>("content");
+  if (!content) return;
+  const status = byId<HTMLDivElement>("search-status");
+  if (status) status.textContent = "";
+  content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
+  try {
+    const response = await fetch(
+      `/api/brief?date=${encodeURIComponent(date)}`,
+      { method: "POST" },
+    );
+    const data = (await response.json().catch(() => null)) as
+      | (BriefPayload & { error?: string })
+      | null;
+    if (!response.ok || !data?.markdown) {
+      throw new Error(data?.error ?? `请求失败 (${response.status})`);
+    }
+    content.innerHTML = `
+      <a class="back" href="${lastSearchHash}">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        返回搜索
+      </a>
+      <div class="brief-toolbar">
+        <span class="foot-muted">${escapeHtml(data.date)} · ${formatCount(data.projects)} 个项目 · ${formatCount(data.sessions)} 个会话 · ${formatCount(data.turns)} 轮问答</span>
+        <a class="brief-download" href="${escapeAttr(data.download)}" download>下载 .md</a>
+      </div>
+      <article class="markdown brief-view">${renderMarkdown(data.markdown)}</article>
+    `;
+    window.scrollTo({ top: 0, behavior: "auto" });
+  } catch (error) {
+    renderError(error);
+  }
 }
 
 async function renderSession(id: string, turnIdx: number | null = null): Promise<void> {
@@ -977,6 +1043,7 @@ function renderError(error: unknown): void {
   </div>`;
   byId<HTMLButtonElement>("retry")?.addEventListener("click", () => {
     if (state.view === "session") void renderSession(state.sessionId);
+    else if (state.view === "brief") void renderBrief(state.briefDate);
     else void runSearch();
   });
 }
@@ -1004,7 +1071,7 @@ async function generateBriefFile(): Promise<void> {
       throw new Error(body?.error ?? `请求失败 (${response.status})`);
     }
     if (status) {
-      status.innerHTML = `已生成 <a href="${escapeAttr(body.download)}" download title="${escapeAttr(body.path ?? "")}">${escapeHtml(body.relativePath ?? `${date}.md`)}</a>`;
+      status.innerHTML = `已生成 <a href="#/brief/${encodeURIComponent(date)}" title="${escapeAttr(body.path ?? "")}">在线查看</a> · <a href="${escapeAttr(body.download)}" download>下载 .md</a>`;
     }
   } catch (error) {
     if (status) {

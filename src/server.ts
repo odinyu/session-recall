@@ -156,6 +156,7 @@ async function api(request: Request, url: URL): Promise<Response> {
       sessions: result.sessions,
       turns: result.turns,
       projects: result.projects,
+      markdown: result.markdown,
       download: `/api/brief/file?date=${encodeURIComponent(result.date)}`,
     });
   }

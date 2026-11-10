@@ -160,6 +160,7 @@ test("generates a daily brief grouped by project", () => {
   expect(markdown).toContain("opencode --session ses_test123");
   expect(markdown).toContain("工具 1");
   expect(markdown).toContain("最近 1 轮");
+  expect(markdown).not.toContain("结果摘录");
   expect(markdown).not.toContain("昨天的会话");
 });
 

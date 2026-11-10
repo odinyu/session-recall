@@ -74,14 +74,15 @@ bun run brief 2026-11-10   # a specific date
 ```
 
 The file is written to `brief/YYYY-MM-DD.md` and is git-ignored by default. It
-groups sessions by project, shows the day's prompts, a short answer excerpt,
-tool/reasoning counts, the resume command, and a local session link. Sessions
-with no turn timestamps (Cursor) are included by their last-updated date and
-marked as a recent-turn excerpt. The web UI also has a date picker and
-`生成简报` button in the rail footer.
+groups sessions by project and shows the day's prompts, tool/reasoning counts,
+the resume command, and a local session link. Sessions with no turn timestamps
+(Cursor) are included by their last-updated date and marked as recent turns.
+The web UI has a date picker and `生成简报` button in the rail footer; after
+generation, `在线查看` renders the brief inside the app, and `下载 .md` saves the
+file.
 
-API: `POST /api/brief?date=YYYY-MM-DD` generates the file;
-`GET /api/brief/file?date=YYYY-MM-DD` downloads it.
+API: `POST /api/brief?date=YYYY-MM-DD` generates the file and returns its
+Markdown; `GET /api/brief/file?date=YYYY-MM-DD` downloads it.
 
 ## Search
 
