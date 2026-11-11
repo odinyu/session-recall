@@ -1,5 +1,8 @@
 export type AgentId = "omp" | "opencode" | "cursor" | "alma" | "cindy";
 
+/** Every id in the `AgentId` union, for validation and help text. */
+export const AGENT_IDS = ["omp", "opencode", "cursor", "alma", "cindy"] as const;
+
 export interface ParsedTurn {
   idx: number;
   ts: number;

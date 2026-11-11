@@ -15,6 +15,7 @@ Requires macOS and Bun 1.3+.
 git clone https://github.com/odinyu/session-recall.git
 cd session-recall
 bun run scan      # build the index (first run: a few seconds)
+bun run sr "tvbox" --limit 3   # search from the shell (see Search)
 bun run start     # build the UI and serve http://127.0.0.1:4319
 ```
 
@@ -257,6 +258,25 @@ Markdown; `GET /api/brief/file?date=YYYY-MM-DD` downloads it.
   results carry `totalSessions`, `totalTurns`/`processTotal`, grouped sessions,
   and either `hits` or `processHits`.
 
+From a shell or an agent with shell access (no server required):
+
+```bash
+bun run sr "目录范围" --limit 5
+bun run sr "websocket" --agent omp --json
+bun run sr "ENOENT" --scope process
+```
+
+- `--limit <n>` caps the returned sessions (1–5000, default 10); `--agent` is
+  repeatable or comma-separated; `--scope qa|process` picks question/answer
+  pairs or tool calls and errors.
+- `--json` prints a stable object: `query`, `scope`, `mode`, `returned`,
+  `totalSessions`, and `results[]` with `sessionId`, `agent`, `project`, `date`,
+  and `hits[]` carrying `question`, `answer`, `tool`, `status`, `matchField`.
+- Exit codes: `0` for results or no matches, `1` for a missing or unreadable
+  index, `2` for invalid arguments.
+- The CLI reuses `searchTurns` from `src/search.ts`: it never scans, mutates the
+  index, or touches an agent's store.
+
 ## Index and privacy
 
 - Index: `~/Library/Application Support/session-recall/index.db` (SQLite WAL).
@@ -285,6 +305,7 @@ Markdown; `GET /api/brief/file?date=YYYY-MM-DD` downloads it.
 src/
   adapters/       omp, OpenCode, Cursor, Alma, Cindy parsers
   brief.ts        daily Markdown brief generation
+  cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
   db.ts           schema, FTS triggers, upserts
   handoff.ts      session handoff card generation
@@ -312,7 +333,7 @@ brief/            generated daily briefs (git-ignored)
 ## Development
 
 ```bash
-bun test          # 52 tests: markdown, search, process events, daily brief, links, prefs, Alma, Cindy
+bun test          # 59 tests: markdown, search, process events, CLI search, daily brief, links, prefs, Alma, Cindy
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

@@ -10,9 +10,9 @@ import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
+import { AGENT_IDS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 
-const AGENTS: AgentId[] = ["omp", "opencode", "cursor", "alma", "cindy"];
 const ROLES: SearchRole[] = ["all", "user", "assistant"];
 const SCOPES: SearchScope[] = ["qa", "process"];
 
@@ -32,7 +32,7 @@ function parseAgentList(value: string | null): AgentId[] {
   return value
     .split(",")
     .map((part) => part.trim())
-    .filter((part): part is AgentId => AGENTS.includes(part as AgentId));
+    .filter((part): part is AgentId => AGENT_IDS.includes(part as AgentId));
 }
 
 function parseRole(value: string | null): SearchRole {

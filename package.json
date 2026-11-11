@@ -9,6 +9,8 @@
     "scan": "bun run src/cli.ts scan",
     "brief": "bun run src/cli.ts brief",
     "serve": "bun run src/cli.ts serve",
+    "search": "bun run src/cli.ts search",
+    "sr": "bun run src/cli.ts search",
     "start": "bun run build && bun run src/cli.ts serve",
     "test": "bun test"
   }

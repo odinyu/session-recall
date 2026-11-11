@@ -1,5 +1,6 @@
 import { DB_PATH } from "./config.ts";
 import { generateBrief, parseBriefDate } from "./brief.ts";
+import { runSearchCli } from "./cli-search.ts";
 import { openDb } from "./db.ts";
 import { scan } from "./scan.ts";
 import { serve } from "./server.ts";
@@ -33,7 +34,9 @@ if (command === "scan") {
   db.close();
 } else if (command === "serve") {
   serve();
+} else if (command === "search") {
+  process.exitCode = runSearchCli(process.argv.slice(3));
 } else {
-  console.error("usage: bun run src/cli.ts [scan|serve|brief]");
+  console.error("usage: bun run src/cli.ts [scan|serve|brief|search]");
   process.exit(1);
 }
