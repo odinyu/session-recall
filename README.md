@@ -279,6 +279,46 @@ bun run sr "ENOENT" --scope process
 - Full reference — every option, the JSON schema, exit codes, recipes and how to
   hand it to an agent — is in [USAGE.md](USAGE.md).
 
+## MCP server
+
+`bun run mcp` (or `bun run src/cli.ts mcp`) serves the index to an agent over
+**stdio**, using newline-delimited JSON-RPC 2.0. No network port, no new
+dependencies. Point an MCP client at the absolute path:
+
+```json
+{
+  "mcpServers": {
+    "session-recall": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/session-recall/src/cli.ts", "mcp"]
+    }
+  }
+}
+```
+
+Tools:
+
+| Tool | Input | Output |
+| --- | --- | --- |
+| `recall_search` | `query`, `agent?`, `scope?` (`qa`/`process`), `project?`, `from?`, `to?`, `limit?` (default 5) | One clipped question/answer per session with `sessionId`, `agent`, `project`, `date`, `title`, `turn`, `deepLink`, plus `indexAgeMs` and `totalSessions` |
+| `recall_session` | `sessionId`, `turn?` | The whole session (most recent 20 turns) or one turn |
+| `recall_facets` | — | Agents and projects with counts |
+| `recall_handoff` | `sessionId` | Markdown handoff card |
+| `recall_scan` | — | Refreshes the index and returns scan stats |
+
+- Read tools open the index **read-only**; they never scan inline or block on
+  one. When the last scan is older than 5 minutes the server takes
+  `index.db.scan.lock` and refreshes in the background, and every search reply
+  says what happened: `refresh: "fresh" | "started" | "locked"` with
+  `indexAgeMs`. `recall_scan` is the explicit, awaited refresh.
+- `deepLink` is `sessionrecall://session/<id>?turn=<n>`: hand it to the user and
+  the app opens that session. Turn targeting (`?turn=`) is emitted but not yet
+  honoured by the app's web and Rust routes, so it currently lands on the
+  session, not the exact turn.
+- The server is compact by default — one hit per session, clipped text, capped
+  turn lists — because agent context is expensive. It reuses `searchTurns`,
+  `getSessionDetail`, `facets` and `generateHandoff` from the core.
+
 ## Index and privacy
 
 - Index: `~/Library/Application Support/session-recall/index.db` (SQLite WAL).
@@ -309,10 +349,14 @@ src/
   brief.ts        daily Markdown brief generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
+  freshness.ts    indexAgeMs, scanIfStale, background refresh
+  index-read.ts   read-only index open with schema-version checks
+  mcp.ts          stdio MCP server: JSON-RPC, compact tools, deep links
   db.ts           schema, FTS triggers, upserts
   handoff.ts      session handoff card generation
   prefs.ts        prefs.json: defaults, merge-on-write, atomic writes
   scan.ts         incremental scan orchestration
+  scan-lock.ts    cross-process scan lock (O_EXCL + stale takeover)
   search.ts       query building, ranking, facets
   server.ts       Bun.serve API + static UI
   util/resume.ts  shell resume commands and app deep links
@@ -335,7 +379,7 @@ brief/            generated daily briefs (git-ignored)
 ## Development
 
 ```bash
-bun test          # 59 tests: markdown, search, process events, CLI search, daily brief, links, prefs, Alma, Cindy
+bun test          # 80 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, Alma, Cindy
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

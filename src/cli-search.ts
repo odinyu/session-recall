@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { AGENT_IDS } from "./adapters/types.ts";
+import { AGENT_IDS, isAgentId } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { localDateKey } from "./brief.ts";
 import { DB_PATH, HOME } from "./config.ts";
@@ -13,7 +13,7 @@ import type {
   SearchResult,
   SearchScope,
 } from "./search.ts";
-import { collapse } from "./util/values.ts";
+import { clipText } from "./util/values.ts";
 
 export const DEFAULT_LIMIT = 10;
 export const MAX_LIMIT = 5000;
@@ -52,10 +52,6 @@ interface FlagValue {
   value: string;
   /** True when the value came from the next argv entry. */
   consumed: boolean;
-}
-
-function isAgentId(value: string): value is AgentId {
-  return (AGENT_IDS as readonly string[]).includes(value);
 }
 
 /** Reads `--name=value` or `--name value`; null when the value is missing. */
@@ -162,13 +158,6 @@ export function parseSearchArgs(argv: string[]): ParseOutcome {
   return { kind: "run", args: { query, limit, agents, scope, json } };
 }
 
-function clip(text: string, max: number): string {
-  const flat = collapse(text);
-  const runes = [...flat];
-  if (runes.length <= max) return flat;
-  return `${runes.slice(0, max - 1).join("")}…`;
-}
-
 function displayPath(path: string): string {
   if (!path) return "(no project)";
   if (path === HOME || path.startsWith(`${HOME}/`)) return `~${path.slice(HOME.length)}`;
@@ -201,8 +190,8 @@ export function formatSearchText(result: SearchResult, args: SearchArgs): string
     lines.push(`   ${displayPath(session.projectPath)}`);
 
     for (const hit of session.hits) {
-      const question = clip(hit.matchField === "user" ? hit.snippet : hit.userText, 200);
-      const answer = clip(
+      const question = clipText(hit.matchField === "user" ? hit.snippet : hit.userText, 200);
+      const answer = clipText(
         hit.matchField === "user" ? hit.assistantSnippet : hit.snippet,
         240,
       );
@@ -212,7 +201,7 @@ export function formatSearchText(result: SearchResult, args: SearchArgs): string
 
     for (const hit of session.processHits) {
       lines.push(`   · ${hit.tool || "event"} (${hit.status || "ok"}) · ${hit.matchField}`);
-      lines.push(`     ${clip(hit.snippet, 240) || "(empty)"}`);
+      lines.push(`     ${clipText(hit.snippet, 240) || "(empty)"}`);
     }
   });
 

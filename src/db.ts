@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS scan_error (
 );
 `;
 
-const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 4;
 
 function numberField(value: unknown, key: string): number | null {
   if (typeof value !== "object" || value === null || !(key in value)) return null;

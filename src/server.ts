@@ -10,6 +10,7 @@ import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
+import { scanLockPath, tryAcquireScanLock } from "./scan-lock.ts";
 import { AGENT_IDS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 
@@ -67,6 +68,9 @@ function searchParams(url: URL): SearchParams {
 
 async function runScan(): Promise<ScanReport | null> {
   if (!db || scanning) return lastReport;
+  // Another process (CLI, MCP) may be scanning; skip this cycle and keep serving.
+  const lock = tryAcquireScanLock(scanLockPath(DB_PATH));
+  if (!lock) return lastReport;
   scanning = true;
   try {
     lastReport = await scan(db, undefined, {
@@ -78,6 +82,7 @@ async function runScan(): Promise<ScanReport | null> {
     return lastReport;
   } finally {
     scanning = false;
+    lock.release();
   }
 }
 

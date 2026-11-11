@@ -50,6 +50,13 @@ export function collapse(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/** Flatten whitespace and cut to `max` runes, marking the cut with an ellipsis. */
+export function clipText(value: string, max: number): string {
+  const flat = collapse(value);
+  const runes = [...flat];
+  return runes.length <= max ? flat : `${runes.slice(0, max - 1).join("")}…`;
+}
+
 export function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
