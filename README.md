@@ -276,6 +276,8 @@ bun run sr "ENOENT" --scope process
   index, `2` for invalid arguments.
 - The CLI reuses `searchTurns` from `src/search.ts`: it never scans, mutates the
   index, or touches an agent's store.
+- Full reference — every option, the JSON schema, exit codes, recipes and how to
+  hand it to an agent — is in [USAGE.md](USAGE.md).
 
 ## Index and privacy
 
