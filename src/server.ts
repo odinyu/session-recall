@@ -1,7 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
-import { generateBrief, parseBriefDate, readBrief } from "./brief.ts";
+import {
+  generateBrief,
+  generateWeekReport,
+  isoWeekKey,
+  parseBriefDate,
+  readBrief,
+} from "./brief.ts";
+import type { BriefFormat, BriefResult } from "./brief.ts";
 import { eventCountsFor, eventsForTurn, openDb } from "./db.ts";
 import type { IndexedDatabase } from "./db.ts";
 import { generateHandoff } from "./handoff.ts";
@@ -17,6 +24,12 @@ import { continuationFor } from "./util/resume.ts";
 
 const ROLES: SearchRole[] = ["all", "user", "assistant"];
 const SCOPES: SearchScope[] = ["qa", "process"];
+const BRIEF_FORMATS: BriefFormat[] = ["standup", "archive", "week"];
+
+function parseBriefFormat(value: string | null): BriefFormat | null {
+  if (value === null) return "standup";
+  return BRIEF_FORMATS.includes(value as BriefFormat) ? (value as BriefFormat) : null;
+}
 
 let db: IndexedDatabase | null = null;
 let scanning = false;
@@ -190,29 +203,63 @@ async function api(request: Request, url: URL): Promise<Response> {
   }
   if (request.method === "POST" && url.pathname === "/api/brief") {
     if (!db) return json({ error: "index not open" }, 500);
+    const format = parseBriefFormat(url.searchParams.get("format"));
+    if (!format) {
+      return json({ error: `invalid format: ${url.searchParams.get("format") ?? ""}` }, 400);
+    }
     const date = parseBriefDate(url.searchParams.get("date"));
-    if (!date) return json({ error: "invalid date" }, 400);
-    const result = generateBrief(db, date.key);
+    let result: BriefResult;
+    if (format === "week") {
+      const week =
+        url.searchParams.get("week") ??
+        isoWeekKey(date?.start ?? Date.now());
+      try {
+        result = generateWeekReport(db, week);
+      } catch (error) {
+        return json(
+          { error: error instanceof Error ? error.message : String(error) },
+          400,
+        );
+      }
+    } else {
+      if (!date) return json({ error: "invalid date" }, 400);
+      result = generateBrief(db, date.key, { format });
+    }
+    const download = new URLSearchParams({ format });
+    if (result.week) download.set("week", result.week);
+    else download.set("date", result.date);
     return json({
+      format: result.format,
       date: result.date,
+      week: result.week,
+      range: result.range,
+      activeDays: result.activeDays,
+      agents: result.agents,
       path: result.path,
       relativePath: result.relativePath,
       sessions: result.sessions,
       turns: result.turns,
       projects: result.projects,
       markdown: result.markdown,
-      download: `/api/brief/file?date=${encodeURIComponent(result.date)}`,
+      download: `/api/brief/file?${download.toString()}`,
     });
   }
   if (request.method === "GET" && url.pathname === "/api/brief/file") {
-    const date = parseBriefDate(url.searchParams.get("date"));
-    if (!date) return json({ error: "invalid date" }, 400);
-    const content = readBrief(date.key);
+    // Old links carried no format and meant the archive file; keep that.
+    const rawFormat = url.searchParams.get("format");
+    const format = rawFormat === null ? "archive" : parseBriefFormat(rawFormat);
+    if (!format) {
+      return json({ error: `invalid format: ${rawFormat ?? ""}` }, 400);
+    }
+    const week = url.searchParams.get("week") ?? undefined;
+    const date = url.searchParams.get("date") ?? undefined;
+    const content = readBrief({ format, week, date });
     if (content === null) return json({ error: "brief not found" }, 404);
+    const filename = (format === "week" ? week : date) ?? "brief";
     return new Response(content, {
       headers: {
         "content-type": "text/markdown; charset=utf-8",
-        "content-disposition": `attachment; filename="${date.key}.md"`,
+        "content-disposition": `attachment; filename="${filename}.md"`,
         "cache-control": "no-store",
       },
     });

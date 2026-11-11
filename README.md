@@ -210,43 +210,65 @@ That is the link a daily brief emits and the link the iOS-style "open in app"
 gesture resolves to. It is also accepted inside the app, where it is routed
 directly rather than round-tripping through the OS.
 
-## Daily brief
+## Reports (daily and weekly)
 
-Generate a Markdown work log for one local day:
+Daily reports are short **standups** by default; the old full dump is still one
+flag away.
 
 ```bash
-bun run brief              # today
-bun run brief 2026-11-10   # a specific date
+bun run brief                              # today, standup
+bun run brief 2026-11-11                   # a specific day, standup
+bun run brief 2026-11-11 --format archive  # legacy full dump
+bun run brief --week 2026-W46              # weekly rollup
+bun run brief --help                       # flags
 ```
 
-The file is written to `<app dir>/brief/YYYY-MM-DD.md` — that is
-`~/Library/Application Support/session-recall/brief/` by default, next to the
-index, so the command also works from inside the packaged `.app` (whose project
-directory is read-only). Override it with `SESSION_RECALL_BRIEF_DIR=/some/dir`.
-It groups sessions by project and shows the day's prompts, tool/reasoning counts,
-the resume command, and a deep link back to the session. Sessions with no turn
-timestamps (Cursor) are included by their last-updated date and marked as recent
-turns. The web UI has a date picker and `生成简报` button in the rail footer; after
-generation, `在线查看` renders the brief inside the app, and `下载 .md` saves the
-file.
+Files live under `<app dir>/brief/` — `~/Library/Application Support/session-recall/brief/`
+by default, next to the index, so this works from inside the packaged `.app`
+too. Override with `SESSION_RECALL_BRIEF_DIR=/some/dir`.
 
-Each session links back with a deep link, so the file works from any viewer:
-
-```markdown
-[在 session-recall 打开](sessionrecall://session/omp%3A2026-11-10T09-00-00Z_01a1c36e-f580-7210-bab7-e3f4f99b1031)
+```text
+brief/
+  daily/2026-11-11.md     # standup
+  weekly/2026-W46.md      # weekly
+  2026-11-11.md          # archive, the legacy path
+  index.md                # newest daily + weekly entries
 ```
 
-Clicking it opens (or focuses) the app on that session. An
-`http://127.0.0.1:<port>/#/session/<id>` link used to be emitted instead; it
-carried whichever port generated the brief, so it died on the next launch — and
-went to the browser when clicked from outside the app. It is no longer written,
-though the in-app link handling still understands old briefs that contain one.
+- **standup** (default): YAML front-matter (`kind`, `date`, `projects`,
+  `sessions`, `turns`, `agents`, `generated_at`), a one-line summary, then
+  `进展 / 决策 / 待续 / 明天第一件事 / 概览`. Raw prompts stay out of this view.
+- **archive**: exactly the previous dump — per-project prompts, tool/reasoning
+  counts, resume command and deep link — still written to the legacy
+  `<date>.md` path.
+- **week**: front-matter with `kind: weekly`, `week`, `range`, `active_days`,
+  then `亮点 / 按项目 / 主题与决策 / 指标 / 风险 / 下周计划`. It aggregates
+  **from the DB by date range**, not by concatenating daily files, so days
+  without a generated brief still count.
 
-Inside the app the link is a clickable anchor that routes through the hash
-router, so no OS round trip (and no second window, or stray browser tab) happens.
+Derivation is deterministic — no model calls:
 
-API: `POST /api/brief?date=YYYY-MM-DD` generates the file and returns its
-Markdown; `GET /api/brief/file?date=YYYY-MM-DD` downloads it.
+- **决策** only from explicit `<!-- decision: … -->` markers in assistant text.
+- **待续** from each session's last assistant message: unchecked `- [ ]` items
+  plus lines that, after stripping a list prefix, **start with** `待办` /
+  `下一步` / `TODO` — a passing mention mid-sentence is ignored. Code fences,
+  table rows and schema-like text (`description:`, `{`, `|`, backticks) are
+  dropped so noise does not become a task.
+- **风险** from the same last answers, with the same guard: the cleaned line
+  must start with `风险` / `阻塞` / `未解决` (or the English equivalents), so
+  "…风险项留到最后…" is not counted as a blocker; weekly `完成 / 进行中`
+  classifies sessions by completion markers in the last answer.
+- A session spanning several days is counted **once**, on its last active day;
+  `active_days` counts days with at least one session.
+- `brief/index.md` lists recent daily and weekly files, newest first.
+
+The rail's `生成简报` button generates the standup view for the chosen date; the
+download keeps the YAML front-matter.
+
+API: `POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week` (default
+`standup`; weekly also takes `week=YYYY-Www`) generates the file and returns its
+Markdown; `GET /api/brief/file?format=…&date=…` (or `&week=…`) downloads it.
+Invalid dates, weeks and formats are rejected with a 400.
 
 ## Search
 
@@ -364,7 +386,7 @@ Tools:
 ```text
 src/
   adapters/       omp, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex parsers
-  brief.ts        daily Markdown brief generation
+  brief.ts        daily standup / archive / weekly report generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
   freshness.ts    indexAgeMs, scanIfStale, background refresh
@@ -390,14 +412,14 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     package the macOS .app
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
-test/             markdown, search, process search, events, brief, handoff, links, prefs, Alma, Cindy, Claude Code, Codex tests
+test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, Alma, Cindy, Claude Code, Codex tests
 brief/            generated daily briefs (git-ignored)
 ```
 
 ## Development
 
 ```bash
-bun test          # 95 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, Alma, Cindy, Claude Code, Codex
+bun test          # 104 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, Alma, Cindy, Claude Code, Codex
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

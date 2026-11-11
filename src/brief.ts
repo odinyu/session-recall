@@ -1,7 +1,13 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, dirname, join, relative } from "node:path";
 import type { Database } from "bun:sqlite";
-import { AGENT_LABELS } from "./adapters/types.ts";
+import { AGENT_IDS, AGENT_LABELS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { BRIEF_DIR, PROJECT_ROOT } from "./config.ts";
 import { resumeCommand, sessionDeepLink } from "./util/resume.ts";
@@ -17,14 +23,44 @@ export interface BriefDate {
   label: string;
 }
 
+export type BriefFormat = "standup" | "archive" | "week";
+
+export interface BriefDay {
+  key: string;
+  start: number;
+  end: number;
+}
+
+export interface BriefWeek {
+  key: string;
+  year: number;
+  week: number;
+  start: number;
+  end: number;
+  range: string;
+  label: string;
+  days: BriefDay[];
+}
+
+export interface BriefOptions {
+  format?: BriefFormat;
+  outDir?: string;
+}
+
 export interface BriefResult {
+  format: BriefFormat;
+  /** Daily key for standup/archive, ISO week key for the weekly view. */
   date: string;
+  week: string | null;
+  range: string | null;
   path: string;
   relativePath: string;
   markdown: string;
   sessions: number;
   turns: number;
   projects: number;
+  agents: AgentId[];
+  activeDays: number | null;
 }
 
 interface SessionRow {
@@ -105,6 +141,92 @@ function clock(ms: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+
+function weekdayLabel(ms: number): string {
+  return WEEKDAYS[new Date(ms).getDay()] ?? "";
+}
+
+/** ISO-8601 week key (`YYYY-Www`) for a local timestamp. */
+export function isoWeekKey(ms: number): string {
+  const date = new Date(ms);
+  const thursday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const mondayOffset = (thursday.getDay() + 6) % 7;
+  thursday.setDate(thursday.getDate() - mondayOffset + 3);
+  const year = thursday.getFullYear();
+  const jan4 = new Date(year, 0, 4);
+  const jan4Offset = (jan4.getDay() + 6) % 7;
+  const week1Thursday = new Date(year, 0, 4 - jan4Offset + 3);
+  const week =
+    Math.round((thursday.getTime() - week1Thursday.getTime()) / (7 * 86_400_000)) + 1;
+  return `${year}-W${pad(week)}`;
+}
+
+function weekStart(year: number, week: number): Date {
+  const jan4 = new Date(year, 0, 4);
+  const jan4Offset = (jan4.getDay() + 6) % 7;
+  return new Date(year, 0, 4 - jan4Offset + (week - 1) * 7);
+}
+
+function monthDay(key: string): string {
+  return key.slice(5);
+}
+
+/**
+ * `2026-W46` -> Monday..Sunday of that ISO week. Omitting the input means the
+ * current week. Week 53 in a 52-week year is rejected instead of rolling into
+ * next year.
+ */
+export function parseBriefWeek(
+  input: string | null | undefined,
+  now = new Date(),
+): BriefWeek | null {
+  const raw = input?.trim();
+  let year: number;
+  let week: number;
+  if (raw) {
+    const match = /^(\d{4})-W(\d{1,2})$/.exec(raw);
+    if (!match) return null;
+    year = Number(match[1]);
+    week = Number(match[2]);
+  } else {
+    const key = isoWeekKey(now.getTime());
+    year = Number(key.slice(0, 4));
+    week = Number(key.slice(6));
+  }
+  if (week < 1 || week > 53) return null;
+  const monday = weekStart(year, week);
+  const key = `${year}-W${pad(week)}`;
+  if (isoWeekKey(monday.getTime()) !== key) return null;
+
+  const days: BriefDay[] = [];
+  for (let offset = 0; offset < 7; offset += 1) {
+    const start = new Date(
+      monday.getFullYear(),
+      monday.getMonth(),
+      monday.getDate() + offset,
+    );
+    const end = new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate() + 1,
+    );
+    days.push({ key: localDateKey(start), start: start.getTime(), end: end.getTime() });
+  }
+  const first = days[0] as BriefDay;
+  const last = days[6] as BriefDay;
+  return {
+    key,
+    year,
+    week,
+    start: first.start,
+    end: last.end,
+    range: `${first.key}..${last.key}`,
+    label: `${key}（${monthDay(first.key)} ~ ${monthDay(last.key)}）`,
+    days,
+  };
+}
+
 function oneLine(value: string): string {
   return value.replace(/\u0000/g, "").replace(/\s+/g, " ").trim();
 }
@@ -130,7 +252,7 @@ function eventCounts(
   db: Database,
   sessionId: string,
   hasDayTurn: boolean,
-  date: BriefDate,
+  range: BriefDate | BriefWeek,
 ): { tool: number; reasoning: number } {
   const rows = hasDayTurn
     ? (db
@@ -141,7 +263,7 @@ function eventCounts(
            WHERE e.session_id = ? AND t.ts >= ? AND t.ts < ?
            GROUP BY e.kind`,
         )
-        .all(sessionId, date.start, date.end) as { kind: string; n: number }[])
+        .all(sessionId, range.start, range.end) as { kind: string; n: number }[])
     : (db
         .query(
           `SELECT kind, count(*) AS n FROM event
@@ -157,7 +279,8 @@ function eventCounts(
   return { tool, reasoning };
 }
 
-function loadSessions(db: Database, date: BriefDate): BriefSession[] {
+/** Sessions with any turn inside `range`; no-ts sessions by their update time. */
+function loadSessions(db: Database, range: BriefDate | BriefWeek): BriefSession[] {
   const rows = db
     .query(
       `SELECT s.id, s.agent, s.external_id, s.title, s.project_path,
@@ -181,12 +304,12 @@ function loadSessions(db: Database, date: BriefDate): BriefSession[] {
        ORDER BY s.updated_at DESC`,
     )
     .all(
-      date.start,
-      date.end,
-      date.start,
-      date.end,
-      date.start,
-      date.end,
+      range.start,
+      range.end,
+      range.start,
+      range.end,
+      range.start,
+      range.end,
     ) as SessionRow[];
 
   const sessions: BriefSession[] = [];
@@ -199,7 +322,7 @@ function loadSessions(db: Database, date: BriefDate): BriefSession[] {
              WHERE session_id = ? AND ts >= ? AND ts < ?
              ORDER BY idx`,
           )
-          .all(row.id, date.start, date.end) as TurnRow[])
+          .all(row.id, range.start, range.end) as TurnRow[])
       : (db
           .query(
             `SELECT idx, ts, user_text, assistant_text FROM turn
@@ -208,7 +331,7 @@ function loadSessions(db: Database, date: BriefDate): BriefSession[] {
           .all(row.id, FALLBACK_TURNS) as TurnRow[]).reverse();
 
     if (turnRows.length === 0) continue;
-    const counts = eventCounts(db, row.id, hasDayTurn, date);
+    const counts = eventCounts(db, row.id, hasDayTurn, range);
     sessions.push({
       id: row.id,
       agent: row.agent,
@@ -311,9 +434,8 @@ function overviewTable(projects: BriefProject[]): string {
   ].join("\n");
 }
 
-function buildMarkdown(date: BriefDate, sessions: BriefSession[]): string {
-  const sessionsCount = sessions.length;
-  const turnsCount = sessions.reduce((sum, session) => sum + session.turns.length, 0);
+/** Sessions grouped by project, newest activity first. Shared by all views. */
+function groupProjects(sessions: BriefSession[]): BriefProject[] {
   const grouped = new Map<string, BriefProject>();
   for (const session of sessions) {
     const key = session.projectPath || "";
@@ -330,11 +452,17 @@ function buildMarkdown(date: BriefDate, sessions: BriefSession[]): string {
     project.sessions.push(session);
     project.turns += session.turns.length;
   }
-  const projects = [...grouped.values()].sort((a, b) => {
+  return [...grouped.values()].sort((a, b) => {
     const latest = (value: BriefProject) =>
       Math.max(...value.sessions.map((session) => session.updatedAt));
     return latest(b) - latest(a);
   });
+}
+
+function buildMarkdown(date: BriefDate, sessions: BriefSession[]): string {
+  const sessionsCount = sessions.length;
+  const turnsCount = sessions.reduce((sum, session) => sum + session.turns.length, 0);
+  const projects = groupProjects(sessions);
 
   const lines = [
     `# 工作简报 · ${date.label}`,
@@ -353,39 +481,529 @@ function buildMarkdown(date: BriefDate, sessions: BriefSession[]): string {
   return lines.join("\n").trimEnd() + "\n";
 }
 
-export function generateBrief(
-  db: Database,
-  dateInput?: string,
-  outDir = BRIEF_DIR,
-): BriefResult {
-  const date = parseBriefDate(dateInput);
-  if (!date) throw new Error(`invalid date: ${dateInput ?? ""}`);
-  const sessions = loadSessions(db, date);
-  const markdown = buildMarkdown(date, sessions);
-  mkdirSync(outDir, { recursive: true });
-  const path = join(outDir, `${date.key}.md`);
+const COMPLETION =
+  /(^|[^未])完成|已(修复|提交|推送|合入|上线|通过)|测试通过|fixed|done|shipped|completed|merged/i;
+const PENDING_MARK = /待办|下一步|TODO/i;
+const RISK_MARK = /风险|阻塞|blocked|blocker|risk|未解决/i;
+const UNCHECKED = /^\s*[-*]\s*\[\s*\]\s+(.+?)\s*$/;
+const DECISION_MARK = /<!--\s*decision\s*:\s*([\s\S]*?)-->/gi;
+
+function lastAssistantText(turns: TurnRow[]): string {
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const text = turns[index]?.assistant_text ?? "";
+    if (text.trim()) return text;
+  }
+  return "";
+}
+
+function agentsFor(sessions: BriefSession[]): AgentId[] {
+  const present = new Set(sessions.map((session) => session.agent));
+  return AGENT_IDS.filter((agent) => present.has(agent));
+}
+
+function agentsYaml(agents: AgentId[]): string {
+  return `[${agents.join(", ")}]`;
+}
+
+function frontMatter(fields: [string, string][]): string {
+  return ["---", ...fields.map(([key, value]) => `${key}: ${value}`), "---", ""].join(
+    "\n",
+  );
+}
+
+function generatedAt(now = new Date()): string {
+  const offset = -now.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  const absolute = Math.abs(offset);
+  return `${localDateKey(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(
+    now.getSeconds(),
+  )}${sign}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}`;
+}
+
+function cleanBullet(line: string): string {
+  return oneLine(line)
+    .replace(/^[-*]\s+/, "")
+    .replace(/^\d+[.)]\s+/, "")
+    .replace(/^#+\s+/, "");
+}
+
+/** Explicit `<!-- decision: ... -->` markers in assistant answers only. */
+function decisionsIn(turns: TurnRow[]): string[] {
+  const out: string[] = [];
+  for (const turn of turns) {
+    if (!turn.assistant_text) continue;
+    DECISION_MARK.lastIndex = 0;
+    for (;;) {
+      const match = DECISION_MARK.exec(turn.assistant_text);
+      if (!match) break;
+      const item = oneLine(match[1] ?? "");
+      if (item && !out.includes(item)) out.push(item);
+    }
+  }
+  return out;
+}
+
+/**
+ * Reject extraction noise: schema snippets, code, tables and long paragraphs
+ * can all contain "待办/下一步" or "风险" without being a real item.
+ */
+function isCleanItem(item: string): boolean {
+  if (!item) return false;
+  if (item.length > 120) return false;
+  if (/description\s*:/i.test(item)) return false;
+  if (/[{}|]/.test(item)) return false;
+  if (/[`]/.test(item)) return false;
+  return true;
+}
+
+// No \b after CJK: Chinese characters and ASCII punctuation are both non-word
+// characters in JS, so a word boundary never appears between them.
+const STARTS_MARK = /^\s*(?:待办|下一步)/i;
+const STARTS_TODO = /^\s*TODO\b/i;
+
+/** Unchecked boxes and 待办/下一步/TODO list items from one assistant message. */
+function pendingFromAnswer(text: string): string[] {
+  const out: string[] = [];
+  let inFence = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const unchecked = UNCHECKED.exec(line);
+    if (unchecked) {
+      const item = oneLine(unchecked[1] ?? "");
+      if (isCleanItem(item)) out.push(item);
+      continue;
+    }
+    if (!PENDING_MARK.test(line)) continue;
+    // The cleaned item must *start* with the marker; a passing mention mid
+    // sentence (or inside a schema fragment) is not a task.
+    const item = cleanBullet(line).replace(/^[*_\s]+/, "");
+    if (!STARTS_MARK.test(item) && !STARTS_TODO.test(item)) continue;
+    if (isCleanItem(item)) out.push(item);
+  }
+  return out;
+}
+
+function collectPending(
+  sessions: BriefSession[],
+  totalCap = 10,
+  perSessionCap = 3,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const session of sessions) {
+    for (const item of pendingFromAnswer(lastAssistantText(session.turns)).slice(
+      0,
+      perSessionCap,
+    )) {
+      if (seen.has(item)) continue;
+      seen.add(item);
+      out.push(item);
+      if (out.length >= totalCap) return out;
+    }
+  }
+  return out;
+}
+
+function collectRisks(sessions: BriefSession[], cap = 5): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const session of sessions) {
+    let inFence = false;
+    for (const line of lastAssistantText(session.turns).split(/\r?\n/)) {
+      if (/^\s*(?:```|~~~)/.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      if (!RISK_MARK.test(line)) continue;
+      // Same guard as tasks: the cleaned item must start with the marker, so a
+      // passing mention ("…风险项留到最后…") is not counted as a blocker.
+      const item = clip(cleanBullet(line).replace(/^[*_\s]+/, ""), 120);
+      if (
+        !/^(?:风险|阻塞|未解决)/i.test(item) &&
+        !/^(?:blocked|blocker|risk)\b/i.test(item)
+      ) {
+        continue;
+      }
+      if (!isCleanItem(item) || seen.has(item)) continue;
+      seen.add(item);
+      out.push(item);
+      if (out.length >= cap) return out;
+    }
+  }
+  return out;
+}
+
+/** Standup keeps raw prompts out, including the title fallback archive uses. */
+function reportTitle(session: BriefSession): string {
+  const title = oneLine(session.title);
+  return title ? clip(title, MAX_TITLE_CHARS) : "未命名会话";
+}
+
+function isCompleted(session: BriefSession): boolean {
+  const last = lastAssistantText(session.turns);
+  return last ? COMPLETION.test(last) : false;
+}
+
+function buildStandup(date: BriefDate, sessions: BriefSession[]): string {
+  const projects = groupProjects(sessions);
+  const turns = sessions.reduce((sum, session) => sum + session.turns.length, 0);
+  const agents = agentsFor(sessions);
+  const top = projects.reduce<BriefProject | null>(
+    (best, project) => (best === null || project.turns > best.turns ? project : best),
+    null,
+  );
+  const decisions = decisionsIn(sessions.flatMap((session) => session.turns));
+  const pending = collectPending(sessions);
+
+  const lines: string[] = [
+    frontMatter([
+      ["kind", "daily"],
+      ["date", date.key],
+      ["projects", String(projects.length)],
+      ["sessions", String(sessions.length)],
+      ["turns", String(turns)],
+      ["agents", agentsYaml(agents)],
+      ["generated_at", generatedAt()],
+    ]),
+    `# 日报 · ${date.label} ${weekdayLabel(date.start)}`,
+    "",
+  ];
+
+  if (sessions.length === 0) {
+    lines.push("**一句话**：当日没有记录到会话。", "");
+    lines.push("## 进展", "", "- （无）", "");
+  } else {
+    const focus = top
+      ? `，主要集中在 ${oneLine(top.name)}（${top.turns} 轮）`
+      : "";
+    lines.push(
+      `**一句话**：${projects.length} 个项目、${sessions.length} 个会话、${turns} 轮问答${focus}。`,
+      "",
+      "## 进展",
+      "",
+    );
+    for (const project of projects) {
+      lines.push(`**${oneLine(project.name)}**`, "");
+      for (const session of project.sessions) {
+        // A conclusion, not a dump: the session title and its size. Raw answer
+        // text stays out of the standup; open the link for detail.
+        lines.push(`- **${reportTitle(session)}**（${session.turns.length} 轮）`);
+      }
+      lines.push("");
+    }
+  }
+
+  lines.push("## 决策", "");
+  if (decisions.length > 0) {
+    for (const decision of decisions) lines.push(`- ${decision}`);
+  } else {
+    lines.push("- （没有显式 decision 标记）");
+  }
+  lines.push("", "## 待续", "");
+  if (pending.length > 0) {
+    for (const item of pending) lines.push(`- [ ] ${item}`);
+  } else {
+    lines.push("- （没有从最后一条回答里提取到待办）");
+  }
+  lines.push("", "## 明天第一件事", "");
+  lines.push(pending[0] ?? (top ? `继续推进 **${oneLine(top.name)}**` : "—"));
+  lines.push("", "## 概览", "");
+  lines.push(projects.length > 0 ? overviewTable(projects) : "（无）");
+  return lines.join("\n").trimEnd() + "\n";
+}
+
+interface WeekDayStat {
+  day: BriefDay;
+  sessions: number;
+  turns: number;
+  projects: number;
+}
+
+function buildWeek(
+  week: BriefWeek,
+  sessions: BriefSession[],
+  projects: BriefProject[],
+  stats: WeekDayStat[],
+): string {
+  const turns = sessions.reduce((sum, session) => sum + session.turns.length, 0);
+  const agents = agentsFor(sessions);
+  const activeDays = stats.filter((stat) => stat.sessions > 0).length;
+  const decisions = decisionsIn(sessions.flatMap((session) => session.turns));
+  const pending = collectPending(sessions);
+  const risks = collectRisks(sessions);
+  const top = [...projects].sort((a, b) => b.turns - a.turns);
+
+  const lines: string[] = [
+    frontMatter([
+      ["kind", "weekly"],
+      ["week", week.key],
+      ["range", week.range],
+      ["active_days", String(activeDays)],
+      ["projects", String(projects.length)],
+      ["sessions", String(sessions.length)],
+      ["turns", String(turns)],
+      ["agents", agentsYaml(agents)],
+      ["generated_at", generatedAt()],
+    ]),
+    `# 周报 · ${week.label}`,
+    "",
+  ];
+
+  if (sessions.length === 0) {
+    lines.push("**本周一句话**：本周没有记录到会话。", "");
+  } else {
+    lines.push(
+      `**本周一句话**：${projects.length} 个项目、${sessions.length} 个会话、${turns} 轮问答，跨 ${activeDays} 个活跃日。`,
+      "",
+    );
+  }
+
+  lines.push("## 亮点", "");
+  if (top.length === 0) {
+    lines.push("- （无）");
+  } else {
+    for (const project of top.slice(0, 3)) {
+      const latest = project.sessions[0];
+      const when = latest ? monthDay(localDateKey(new Date(latest.updatedAt))) : "";
+      const title = latest ? `；最近 ${when} ${sessionTitle(latest)}` : "";
+      lines.push(
+        `- **${oneLine(project.name)}**：${project.sessions.length} 个会话 / ${project.turns} 轮${title}`,
+      );
+    }
+  }
+
+  lines.push("", "## 按项目", "");
+  if (projects.length === 0) {
+    lines.push("- （无）");
+  } else {
+    for (const project of projects) {
+      lines.push(`**${oneLine(project.name)}**`, "");
+      const completed = project.sessions.filter(isCompleted);
+      const ongoing = project.sessions.filter((session) => !isCompleted(session));
+      if (completed.length > 0) {
+        lines.push(
+          `- 完成：${completed.map((session) => sessionTitle(session)).join("、")}`,
+        );
+      }
+      if (ongoing.length > 0) {
+        lines.push(
+          `- 进行中：${ongoing.map((session) => sessionTitle(session)).join("、")}`,
+        );
+      }
+      const next = collectPending(project.sessions, 3, 2);
+      if (next.length > 0) {
+        lines.push(`- 下周：${next.join("；")}`);
+      }
+      lines.push("");
+    }
+  }
+
+  lines.push("## 主题与决策", "");
+  if (decisions.length > 0) {
+    for (const decision of decisions) lines.push(`- ${decision}`);
+  } else {
+    lines.push("- （本周没有显式 decision 标记）");
+  }
+
+  lines.push("", "## 指标", "");
+  const active = stats.filter((stat) => stat.sessions > 0);
+  if (active.length === 0) {
+    lines.push("（本周没有记录到会话）");
+  } else {
+    lines.push("| 日期 | 会话 | 问答 | 活跃项目 |", "| --- | ---: | ---: | ---: |");
+    for (const stat of active) {
+      lines.push(
+        `| ${monthDay(stat.day.key)} | ${stat.sessions} | ${stat.turns} | ${stat.projects} |`,
+      );
+    }
+  }
+
+  lines.push("", "## 风险 / 阻塞", "");
+  if (risks.length > 0) {
+    for (const risk of risks) lines.push(`- ${risk}`);
+  } else {
+    lines.push("- （未从最后一条回答中提取到风险）");
+  }
+
+  lines.push("", "## 下周计划", "");
+  if (pending.length > 0) {
+    for (const item of pending) lines.push(`- [ ] ${item}`);
+  } else {
+    lines.push("- （没有从最后一条回答里提取到待办）");
+  }
+  return lines.join("\n").trimEnd() + "\n";
+}
+
+function writeText(path: string, markdown: string): void {
+  mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, markdown, "utf8");
   try {
     chmodSync(path, 0o600);
   } catch {
     // ignore filesystems without POSIX modes
   }
+}
+
+/** Keep `brief/index.md` as a short, newest-first entry list. */
+function updateBriefIndex(outDir: string): void {
+  const sections: string[] = [];
+  const groups = [
+    ["daily", "日报", 14],
+    ["weekly", "周报", 8],
+  ] as const;
+  for (const [dir, title, limit] of groups) {
+    let names: string[];
+    try {
+      names = readdirSync(join(outDir, dir)).filter((name) => name.endsWith(".md"));
+    } catch {
+      continue;
+    }
+    const rows = names
+      .sort()
+      .reverse()
+      .slice(0, limit)
+      .map((name) => `- [${name.replace(/\.md$/, "")}](${dir}/${name})`);
+    if (rows.length > 0) sections.push(`## ${title}`, "", ...rows, "");
+  }
+  if (sections.length === 0) return;
+  writeText(join(outDir, "index.md"), ["# Briefs", "", ...sections].join("\n").trimEnd() + "\n");
+}
+
+function dailyTotals(sessions: BriefSession[]): { turns: number; projects: number } {
   return {
+    turns: sessions.reduce((sum, session) => sum + session.turns.length, 0),
+    projects: groupProjects(sessions).length,
+  };
+}
+
+export function generateBrief(
+  db: Database,
+  dateInput?: string,
+  options: BriefOptions = {},
+): BriefResult {
+  const format = options.format ?? "standup";
+  if (format === "week") {
+    throw new Error("weekly reports are generated with generateWeekReport");
+  }
+  const outDir = options.outDir ?? BRIEF_DIR;
+  const date = parseBriefDate(dateInput);
+  if (!date) throw new Error(`invalid date: ${dateInput ?? ""}`);
+  const sessions = loadSessions(db, date);
+  const totals = dailyTotals(sessions);
+  const markdown =
+    format === "archive" ? buildMarkdown(date, sessions) : buildStandup(date, sessions);
+  // Archive keeps the legacy `<date>.md` path; standup gets its own daily tree.
+  const path =
+    format === "archive"
+      ? join(outDir, `${date.key}.md`)
+      : join(outDir, "daily", `${date.key}.md`);
+  writeText(path, markdown);
+  updateBriefIndex(outDir);
+  return {
+    format,
     date: date.key,
+    week: null,
+    range: null,
+    path,
+    relativePath: relative(PROJECT_ROOT, path),
+    markdown,
+    sessions: sessions.length,
+    turns: totals.turns,
+    projects: totals.projects,
+    agents: agentsFor(sessions),
+    activeDays: null,
+  };
+}
+
+export interface WeekReportOptions {
+  outDir?: string;
+}
+
+export function generateWeekReport(
+  db: Database,
+  weekInput?: string,
+  options: WeekReportOptions = {},
+): BriefResult {
+  const outDir = options.outDir ?? BRIEF_DIR;
+  const week = parseBriefWeek(weekInput);
+  if (!week) throw new Error(`invalid week: ${weekInput ?? ""}`);
+  const sessions = loadSessions(db, week);
+  const projects = groupProjects(sessions);
+  const stats: WeekDayStat[] = week.days.map((day) => ({
+    day,
+    sessions: 0,
+    turns: 0,
+    projects: 0,
+  }));
+  const perDayProjects = new Map<string, Set<string>>();
+  for (const session of sessions) {
+    const times = session.turns.map((turn) => turn.ts).filter((ts) => ts > 0);
+    const lastTs = times.length > 0 ? Math.max(...times) : session.updatedAt;
+    const clamped = Math.min(Math.max(lastTs, week.start), week.end - 1);
+    const key = localDateKey(new Date(clamped));
+    const stat = stats.find((row) => row.day.key === key) ?? stats[stats.length - 1];
+    if (!stat) continue;
+    stat.sessions += 1;
+    stat.turns += session.turns.length;
+    const paths = perDayProjects.get(stat.day.key) ?? new Set<string>();
+    paths.add(session.projectPath || "");
+    perDayProjects.set(stat.day.key, paths);
+  }
+  for (const stat of stats) {
+    stat.projects = perDayProjects.get(stat.day.key)?.size ?? 0;
+  }
+  const markdown = buildWeek(week, sessions, projects, stats);
+  const path = join(outDir, "weekly", `${week.key}.md`);
+  writeText(path, markdown);
+  updateBriefIndex(outDir);
+  return {
+    format: "week",
+    date: week.key,
+    week: week.key,
+    range: week.range,
     path,
     relativePath: relative(PROJECT_ROOT, path),
     markdown,
     sessions: sessions.length,
     turns: sessions.reduce((sum, session) => sum + session.turns.length, 0),
-    projects: new Set(sessions.map((session) => session.projectPath)).size,
+    projects: projects.length,
+    agents: agentsFor(sessions),
+    activeDays: stats.filter((stat) => stat.sessions > 0).length,
   };
 }
 
-export function readBrief(dateInput: string, outDir = BRIEF_DIR): string | null {
-  const date = parseBriefDate(dateInput);
+export interface ReadBriefOptions {
+  format?: BriefFormat;
+  date?: string;
+  week?: string;
+  outDir?: string;
+}
+
+export function readBrief(options: ReadBriefOptions): string | null {
+  const outDir = options.outDir ?? BRIEF_DIR;
+  const format = options.format ?? "standup";
+  if (format === "week") {
+    const week = parseBriefWeek(options.week);
+    if (!week) return null;
+    try {
+      return readFileSync(join(outDir, "weekly", `${week.key}.md`), "utf8");
+    } catch {
+      return null;
+    }
+  }
+  const date = parseBriefDate(options.date);
   if (!date) return null;
+  const path =
+    format === "archive"
+      ? join(outDir, `${date.key}.md`)
+      : join(outDir, "daily", `${date.key}.md`);
   try {
-    return readFileSync(join(outDir, `${date.key}.md`), "utf8");
+    return readFileSync(path, "utf8");
   } catch {
     return null;
   }

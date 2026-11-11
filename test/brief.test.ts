@@ -2,7 +2,14 @@ import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { generateBrief, parseBriefDate } from "../src/brief.ts";
+import {
+  generateBrief,
+  generateWeekReport,
+  isoWeekKey,
+  parseBriefDate,
+  parseBriefWeek,
+  readBrief,
+} from "../src/brief.ts";
 import { openDb, writeSession } from "../src/db.ts";
 import type { ParsedSession } from "../src/adapters/types.ts";
 
@@ -171,7 +178,7 @@ writeSession(
 
 test("generates a daily brief grouped by project", () => {
   const outDir = join(dir, "brief");
-  const result = generateBrief(db, "2026-11-10", outDir);
+  const result = generateBrief(db, "2026-11-10", { format: "archive", outDir });
   expect(result.sessions).toBe(3);
   expect(result.turns).toBe(4);
   expect(result.path).toBe(join(outDir, "2026-11-10.md"));
@@ -192,7 +199,7 @@ test("generates a daily brief grouped by project", () => {
 });
 
 test("links sessions through the app's own scheme, never a port-bound url", () => {
-  const markdown = generateBrief(db, "2026-11-10", join(dir, "brief-links")).markdown;
+  const markdown = generateBrief(db, "2026-11-10", { format: "archive", outDir: join(dir, "brief-links") }).markdown;
   expect(markdown).toContain(
     "[在 session-recall 打开](sessionrecall://session/omp%3A2026-11-10T09-00-00Z_01a1c36e-f580-7210-bab7-e3f4f99b1031)",
   );
@@ -208,7 +215,7 @@ test("links sessions through the app's own scheme, never a port-bound url", () =
 });
 
 test("lists every prompt of a session with more than three", () => {
-  const result = generateBrief(db, "2026-11-08", join(dir, "brief-many-prompts"));
+  const result = generateBrief(db, "2026-11-08", { format: "archive", outDir: join(dir, "brief-many-prompts") });
   expect(result.sessions).toBe(1);
   expect(result.turns).toBe(MANY_PROMPTS.length);
 
@@ -225,8 +232,204 @@ test("lists every prompt of a session with more than three", () => {
 });
 
 test("keeps prior-day sessions out of the overview", () => {
-  const result = generateBrief(db, "2026-11-09", join(dir, "brief-prev"));
+  const result = generateBrief(db, "2026-11-09", { format: "archive", outDir: join(dir, "brief-prev") });
   expect(result.sessions).toBe(1);
   expect(result.markdown).toContain("昨天的会话");
   expect(result.markdown).not.toContain("修复批量附件删除逻辑");
+});
+
+// ---- report views (standup / weekly) ----
+
+const day11 = (hour: number) =>
+  new Date(2026, 10, 11, hour, 0, 0, 0).getTime();
+const day12 = (hour: number) =>
+  new Date(2026, 10, 12, hour, 0, 0, 0).getTime();
+
+writeSession(db, {
+  ...session(
+    "cross-day",
+    "/Users/odin/projects/session-recall",
+    [
+      {
+        idx: 0,
+        ts: day11(10),
+        userText: "开始重构报告层",
+        assistantText: "已完成第一版。",
+      },
+      {
+        idx: 1,
+        ts: day12(9),
+        userText: "继续收尾",
+        assistantText:
+          "已完成收尾。\n- [ ] 补深链 turn 定位\n下一步：跑完整测试\n风险：Codex 无本机数据\n<!-- decision: 周报从 DB 聚合 -->",
+      },
+    ],
+    day12(9),
+  ),
+  agent: "claude-code",
+  title: "跨天报告会话",
+});
+
+test("standup carries YAML front-matter and the four movable sections", () => {
+  const result = generateBrief(db, "2026-11-10", {
+    format: "standup",
+    outDir: join(dir, "standup"),
+  });
+  expect(result.format).toBe("standup");
+  expect(result.path).toBe(join(dir, "standup", "daily", "2026-11-10.md"));
+  expect(result.sessions).toBe(3);
+  expect(result.turns).toBe(4);
+
+  const markdown = result.markdown;
+  expect(markdown.startsWith("---\nkind: daily\ndate: 2026-11-10\n")).toBe(true);
+  expect(markdown).toContain("projects: 3");
+  expect(markdown).toContain("sessions: 3");
+  expect(markdown).toContain("turns: 4");
+  expect(markdown).toContain("agents: [omp, opencode, cursor]");
+  expect(markdown).toMatch(/generated_at: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}/);
+  expect(markdown).toContain("# 日报 · 2026年11月10日 周二");
+  expect(markdown).toContain("**一句话**：3 个项目、3 个会话、4 轮问答");
+  for (const heading of ["## 进展", "## 决策", "## 待续", "## 明天第一件事", "## 概览"]) {
+    expect(markdown).toContain(heading);
+  }
+  // Standup distills answers; raw prompt lists stay in archive.
+  expect(markdown).not.toContain("**提问**");
+  expect(markdown).not.toContain("- 修复批量附件删除逻辑");
+  expect(markdown).toContain("## 概览");
+  expect(markdown).toContain("| fangtai |");
+});
+
+test("standup derives pending, decisions and tomorrow's first task", () => {
+  const result = generateBrief(db, "2026-11-12", {
+    format: "standup",
+    outDir: join(dir, "standup-pending"),
+  });
+  expect(result.markdown).toContain("- [ ] 补深链 turn 定位");
+  expect(result.markdown).toContain("- 周报从 DB 聚合");
+  expect(result.markdown).toContain("补深链 turn 定位");
+  expect(result.markdown).not.toContain("- （没有显式 decision 标记）");
+});
+
+test("standup handles a day with no sessions", () => {
+  const result = generateBrief(db, "2026-11-07", {
+    format: "standup",
+    outDir: join(dir, "standup-empty"),
+  });
+  expect(result.sessions).toBe(0);
+  expect(result.markdown).toContain("date: 2026-11-07");
+  expect(result.markdown).toContain("sessions: 0");
+  expect(result.markdown).toContain("**一句话**：当日没有记录到会话。");
+  for (const heading of ["## 进展", "## 决策", "## 待续", "## 明天第一件事", "## 概览"]) {
+    expect(result.markdown).toContain(heading);
+  }
+});
+
+test("archive keeps the legacy path and dump shape", () => {
+  const outDir = join(dir, "archive-consistency");
+  const result = generateBrief(db, "2026-11-10", { format: "archive", outDir });
+  expect(result.format).toBe("archive");
+  expect(result.path).toBe(join(outDir, "2026-11-10.md"));
+  expect(existsSync(result.path)).toBe(true);
+  expect(result.markdown.startsWith("# 工作简报 · 2026年11月10日")).toBe(true);
+  expect(result.markdown).not.toContain("kind: daily");
+  expect(result.markdown).toContain("## 今日概览");
+  expect(result.markdown).toContain("**提问**");
+  expect(readBrief({ format: "archive", date: "2026-11-10", outDir })).toBe(
+    result.markdown,
+  );
+});
+
+test("weekly aggregates from the DB by range and attributes a session once", () => {
+  expect(isoWeekKey(new Date(2026, 10, 9).getTime())).toBe("2026-W46");
+  const week = parseBriefWeek("2026-W46");
+  expect(week?.range).toBe("2026-11-09..2026-11-15");
+
+  const result = generateWeekReport(db, "2026-W46", {
+    outDir: join(dir, "weekly"),
+  });
+  expect(result.format).toBe("week");
+  expect(result.week).toBe("2026-W46");
+  expect(result.range).toBe("2026-11-09..2026-11-15");
+  expect(result.sessions).toBe(5);
+  expect(result.turns).toBe(7);
+  expect(result.projects).toBe(4);
+  expect(result.activeDays).toBe(3);
+  expect(result.path).toBe(join(dir, "weekly", "weekly", "2026-W46.md"));
+
+  const markdown = result.markdown;
+  expect(markdown.startsWith("---\nkind: weekly\nweek: 2026-W46\n")).toBe(true);
+  expect(markdown).toContain("range: 2026-11-09..2026-11-15");
+  expect(markdown).toContain("active_days: 3");
+  for (const heading of ["## 亮点", "## 按项目", "## 主题与决策", "## 指标", "## 风险 / 阻塞", "## 下周计划"]) {
+    expect(markdown).toContain(heading);
+  }
+  // The cross-day session lands on its last active day exactly once.
+  expect(markdown).toContain("| 11-12 | 1 | 2 | 1 |");
+  expect(markdown).not.toContain("| 11-11 |");
+  expect(markdown).toContain("周报从 DB 聚合");
+  expect(markdown).toContain("补深链 turn 定位");
+  expect(markdown).toContain("风险：Codex 无本机数据");
+});
+
+test("weekly rejects impossible week keys", () => {
+  expect(parseBriefWeek("2026-W54")).toBeNull();
+  expect(parseBriefWeek("2025-W53")).toBeNull();
+  expect(parseBriefWeek("not-a-week")).toBeNull();
+  expect(parseBriefWeek("2026-W46")?.key).toBe("2026-W46");
+});
+
+test("writes an index of recent daily and weekly reports", () => {
+  const outDir = join(dir, "indexed");
+  generateBrief(db, "2026-11-10", { format: "standup", outDir });
+  generateWeekReport(db, "2026-W46", { outDir });
+  const index = readFileSync(join(outDir, "index.md"), "utf8");
+  expect(index).toContain("# Briefs");
+  expect(index).toContain("[2026-11-10](daily/2026-11-10.md)");
+  expect(index).toContain("[2026-W46](weekly/2026-W46.md)");
+});
+
+const day16 = (hour: number) => new Date(2026, 10, 16, hour, 0, 0, 0).getTime();
+
+writeSession(db, {
+  ...session(
+    "noise-01",
+    "/Users/odin/projects/noise",
+    [
+      {
+        idx: 0,
+        ts: day16(10),
+        userText: "收尾",
+        assistantText: [
+          "我先把无争议的部分删掉（风险项留到最后问你）。",
+          "description: 每轮结束输出 3 行摘要（做了什么/改了哪些文件/下一步）",
+          "这段里顺带提到下一步，但不是任务。",
+          "- [ ] 真正的待办：补一个测试",
+          "风险：这是真风险",
+        ].join("\n"),
+      },
+    ],
+    day16(10),
+  ),
+  title: "噪声会话",
+});
+
+test("standup ignores mid-sentence and schema noise, keeps real todos", () => {
+  const result = generateBrief(db, "2026-11-16", {
+    format: "standup",
+    outDir: join(dir, "standup-noise"),
+  });
+  const markdown = result.markdown;
+  expect(markdown).toContain("- [ ] 真正的待办：补一个测试");
+  expect(markdown).not.toContain("description:");
+  expect(markdown).not.toContain("我先把无争议");
+  expect(markdown).not.toContain("顺带提到下一步");
+});
+
+test("weekly risk extraction ignores passing mentions", () => {
+  const result = generateWeekReport(db, "2026-W47", {
+    outDir: join(dir, "weekly-noise"),
+  });
+  const markdown = result.markdown;
+  expect(markdown).toContain("风险：这是真风险");
+  expect(markdown).not.toContain("我先把无争议");
 });

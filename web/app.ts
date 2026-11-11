@@ -1387,6 +1387,11 @@ function hitBlock(hit: Hit, session: ResultSession, terms: string[]): string {
   </a>`;
 }
 
+/** YAML front-matter is for tools; the page starts at the first heading. */
+function stripFrontMatter(markdown: string): string {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+}
+
 async function renderBrief(date: string): Promise<void> {
   const content = byId<HTMLDivElement>("content");
   if (!content) return;
@@ -1413,7 +1418,7 @@ async function renderBrief(date: string): Promise<void> {
         <span class="foot-muted">${escapeHtml(data.date)} · ${formatCount(data.projects)} 个项目 · ${formatCount(data.sessions)} 个会话 · ${formatCount(data.turns)} 轮问答</span>
         <a class="brief-download" href="${escapeAttr(data.download)}" download>下载 .md</a>
       </div>
-      <article class="markdown brief-view">${renderMarkdown(data.markdown)}</article>
+      <article class="markdown brief-view">${renderMarkdown(stripFrontMatter(data.markdown))}</article>
     `;
     window.scrollTo({ top: 0, behavior: "auto" });
   } catch (error) {
