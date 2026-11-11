@@ -1,8 +1,9 @@
 import { inAppRoute } from "./links.ts";
 import { renderMarkdown } from "./markdown.ts";
 
-type AgentId = "omp" | "opencode" | "cursor" | "alma";
+type AgentId = "omp" | "opencode" | "cursor" | "alma" | "cindy";
 type Role = "all" | "user" | "assistant";
+type Scope = "qa" | "process";
 type Range = "all" | "7d" | "30d" | "90d";
 type ThemeMode = "auto" | "light" | "dark";
 
@@ -16,6 +17,16 @@ interface Hit {
   assistantSnippet: string;
 }
 
+interface ProcessHit {
+  turnIdx: number;
+  seq: number;
+  ts: number;
+  tool: string;
+  status: string;
+  matchField: "tool" | "input" | "error";
+  snippet: string;
+}
+
 interface ResultSession {
   id: string;
   agent: AgentId;
@@ -24,15 +35,19 @@ interface ResultSession {
   updatedAt: number;
   hits: Hit[];
   hitCount: number;
+  processHits: ProcessHit[];
+  processHitCount: number;
 }
 
 interface SearchResult {
   q: string;
   terms: string[];
-  mode: "fts" | "like" | "recent";
+  scope: Scope;
+  mode: "fts" | "like" | "recent" | "process";
   tookMs: number;
   totalTurns: number;
   totalSessions: number;
+  processTotal: number;
   sessions: ResultSession[];
 }
 
@@ -93,10 +108,14 @@ interface UiState {
   sessionId: string;
   briefDate: string;
   turnIdx: number | null;
+  focus: "user" | "assistant" | null;
+  processOpen: boolean;
+  processSeq: number | null;
   q: string;
   agents: AgentId[];
   project: string;
   role: Role;
+  scope: Scope;
   range: Range;
 }
 
@@ -105,9 +124,10 @@ const AGENT_LABEL: Record<AgentId, string> = {
   opencode: "OpenCode",
   cursor: "Cursor",
   alma: "Alma",
+  cindy: "Cindy",
 };
 
-const AGENTS: AgentId[] = ["cursor", "opencode", "omp", "alma"];
+const AGENTS: AgentId[] = ["cursor", "opencode", "omp", "alma", "cindy"];
 const RANGES: { id: Range; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "7d", label: "7 天" },
@@ -118,6 +138,10 @@ const ROLES: { id: Role; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "user", label: "提问" },
   { id: "assistant", label: "回答" },
+];
+const SCOPES: { id: Scope; label: string }[] = [
+  { id: "qa", label: "问答" },
+  { id: "process", label: "过程" },
 ];
 const THEMES: { id: ThemeMode; label: string }[] = [
   { id: "auto", label: "自动" },
@@ -141,6 +165,9 @@ let searchAbort: AbortController | null = null;
 let searchTimer: number | undefined;
 let pollTimer: number | undefined;
 let lastSearchHash = "#/search";
+const INITIAL_RESULT_LIMIT = 200;
+const MAX_RESULT_LIMIT = 5000;
+let resultLimit = INITIAL_RESULT_LIMIT;
 let themeMode: ThemeMode = cachedTheme();
 let briefDate = localDateKey();
 
@@ -155,10 +182,14 @@ function defaultState(): UiState {
     sessionId: "",
     briefDate: "",
     turnIdx: null,
+    focus: null,
+    processOpen: false,
+    processSeq: null,
     q: "",
     agents: [],
     project: "",
     role: "all",
+    scope: "qa",
     range: "all",
   };
 }
@@ -216,12 +247,20 @@ function parseHash(): UiState {
   if (raw.startsWith("/session/")) {
     const [path, query] = raw.split("?");
     const id = decodeURIComponent(path.slice("/session/".length));
-    const turn = Number(new URLSearchParams(query ?? "").get("turn"));
+    const params = new URLSearchParams(query ?? "");
+    const turnParam = params.get("turn");
+    const turn = turnParam === null ? Number.NaN : Number(turnParam);
+    const hit = params.get("hit");
+    const seqParam = params.get("event");
+    const seq = seqParam === null ? Number.NaN : Number(seqParam);
     return {
       ...defaultState(),
       view: "session",
       sessionId: id,
       turnIdx: Number.isFinite(turn) && turn >= 0 ? turn : null,
+      focus: hit === "user" || hit === "assistant" ? hit : null,
+      processOpen: params.get("process") === "1",
+      processSeq: Number.isFinite(seq) && seq >= 0 ? seq : null,
     };
   }
   const queryIndex = raw.indexOf("?");
@@ -230,6 +269,7 @@ function parseHash(): UiState {
     .split(",")
     .filter((agent): agent is AgentId => AGENTS.includes(agent as AgentId));
   const role = params.get("role");
+  const scope = params.get("scope");
   const range = params.get("range");
   return {
     view: "search",
@@ -238,6 +278,7 @@ function parseHash(): UiState {
     agents,
     project: params.get("project") ?? "",
     role: role === "user" || role === "assistant" || role === "all" ? role : "all",
+    scope: scope === "process" || scope === "qa" ? scope : "qa",
     range: range === "7d" || range === "30d" || range === "90d" ? range : "all",
   };
 }
@@ -252,7 +293,17 @@ function syncHash(): void {
     return;
   }
   if (state.view === "session") {
-    history.replaceState(null, "", `#/session/${encodeURIComponent(state.sessionId)}${state.turnIdx !== null ? `?turn=${state.turnIdx}` : ""}`);
+    const params = new URLSearchParams();
+    if (state.turnIdx !== null) params.set("turn", String(state.turnIdx));
+    if (state.focus) params.set("hit", state.focus);
+    if (state.processOpen) params.set("process", "1");
+    if (state.processSeq !== null) params.set("event", String(state.processSeq));
+    const query = params.toString();
+    history.replaceState(
+      null,
+      "",
+      `#/session/${encodeURIComponent(state.sessionId)}${query ? `?${query}` : ""}`,
+    );
     return;
   }
   const params = new URLSearchParams();
@@ -260,6 +311,7 @@ function syncHash(): void {
   if (state.agents.length > 0) params.set("agents", state.agents.join(","));
   if (state.project) params.set("project", state.project);
   if (state.role !== "all") params.set("role", state.role);
+  if (state.scope !== "qa") params.set("scope", state.scope);
   if (state.range !== "all") params.set("range", state.range);
   const query = params.toString();
   const hash = `#/search${query ? `?${query}` : ""}`;
@@ -273,6 +325,9 @@ function ensureSearchView(): void {
   state.sessionId = "";
   state.briefDate = "";
   state.turnIdx = null;
+  state.focus = null;
+  state.processOpen = false;
+  state.processSeq = null;
   syncHash();
 }
 
@@ -492,6 +547,40 @@ async function copyCommand(button: HTMLButtonElement): Promise<void> {
   }, 1400);
 }
 
+async function copyHandoff(button: HTMLButtonElement): Promise<void> {
+  const id = button.dataset.handoff;
+  if (!id) return;
+  const handoff = handoffCache.get(id);
+  if (handoff === undefined) {
+    button.textContent = "准备中…";
+    return;
+  }
+  const original = "复制交接";
+  button.disabled = true;
+  const copied = await copyText(handoff);
+  button.textContent = copied ? "已复制" : "复制失败";
+  button.classList.toggle("is-copied", copied);
+  window.setTimeout(() => {
+    button.textContent = original;
+    button.disabled = false;
+    button.classList.remove("is-copied");
+  }, 1600);
+}
+
+const handoffCache = new Map<string, string>();
+
+async function loadHandoff(id: string): Promise<string> {
+  const cached = handoffCache.get(id);
+  if (cached !== undefined) return cached;
+  const response = await fetch(`/api/session/${encodeURIComponent(id)}/handoff`, {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`请求失败 (${response.status})`);
+  const handoff = await response.text();
+  handoffCache.set(id, handoff);
+  return handoff;
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
@@ -553,7 +642,10 @@ function renderShell(): void {
               <kbd>⌘K</kbd>
             </div>
             <div class="toolbar">
-              <div class="segmented" id="role-filters" role="group" aria-label="搜索范围"></div>
+              <div class="toolbar-filters">
+                <div class="segmented" id="scope-filters" role="group" aria-label="搜索范围类型"></div>
+                <div class="segmented" id="role-filters" role="group" aria-label="问答范围"></div>
+              </div>
               <div class="status-line" id="search-status" aria-live="polite"></div>
             </div>
           </header>
@@ -612,6 +704,16 @@ function bindShell(): void {
     syncHash();
     renderControls();
     closeFilters();
+    void runSearch();
+  });
+
+  byId<HTMLDivElement>("scope-filters")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-scope]");
+    if (!button) return;
+    ensureSearchView();
+    state.scope = button.dataset.scope as Scope;
+    syncHash();
+    renderControls();
     void runSearch();
   });
 
@@ -697,12 +799,17 @@ function bindShell(): void {
     }
   });
 
+  window.addEventListener("resize", syncTopbarHeight);
+
   window.addEventListener("hashchange", () => {
     const next = parseHash();
     if (
       next.view === "session" &&
       next.sessionId === state.sessionId &&
-      next.turnIdx === state.turnIdx
+      next.turnIdx === state.turnIdx &&
+      next.focus === state.focus &&
+      next.processSeq === state.processSeq &&
+      next.processOpen === state.processOpen
     ) {
       return;
     }
@@ -975,6 +1082,14 @@ function bindProjectCombobox(): void {
 }
 
 function renderControls(): void {
+  const search = byId<HTMLInputElement>("search");
+  if (search) {
+    search.placeholder =
+      state.scope === "process"
+        ? "搜索文件、命令或错误…"
+        : "搜索提问和回答…";
+  }
+
   const agentFilters = byId<HTMLDivElement>("agent-filters");
   if (agentFilters) {
     const counts = new Map(facetsData?.agents.map((entry) => [entry.id, entry.sessions]) ?? []);
@@ -999,8 +1114,17 @@ function renderControls(): void {
     ).join("");
   }
 
+  const scopeFilters = byId<HTMLDivElement>("scope-filters");
+  if (scopeFilters) {
+    scopeFilters.innerHTML = SCOPES.map(
+      (scope) =>
+        `<button class="seg${state.scope === scope.id ? " is-active" : ""}" data-scope="${scope.id}" aria-pressed="${state.scope === scope.id}">${scope.label}</button>`,
+    ).join("");
+  }
+
   const roleFilters = byId<HTMLDivElement>("role-filters");
   if (roleFilters) {
+    roleFilters.hidden = state.scope === "process";
     roleFilters.innerHTML = ROLES.map(
       (role) =>
         `<button class="seg${state.role === role.id ? " is-active" : ""}" data-role="${role.id}" aria-pressed="${state.role === role.id}">${role.label}</button>`,
@@ -1047,7 +1171,12 @@ function route(): void {
   if (state.view === "brief") {
     void renderBrief(state.briefDate);
   } else if (state.view === "session") {
-    void renderSession(state.sessionId, state.turnIdx);
+    void renderSession(
+      state.sessionId,
+      state.turnIdx,
+      state.focus,
+      state.processSeq,
+    );
   } else {
     lastSearchHash = location.hash && location.hash.startsWith("#/search") ? location.hash : "#/search";
     void runSearch();
@@ -1071,7 +1200,8 @@ function paramsForSearch(): string {
   if (state.agents.length > 0) params.set("agents", state.agents.join(","));
   if (state.project) params.set("project", state.project);
   params.set("role", state.role);
-  params.set("limit", "40");
+  params.set("scope", state.scope);
+  params.set("limit", String(resultLimit));
   if (state.range !== "all") {
     const days = state.range === "7d" ? 7 : state.range === "30d" ? 30 : 90;
     params.set("from", String(Date.now() - days * 864e5));
@@ -1095,7 +1225,10 @@ async function runSearch(): Promise<void> {
     lastTerms = result.terms;
     renderResults();
     if (status) {
-      status.textContent = `${formatCount(result.totalSessions)} 个会话 · ${formatCount(result.totalTurns)} 条问答 · ${result.tookMs.toFixed(1)} ms`;
+      status.textContent =
+        state.scope === "process"
+          ? `${formatCount(result.totalSessions)} 个会话 · ${formatCount(result.processTotal)} 条过程 · ${result.tookMs.toFixed(1)} ms`
+          : `${formatCount(result.totalSessions)} 个会话 · ${formatCount(result.totalTurns)} 条问答 · ${result.tookMs.toFixed(1)} ms`;
     }
   } catch (error) {
     if (controller.signal.aborted) return;
@@ -1113,13 +1246,24 @@ function renderResults(): void {
     return;
   }
   const heading = state.q
-    ? "搜索结果"
-    : state.role === "assistant"
-      ? "最近回答"
-      : "最近提问";
+    ? state.scope === "process"
+      ? "过程搜索"
+      : "搜索结果"
+    : state.scope === "process"
+      ? "最近过程"
+      : state.role === "assistant"
+        ? "最近回答"
+        : "最近提问";
+  const description = state.q
+    ? state.scope === "process"
+      ? `包含 “${escapeHtml(state.q)}” 的工具、命令或错误 · 按最近活动`
+      : `包含 “${escapeHtml(state.q)}” 的提问与回答 · 按最近活动`
+    : state.scope === "process"
+      ? "按最近工具活动排序"
+      : "按最近活动排序";
   const head = `<div class="result-head">
     <h1>${heading}</h1>
-    <p>${state.q ? `包含 “${escapeHtml(state.q)}” 的提问与回答` : "按最近活动排序"}</p>
+    <p>${description}</p>
   </div>`;
 
   if (result.sessions.length === 0) {
@@ -1131,11 +1275,19 @@ function renderResults(): void {
     head +
     `<div class="results">${result.sessions.map((session) => sessionBlock(session, result.terms)).join("")}</div>` +
     (result.sessions.length < result.totalSessions
-      ? `<p class="list-foot">显示前 ${formatCount(result.sessions.length)} 个会话，共 ${formatCount(result.totalSessions)} 个；缩小筛选范围可看到更多。</p>`
+      ? resultLimit < MAX_RESULT_LIMIT
+        ? `<p class="list-foot">显示前 ${formatCount(result.sessions.length)} 个会话，共 ${formatCount(result.totalSessions)} 个。<button type="button" class="load-more" data-more>显示更多</button></p>`
+        : `<p class="list-foot">显示前 ${formatCount(result.sessions.length)} 个会话，共 ${formatCount(result.totalSessions)} 个；已达到单次显示上限。</p>`
       : "");
 }
 
 function emptyState(): string {
+  if (state.scope === "process") {
+    return `<div class="empty">
+      <h2>没有找到匹配的过程</h2>
+      <p>过程搜索覆盖工具名、参数里的文件和命令，以及错误输出。试试更短的文件名或命令片段。</p>
+    </div>`;
+  }
   if (state.q) {
     return `<div class="empty">
       <h2>没有找到匹配的问答</h2>
@@ -1154,9 +1306,17 @@ function emptyState(): string {
 function sessionBlock(session: ResultSession, terms: string[]): string {
   const project = projectLabel(session.projectPath);
   const showProject = project.toLowerCase() !== AGENT_LABEL[session.agent].toLowerCase();
-  const more = session.hitCount > session.hits.length
-    ? `<span class="hit-count">${formatCount(session.hitCount)} 处命中</span>`
+  const processMode = state.scope === "process";
+  const count = processMode ? session.processHitCount : session.hitCount;
+  const shown = processMode ? session.processHits.length : session.hits.length;
+  const more = count > shown
+    ? `<span class="hit-count">${formatCount(count)} 处命中</span>`
     : "";
+  const body = processMode
+    ? session.processHits.map((hit) => processHitBlock(hit, session.id, terms)).join("")
+    : (state.q ? session.hits : session.hits.slice(0, 2))
+        .map((hit) => hitBlock(hit, session, terms))
+        .join("");
   return `<article class="session-block">
     <a class="session-head" href="#/session/${encodeURIComponent(session.id)}">
       <h2 class="session-title">${escapeHtml(session.title || "未命名会话")}</h2>
@@ -1167,12 +1327,32 @@ function sessionBlock(session: ResultSession, terms: string[]): string {
         ${more}
       </div>
     </a>
-    <div class="hits">${(state.q ? session.hits : session.hits.slice(0, 2)).map((hit) => hitBlock(hit, session, terms)).join("")}</div>
+    <div class="hits">${body}</div>
   </article>`;
 }
 
+function processHitBlock(
+  hit: ProcessHit,
+  sessionId: string,
+  terms: string[],
+): string {
+  const href = `#/session/${encodeURIComponent(sessionId)}?turn=${hit.turnIdx}&process=1&event=${hit.seq}`;
+  const status = processStatus(hit.status);
+  const label =
+    hit.matchField === "error"
+      ? "错误输出"
+      : hit.matchField === "input"
+        ? "参数"
+        : "工具";
+  const meta = [label, hit.tool, status].filter(Boolean).join(" · ");
+  return `<a class="hit process-hit" href="${href}">
+    <span class="hit-label">${escapeHtml(meta)}</span>
+    <p class="hit-primary">${highlight(hit.snippet || "（无内容）", terms)}</p>
+  </a>`;
+}
+
 function hitBlock(hit: Hit, session: ResultSession, terms: string[]): string {
-  const href = `#/session/${encodeURIComponent(session.id)}?turn=${hit.idx}`;
+  const href = `#/session/${encodeURIComponent(session.id)}?turn=${hit.idx}&hit=${hit.matchField}`;
   const prompt = hit.matchField === "user" ? hit.snippet : hit.userText;
   const answer = hit.matchField === "user" ? hit.assistantSnippet : hit.snippet;
   const answerText = plainPreview(answer);
@@ -1217,7 +1397,12 @@ async function renderBrief(date: string): Promise<void> {
   }
 }
 
-async function renderSession(id: string, turnIdx: number | null = null): Promise<void> {
+async function renderSession(
+  id: string,
+  turnIdx: number | null = null,
+  focus: "user" | "assistant" | null = null,
+  processSeq: number | null = null,
+): Promise<void> {
   const content = byId<HTMLDivElement>("content");
   if (!content) return;
   const status = byId<HTMLDivElement>("search-status");
@@ -1243,16 +1428,72 @@ async function renderSession(id: string, turnIdx: number | null = null): Promise
           <span class="dot-sep">·</span>
           <span>${formatCount(detail.turns.length)} 轮问答</span>
         </div>
-        ${resumeBlock(session)}
       </header>
+      <div class="session-actionbar">
+        ${resumeBlock(session)}
+        <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="复制包含问题、文件、命令和 Git 状态的交接卡">复制交接</button>
+      </div>
       <div class="turns">
-        ${detail.turns.map((turn) => turnBlock(turn, session.agent, terms, turnIdx)).join("")}
+        ${detail.turns.map((turn) => turnBlock(turn, session.agent, terms, turnIdx, focus)).join("")}
       </div>
     `;
     window.scrollTo({ top: 0, behavior: "auto" });
+    syncTopbarHeight();
+    const handoffButton = content.querySelector<HTMLButtonElement>(".handoff-button");
+    if (handoffButton) {
+      const handoffId = handoffButton.dataset.handoff;
+      if (handoffId) {
+        handoffButton.disabled = true;
+        handoffButton.textContent = "准备交接…";
+        void loadHandoff(handoffId)
+          .then(() => {
+            if (
+              handoffButton.isConnected &&
+              handoffButton.dataset.handoff === handoffId
+            ) {
+              handoffButton.disabled = false;
+              handoffButton.textContent = "复制交接";
+            }
+          })
+          .catch(() => {
+            if (
+              handoffButton.isConnected &&
+              handoffButton.dataset.handoff === handoffId
+            ) {
+              handoffButton.textContent = "交接不可用";
+              handoffButton.title = "生成交接卡失败";
+            }
+          });
+      }
+    }
     if (turnIdx !== null) {
       requestAnimationFrame(() => {
-        document.getElementById(`turn-${turnIdx}`)?.scrollIntoView({ block: "start" });
+        const target = document.getElementById(
+          focus ? `turn-${turnIdx}-${focus}` : `turn-${turnIdx}`,
+        );
+        if (!target) return;
+        if (state.processOpen) {
+          const details = target.querySelector<HTMLDetailsElement>("details.process");
+          if (details) {
+            details.open = true;
+            void loadProcess(details).then(() => {
+              if (processSeq !== null) {
+                const event = document.getElementById(
+                  `event-${turnIdx}-${processSeq}`,
+                );
+                if (event instanceof HTMLElement) {
+                  if (event instanceof HTMLDetailsElement) event.open = true;
+                  event.classList.add("is-hit");
+                  scrollSessionTarget(event);
+                  return;
+                }
+              }
+              scrollSessionTarget(target);
+            });
+            return;
+          }
+        }
+        scrollSessionTarget(target);
       });
     }
   } catch (error) {
@@ -1260,27 +1501,56 @@ async function renderSession(id: string, turnIdx: number | null = null): Promise
   }
 }
 
+function syncTopbarHeight(): void {
+  const topbar = document.querySelector<HTMLElement>(".topbar");
+  const height = topbar?.getBoundingClientRect().height;
+  if (!height) return;
+  document.documentElement.style.setProperty("--topbar-h", `${height}px`);
+}
+
+function scrollSessionTarget(target: HTMLElement): void {
+  const topbar = document.querySelector<HTMLElement>(".topbar");
+  const actionbar = document.querySelector<HTMLElement>(".session-actionbar");
+  const offset =
+    (topbar?.getBoundingClientRect().height ?? 0) +
+    (actionbar?.getBoundingClientRect().height ?? 0) +
+    16;
+  const rect = target.getBoundingClientRect();
+  // Do not scroll a target that is already comfortably visible. This keeps the
+  // session header (resume / handoff) on screen when the first turn is opened.
+  if (rect.top >= offset && rect.top <= window.innerHeight * 0.7) return;
+  window.scrollTo({
+    top: Math.max(0, window.scrollY + rect.top - offset),
+    behavior: "auto",
+  });
+}
+
 function turnBlock(
   turn: SessionDetail["turns"][number],
   agent: AgentId,
   terms: string[],
   targetIdx: number | null,
+  focus: "user" | "assistant" | null,
 ): string {
   const number = String(turn.idx + 1).padStart(2, "0");
+  const target = targetIdx === turn.idx;
+  const modelBadge = turn.model
+    ? `<span class="msg-model">${escapeHtml(turn.model)}</span>`
+    : "";
   const user = turn.userText.trim()
-    ? `<section class="msg msg-user">
+    ? `<section class="msg msg-user${target && focus === "user" ? " is-hit" : ""}" id="turn-${turn.idx}-user">
         <div class="msg-label">提问</div>
         <div class="msg-body">${highlight(turn.userText, terms)}</div>
       </section>`
     : "";
   const assistant = turn.assistantText.trim()
-    ? `<section class="msg msg-assistant">
-        <div class="msg-label">回答 <span class="msg-agent">${AGENT_LABEL[agent]}</span></div>
+    ? `<section class="msg msg-assistant${target && focus === "assistant" ? " is-hit" : ""}" id="turn-${turn.idx}-assistant">
+        <div class="msg-label">回答 <span class="msg-agent">${AGENT_LABEL[agent]}</span>${modelBadge}</div>
         <div class="markdown">${renderMarkdown(turn.assistantText)}</div>
         ${turn.truncated ? `<p class="truncated">内容较长，已截断索引。</p>` : ""}
       </section>`
-    : `<section class="msg msg-assistant"><div class="msg-label">回答</div><p class="muted">（没有记录到回答）</p></section>`;
-  return `<article class="turn${targetIdx === turn.idx ? " is-target" : ""}" id="turn-${turn.idx}">
+    : `<section class="msg msg-assistant" id="turn-${turn.idx}-assistant"><div class="msg-label">回答${modelBadge}</div><p class="muted">（没有记录到回答）</p></section>`;
+  return `<article class="turn${target ? " is-target" : ""}" id="turn-${turn.idx}">
     <div class="turn-rail" aria-hidden="true">${number}</div>
     <div class="turn-main">${user}${assistant}${processBlock(turn)}</div>
   </article>`;
@@ -1311,12 +1581,12 @@ function processStatus(meta: string | null): string {
   return parts.length > 1 ? parts[parts.length - 1] : meta;
 }
 
-function processEventBlock(event: SessionEvent): string {
+function processEventBlock(event: SessionEvent, turn: number): string {
   const truncated = event.truncated
     ? `<p class="truncated">内容较长，已截断。</p>`
     : "";
   if (event.kind === "reasoning") {
-    return `<details class="process-event process-reasoning">
+    return `<details class="process-event process-reasoning" data-seq="${event.seq}" id="event-${turn}-${event.seq}">
       <summary>思考过程</summary>
       <pre class="process-pre">${escapeHtml(event.output)}</pre>
       ${truncated}
@@ -1335,7 +1605,7 @@ function processEventBlock(event: SessionEvent): string {
         <pre class="process-pre">${escapeHtml(prettyEventText(event.output))}</pre>
       </div>`
     : "";
-  return `<details class="process-event process-tool">
+  return `<details class="process-event process-tool" data-seq="${event.seq}" id="event-${turn}-${event.seq}">
     <summary>
       <span class="process-tool-name">${escapeHtml(event.name || "tool")}</span>
       ${status ? `<span class="process-status">${escapeHtml(status)}</span>` : ""}
@@ -1355,7 +1625,7 @@ async function loadProcess(details: HTMLDetailsElement): Promise<void> {
       `/api/session/${encodeURIComponent(state.sessionId)}/events?turn=${turn}`,
     );
     panel.innerHTML = data.events.length
-      ? data.events.map(processEventBlock).join("")
+      ? data.events.map((event) => processEventBlock(event, turn)).join("")
       : `<p class="muted">没有记录到过程。</p>`;
   } catch (error) {
     panel.dataset.loaded = "0";
@@ -1468,9 +1738,16 @@ async function boot(): Promise<void> {
     if (!(target instanceof Element)) return;
     const button = target.closest<HTMLButtonElement>(".copy-command");
     if (button) void copyCommand(button);
+    const handoff = target.closest<HTMLButtonElement>(".handoff-button");
+    if (handoff) void copyHandoff(handoff);
+    if (target.closest("[data-more]")) {
+      resultLimit = Math.min(MAX_RESULT_LIMIT, resultLimit * 2);
+      void runSearch();
+    }
   });
   state = parseHash();
   renderControls();
+  syncTopbarHeight();
   await loadFacets();
   route();
 }

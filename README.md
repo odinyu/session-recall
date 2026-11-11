@@ -4,8 +4,8 @@ A local, read-only full-text index over the coding-agent sessions on this Mac.
 Search a half-remembered Chinese phrase or a code identifier and get back the
 question, the answer, the agent, the project, and the date.
 
-Built for the sessions that pile up across **omp**, **OpenCode**, **Cursor**, and
-**Alma**. It never writes to an agent's own storage.
+Built for the sessions that pile up across **omp**, **OpenCode**, **Cursor**,
+**Alma**, and **Cindy**. It never writes to an agent's own storage.
 
 ## Quick start
 
@@ -98,11 +98,18 @@ runtimes).
 | OpenCode | `~/.local/share/opencode/opencode.db` | `session_v2` + `session_message` (falls back to the v1 `session`/`message`/`part` tables) |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/**/*.jsonl` and `state.vscdb` (`composerData` + `bubbleId`) | transcripts first, KV for chats without a transcript; project path from `workspaceIdentifier` |
 | Alma | `~/Library/Application Support/alma/chat_threads.db` | `chat_threads` + `chat_messages` (message JSON `parts`); project path from `workspaces.path`; threads marked `is_incognito` are never listed |
+| Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` (newest match wins) | `sessions` + `messages`: user rows are JSON `{text}`, assistant rows plain text, `thinking`/`tool_use`/`ask_user` rows become process events; project path from `working_dir`; `rewind_at` and messages before `cleared_at` are excluded |
 
 The index unit is a **turn**: one user prompt plus the assistant text that
 followed it before the next prompt. Tool calls and reasoning traces are stored
-separately as process events (see below), not in the search index; binary
-content is skipped.
+separately as process events (see below); their inputs, outputs, and errors are
+searchable in the **过程** scope, while reasoning text stays out of search.
+Each turn also stores the model that produced its answer when the agent
+records one. omp, OpenCode, Alma, and Cindy record it per turn; Cursor records
+only a session-level selection (`composerData.modelConfig.modelName`), which is
+stamped on every turn of that session — transcripts and KV bubbles carry no
+per-turn model, and Cursor's placeholder `default` stays blank. The session
+page shows the model next to the agent badge.
 
 ## Process
 
@@ -124,10 +131,33 @@ plain text.
   denied keeps an empty output — nothing is invented — and the state shows up as
   the row's status (`ok`, `error`, `denied`, `input-available`, `input-streaming`).
 - API: `GET /api/session/:id/events?turn=N` returns `{ turn, events }`.
+- Search uses the same `scope` parameter as the UI: `scope=process` searches
+  tool inputs, outputs, and extracted error text. It groups hits by session and
+  reports `processTotal` plus each hit's `tool`, `turnIdx`, `status`, and
+  `matchField` (`input`, `output`, or `error`). A result link carries the event
+  sequence (`event=<seq>`), so opening it expands the turn's process, opens the
+  matching event row, and scrolls that row under the sticky action bar. Reasoning
+  is deliberately excluded from search. The process index is `event_search` (FTS5 `trigram` + `porter`,
+  with a `LIKE` fallback for queries under three characters); it is rebuilt
+  automatically when an older index is opened.
+
+## Handoff card
+
+Every session page has a `复制交接` button in the same sticky action bar. It copies a Markdown card meant to
+be pasted into another agent or a scratchpad: project, agent, time range, resume
+command (or Alma deep link), the last few prompts, the last answer (truncated
+verbatim), files touched by tool calls, commands run, tool errors, and the
+current Git branch/status when the project is a Git worktree. The card is
+generated on demand from the local index; nothing is sent anywhere.
+
+- API: `GET /api/session/:id/handoff` returns the Markdown (`text/markdown`).
+- The UI prefetches the card when a session opens, so the copy button can write
+  to the clipboard synchronously from the click (async work before
+  `navigator.clipboard` loses the browser's user activation).
 
 ## Resume
 
-omp and OpenCode session pages show a copyable continue command in the header:
+omp and OpenCode session pages show a copyable continue command in a sticky action bar below the session header:
 
 ```bash
 cd '/path/to/project' && omp --resume <session-uuid>
@@ -147,6 +177,10 @@ alma://thread/<thread-id>
 
 It is labelled `在 Alma 中打开` and is a link plus a copy button, not a command to
 paste into a terminal.
+
+Cindy has neither a CLI resume command nor a known deep-link scheme, so its
+session pages omit the resume block entirely instead of showing an empty or
+broken action.
 
 The app addresses its own pages the same way, with the `sessionrecall://` scheme
 it registers at install time:
@@ -199,14 +233,29 @@ Markdown; `GET /api/brief/file?date=YYYY-MM-DD` downloads it.
 
 ## Search
 
-- SQLite FTS5, two indexes over the same turns:
+- Two scopes, chosen beside the search box:
+  - **问答** searches prompts and answers.
+  - **过程** searches tool inputs (`path`, `command`, …), tool outputs, and
+    extracted error lines.
+- SQLite FTS5, over both scopes:
   - `trigram` for Chinese phrases and substring/code-identifier matching.
   - `porter` stemming as an English fallback.
 - A query shorter than three characters (for example a two-character Chinese
   word) falls back to indexed `LIKE` with the same filters.
-- Filters: agent, project, date range, and role (prompt / answer / both).
-- Results group by session, showing the best matching turns with context.
+- Filters: agent, project, date range, and role (prompt / answer / both); the
+  role filter is hidden in the process scope.
+- Results group by session and sort by the session's last activity (newest
+  first); within a session, matching turns sort newest first, with FTS rank as
+  the final tie-break. A process hit links directly to its turn and opens the
+  process disclosure; an answer hit scrolls to the answer rather than the start
+  of the turn.
+- The first screen loads 200 matching rows. If that covers only part of the
+  sessions, the list footer offers `显示更多` instead of telling you to narrow
+  the filters; the UI can raise the limit up to 5,000 rows.
 - Query syntax: bare terms, or `"an exact phrase"`; multi-term queries are ANDed.
+- API: `GET /api/search?q=…&scope=qa|process&agent=…&project=…&from=…&to=…&role=…`;
+  results carry `totalSessions`, `totalTurns`/`processTotal`, grouped sessions,
+  and either `hits` or `processHits`.
 
 ## Index and privacy
 
@@ -225,20 +274,25 @@ Markdown; `GET /api/brief/file?date=YYYY-MM-DD` downloads it.
   `SESSION_RECALL_PORT=4319`, the brief dir with `SESSION_RECALL_BRIEF_DIR`, and
   the served UI directory with `SESSION_RECALL_WEB_DIST=/path/to/web/dist`.
   Alma's store is read from `SESSION_RECALL_ALMA_DB`, which defaults to
-  `~/Library/Application Support/alma/chat_threads.db`.
+  `~/Library/Application Support/alma/chat_threads.db`. Cindy's directory and
+  database can be pinned with `SESSION_RECALL_CINDY_DIR` and
+  `SESSION_RECALL_CINDY_DB`; the default directory is
+  `~/Library/Application Support/CindyGlobal`.
 
 ## Project layout
 
 ```text
 src/
-  adapters/       omp, OpenCode, Cursor, Alma parsers
+  adapters/       omp, OpenCode, Cursor, Alma, Cindy parsers
   brief.ts        daily Markdown brief generation
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
   db.ts           schema, FTS triggers, upserts
+  handoff.ts      session handoff card generation
   prefs.ts        prefs.json: defaults, merge-on-write, atomic writes
   scan.ts         incremental scan orchestration
   search.ts       query building, ranking, facets
   server.ts       Bun.serve API + static UI
+  util/resume.ts  shell resume commands and app deep links
 web/
   app.ts          hash-routed UI
   markdown.ts     safe Markdown renderer
@@ -251,14 +305,14 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     package the macOS .app
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
-test/             markdown, search, events, brief, links, prefs, Alma tests
+test/             markdown, search, process search, events, brief, handoff, links, prefs, Alma, Cindy tests
 brief/            generated daily briefs (git-ignored)
 ```
 
 ## Development
 
 ```bash
-bun test          # 37 tests: markdown, search, process events, daily brief, links, prefs, Alma
+bun test          # 52 tests: markdown, search, process events, daily brief, links, prefs, Alma, Cindy
 bun run build     # bundle web/app.ts -> web/dist
 ```
 
@@ -287,3 +341,10 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
 - **Alma subagent transcripts** live in the same `chat_messages` table as the
   parent thread (depth 0, no parent), so their assistant text is folded into the
   surrounding turn like any other consecutive assistant message.
+- **Cindy tool pairing**: `tool_result` rows carry no tool id, so outputs are
+  attached to the oldest unanswered `tool_use` in arrival order. Parallel calls
+  almost always resolve in call order; an interleaved result would land on the
+  wrong row's output but never on a different turn.
+- **Cindy hidden messages**: `messages.rewind_at` (edit/rewind) and rows older
+  than `sessions.cleared_at` are filtered in SQL, matching what the Cindy UI
+  shows. Forked sessions keep their `parent_session_id` in the index.

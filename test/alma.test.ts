@@ -317,6 +317,7 @@ test("an incognito thread never reaches the search index", async () => {
     from: null,
     to: null,
     role: "all",
+    scope: "qa",
     limit: 20,
     offset: 0,
   });
@@ -329,6 +330,7 @@ test("an incognito thread never reaches the search index", async () => {
     from: null,
     to: null,
     role: "all",
+    scope: "qa",
     limit: 20,
     offset: 0,
   });

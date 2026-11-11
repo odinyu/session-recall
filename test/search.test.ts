@@ -16,6 +16,7 @@ const base = {
   from: null,
   to: null,
   role: "all" as const,
+  scope: "qa" as const,
   limit: 20,
   offset: 0,
 };
@@ -41,22 +42,21 @@ writeSession(
     {
       idx: 0,
       ts: Date.UTC(2026, 9, 1),
-      userText: "目录范围怎么控制",
+      userText: "common 目录范围怎么控制",
       assistantText: "通过角色范围控制",
     },
   ]),
 );
-writeSession(
-  db,
-  session("beta", [
-    {
-      idx: 0,
-      ts: Date.UTC(2026, 9, 2),
-      userText: "findFileByName 查询",
-      assistantText: "按名称模糊匹配",
-    },
-  ]),
-);
+const beta = session("beta", [
+  {
+    idx: 0,
+    ts: Date.UTC(2026, 9, 2),
+    userText: "common findFileByName 查询",
+    assistantText: "按名称模糊匹配",
+  },
+]);
+beta.updatedAt = Date.UTC(2026, 9, 3);
+writeSession(db, beta);
 
 afterAll(() => {
   db.close();
@@ -83,6 +83,14 @@ test("identifier search works", () => {
   const result = searchTurns(db, { ...base, q: "findFileByName" });
   expect(result.sessions.length).toBe(1);
   expect(result.sessions[0]?.id).toBe("omp:beta");
+});
+
+test("orders sessions by last activity", () => {
+  const result = searchTurns(db, { ...base, q: "common" });
+  expect(result.sessions.map((session) => session.id)).toEqual([
+    "omp:beta",
+    "omp:alpha",
+  ]);
 });
 
 test("role filter searches only prompts", () => {

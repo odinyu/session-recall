@@ -19,6 +19,7 @@
   --agent-opencode: #276b45;
   --agent-omp: #63499c;
   --agent-alma: #9c5a2f;
+  --agent-cindy: #a8446b;
   --shadow-drawer: 0 18px 50px rgba(20, 30, 24, 0.18);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -46,6 +47,7 @@
   --agent-opencode: #7cc9a0;
   --agent-omp: #b9a4ff;
   --agent-alma: #e0a878;
+  --agent-cindy: #e79ab3;
   --shadow-drawer: 0 18px 50px rgba(0, 0, 0, 0.5);
 }
 
@@ -251,6 +253,10 @@ button {
 
 .agent-dot.agent-alma {
   background: var(--agent-alma);
+}
+
+.agent-dot.agent-cindy {
+  background: var(--agent-cindy);
 }
 
 /* custom combobox: the native <select> popup cannot be styled at all */
@@ -595,6 +601,17 @@ button {
   padding-top: 2px;
 }
 
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.segmented[hidden] {
+  display: none;
+}
+
 .toolbar .segmented {
   padding: 2px;
 }
@@ -685,6 +702,10 @@ button {
   color: var(--agent-omp);
 }
 
+.agent-cindy {
+  color: var(--agent-cindy);
+}
+
 .project {
   overflow: hidden;
   max-width: 320px;
@@ -727,6 +748,19 @@ button {
   letter-spacing: 0.08em;
 }
 
+.process-hit .hit-label {
+  color: var(--accent);
+}
+
+.process-hit .hit-primary {
+  -webkit-line-clamp: 3;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .hit-primary {
   display: -webkit-box;
   overflow: hidden;
@@ -760,6 +794,18 @@ button {
   margin: 22px 0 0;
   color: var(--muted);
   font-size: 12.5px;
+}
+
+.load-more {
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 
 mark {
@@ -801,6 +847,28 @@ mark {
   line-height: 1.25;
   letter-spacing: -0.03em;
   text-wrap: balance;
+}
+
+.session-actionbar {
+  position: sticky;
+  top: var(--topbar-h, 130px);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.session-actionbar .resume {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.session-actionbar .handoff-button {
+  margin-top: 0;
 }
 
 .resume {
@@ -869,6 +937,37 @@ mark {
 .copy-command.is-copied {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.handoff-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  white-space: nowrap;
+  margin-top: 12px;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.handoff-button:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.handoff-button.is-copied {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.handoff-button:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .brief-toolbar {
@@ -951,8 +1050,21 @@ mark {
   text-transform: uppercase;
 }
 
+.msg.is-hit .msg-label {
+  color: var(--accent);
+}
+
 .msg-agent {
   color: var(--muted);
+  font-family: var(--font);
+  font-size: 10.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.msg-model {
+  margin-left: 6px;
+  color: var(--faint);
   font-family: var(--font);
   font-size: 10.5px;
   letter-spacing: 0;
@@ -1159,6 +1271,14 @@ mark {
   border-radius: 9px;
   background: var(--surface);
   overflow: hidden;
+}
+
+.process-event.is-hit {
+  border-color: var(--accent);
+}
+
+.process-event.is-hit > summary {
+  color: var(--accent);
 }
 
 .process-event > summary {

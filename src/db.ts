@@ -1,8 +1,23 @@
 import { Database } from "bun:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentId, ParsedSession } from "./adapters/types.ts";
+import type { AgentId, ParsedEvent, ParsedSession } from "./adapters/types.ts";
 import { capEventText, EVENT_CAPS, limitEvents } from "./util/events.ts";
+
+const ERROR_LINE =
+  /error|exception|failed|fatal|denied|rejected|失败|错误|异常|拒绝/i;
+
+function errorSearchText(event: ParsedEvent): string {
+  const output = event.output ?? "";
+  if (/error|denied|fail|reject/i.test(event.meta ?? "")) {
+    return capEventText(output, EVENT_CAPS.output).text;
+  }
+  const lines = output
+    .split(/\r?\n/)
+    .filter((line) => ERROR_LINE.test(line))
+    .slice(0, 40);
+  return capEventText(lines.join("\n"), EVENT_CAPS.output).text;
+}
 
 export type IndexedDatabase = Database;
 
@@ -63,6 +78,63 @@ CREATE TABLE IF NOT EXISTS event (
 
 CREATE INDEX IF NOT EXISTS event_turn ON event(session_id, turn_idx, seq);
 
+CREATE TABLE IF NOT EXISTS event_search (
+  id INTEGER PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+  turn_idx INTEGER NOT NULL,
+  seq INTEGER NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  input TEXT NOT NULL DEFAULT '',
+  error_text TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT '',
+  UNIQUE (session_id, turn_idx, seq)
+);
+
+CREATE INDEX IF NOT EXISTS event_search_session ON event_search(session_id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS event_fts USING fts5(
+  name,
+  input,
+  error_text,
+  content='event_search',
+  content_rowid='id',
+  tokenize='trigram'
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS event_fts_en USING fts5(
+  name,
+  input,
+  error_text,
+  content='event_search',
+  content_rowid='id',
+  tokenize='porter'
+);
+
+CREATE TRIGGER IF NOT EXISTS event_search_ai AFTER INSERT ON event_search BEGIN
+  INSERT INTO event_fts(rowid, name, input, error_text)
+    VALUES (new.id, new.name, new.input, new.error_text);
+  INSERT INTO event_fts_en(rowid, name, input, error_text)
+    VALUES (new.id, new.name, new.input, new.error_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS event_search_ad AFTER DELETE ON event_search BEGIN
+  INSERT INTO event_fts(event_fts, rowid, name, input, error_text)
+    VALUES ('delete', old.id, old.name, old.input, old.error_text);
+  INSERT INTO event_fts_en(event_fts_en, rowid, name, input, error_text)
+    VALUES ('delete', old.id, old.name, old.input, old.error_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS event_search_au AFTER UPDATE ON event_search BEGIN
+  INSERT INTO event_fts(event_fts, rowid, name, input, error_text)
+    VALUES ('delete', old.id, old.name, old.input, old.error_text);
+  INSERT INTO event_fts_en(event_fts_en, rowid, name, input, error_text)
+    VALUES ('delete', old.id, old.name, old.input, old.error_text);
+  INSERT INTO event_fts(rowid, name, input, error_text)
+    VALUES (new.id, new.name, new.input, new.error_text);
+  INSERT INTO event_fts_en(rowid, name, input, error_text)
+    VALUES (new.id, new.name, new.input, new.error_text);
+END;
+
 CREATE VIRTUAL TABLE IF NOT EXISTS turn_fts USING fts5(
   user_text,
   assistant_text,
@@ -111,7 +183,7 @@ CREATE TABLE IF NOT EXISTS scan_error (
 );
 `;
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 4;
 
 function numberField(value: unknown, key: string): number | null {
   if (typeof value !== "object" || value === null || !(key in value)) return null;
@@ -154,6 +226,59 @@ export function openDb(path: string): IndexedDatabase {
   }
   if (version < SCHEMA_VERSION) {
     db.run(SCHEMA);
+    if (version < 3) {
+      // Existing installs already have the event table; populate the narrower
+      // search projection instead of forcing a full source rescan.
+      db.run(
+        `INSERT OR REPLACE INTO event_search
+           (session_id, turn_idx, seq, name, input, error_text, status)
+         SELECT session_id, turn_idx, seq,
+                COALESCE(name, ''), input,
+                CASE
+                  WHEN instr(lower(COALESCE(meta, '')), 'error') > 0
+                    OR instr(lower(COALESCE(meta, '')), 'denied') > 0
+                    OR instr(lower(COALESCE(meta, '')), 'fail') > 0
+                    OR instr(lower(COALESCE(meta, '')), 'reject') > 0
+                  THEN output
+                  ELSE ''
+                END,
+                COALESCE(meta, '')
+         FROM event WHERE kind = 'tool'`,
+      );
+    }
+    if (version < 4) {
+      // v3 only copied output for tools whose status looked like an error.
+      // Successful tools can still print an error line; backfill those so a
+      // process search for the message finds the call.
+      db.run(
+        `UPDATE event_search
+         SET error_text = (
+           SELECT e.output FROM event e
+           WHERE e.session_id = event_search.session_id
+             AND e.turn_idx = event_search.turn_idx
+             AND e.seq = event_search.seq
+         )
+         WHERE error_text = ''
+           AND EXISTS (
+             SELECT 1 FROM event e
+             WHERE e.session_id = event_search.session_id
+               AND e.turn_idx = event_search.turn_idx
+               AND e.seq = event_search.seq
+               AND (
+                 instr(lower(e.output), 'error') > 0
+                 OR instr(lower(e.output), 'exception') > 0
+                 OR instr(lower(e.output), 'failed') > 0
+                 OR instr(lower(e.output), 'fatal') > 0
+                 OR instr(lower(e.output), 'denied') > 0
+                 OR instr(lower(e.output), 'rejected') > 0
+                 OR instr(e.output, '失败') > 0
+                 OR instr(e.output, '错误') > 0
+                 OR instr(e.output, '异常') > 0
+                 OR instr(e.output, '拒绝') > 0
+               )
+           )`,
+      );
+    }
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
   return db;
@@ -183,6 +308,9 @@ export function writeSession(db: IndexedDatabase, session: ParsedSession): void 
   );
   const insertEvent = db.query(
     "INSERT INTO event(session_id, turn_idx, seq, kind, name, input, output, meta, truncated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const insertEventSearch = db.query(
+    "INSERT INTO event_search(session_id, turn_idx, seq, name, input, error_text, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
   );
   const events = limitEvents(session.events ?? []);
 
@@ -218,6 +346,7 @@ export function writeSession(db: IndexedDatabase, session: ParsedSession): void 
       ],
     );
 
+    db.run("DELETE FROM event_search WHERE session_id = ?", [id]);
     db.run("DELETE FROM event WHERE session_id = ?", [id]);
     db.run("DELETE FROM turn WHERE session_id = ?", [id]);
     for (const turn of session.turns) {
@@ -261,6 +390,17 @@ export function writeSession(db: IndexedDatabase, session: ParsedSession): void 
         (event.meta ?? "").slice(0, 300),
         truncated ? 1 : 0,
       );
+      if (event.kind === "tool") {
+        insertEventSearch.run(
+          id,
+          event.turnIdx,
+          event.seq,
+          (event.name ?? "").slice(0, 120),
+          input,
+          errorSearchText(event),
+          (event.meta ?? "").slice(0, 300),
+        );
+      }
     }
   });
 
@@ -270,6 +410,7 @@ export function writeSession(db: IndexedDatabase, session: ParsedSession): void 
 export function deleteSession(db: IndexedDatabase, agent: AgentId, externalId: string): void {
   const id = `${agent}:${externalId}`;
   const remove = db.transaction(() => {
+    db.run("DELETE FROM event_search WHERE session_id = ?", [id]);
     db.run("DELETE FROM event WHERE session_id = ?", [id]);
     db.run("DELETE FROM turn WHERE session_id = ?", [id]);
     db.run("DELETE FROM session WHERE id = ?", [id]);

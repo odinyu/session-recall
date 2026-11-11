@@ -37,6 +37,8 @@ interface CursorMeta {
   projectPath: string;
   headers: string[];
   parentId?: string;
+  /** Selected model from composerData.modelConfig; absent for "default". */
+  model?: string;
 }
 
 interface Bubble {
@@ -196,10 +198,25 @@ export function cursorAdapter(): Adapter {
   const transcriptOwners = new Map<string, string>();
   const resolvedProjects = new Map<string, string>();
 
+  function tryOpen(uri: string): Database | null {
+    try {
+      const candidate = new Database(uri, { readonly: true });
+      // A WAL database with no live -shm file (Cursor not running) opens fine
+      // read-only but fails on first read. Probe before keeping it.
+      candidate.query("SELECT 1 FROM sqlite_master LIMIT 1").get();
+      return candidate;
+    } catch {
+      return null;
+    }
+  }
+
   function open(): Database | null {
     if (db) return db;
     if (!existsSync(STATE_DB)) return null;
-    db = new Database(STATE_DB, { readonly: true });
+    db = tryOpen(STATE_DB) ?? tryOpen(`file:${STATE_DB}?immutable=1`);
+    if (!db) return null;
+    // immutable=1 skips shared memory; it is only reached when the plain open
+    // could not read, i.e. nothing else has the file open right now.
     db.run("PRAGMA busy_timeout = 4000");
     return db;
   }
@@ -234,8 +251,19 @@ export function cursorAdapter(): Adapter {
         projectPath: nestedUriPath(data),
         headers,
         parentId: subagent ? readString(subagent, "parentAgentId") || undefined : undefined,
+        model: cursorModelName(data),
       });
     }
+  }
+
+  function cursorModelName(data: Record<string, unknown>): string | undefined {
+    const config = objectValue(data.modelConfig);
+    const name =
+      (config && (readString(config, "modelName") || readString(config, "selectedModel"))) ||
+      readString(data, "selectedModel");
+    // "default" is Cursor's placeholder for its own Composer model; no
+    // concrete name is recorded, so leave those sessions blank.
+    return name && name !== "default" ? name : undefined;
   }
 
   function readTranscripts(): void {
@@ -408,6 +436,7 @@ export function cursorAdapter(): Adapter {
         ts: turn.ts,
         userText: scrubRedactions(user.text),
         assistantText: scrubRedactions(assistant.text),
+        model: meta?.model,
         truncated: user.truncated || assistant.truncated,
       };
     });
@@ -434,7 +463,7 @@ export function cursorAdapter(): Adapter {
   return {
     id: "cursor",
     label: "Cursor",
-    version: 4,
+    version: 5,
 
     async list(): Promise<SessionRef[]> {
       readMetas();

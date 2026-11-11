@@ -3,6 +3,7 @@ import { ompAdapter } from "./adapters/omp.ts";
 import { openCodeAdapter } from "./adapters/opencode.ts";
 import { cursorAdapter } from "./adapters/cursor.ts";
 import { almaAdapter } from "./adapters/alma.ts";
+import { cindyAdapter } from "./adapters/cindy.ts";
 import type { Adapter, SessionRef } from "./adapters/types.ts";
 import {
   clearScanError,
@@ -52,6 +53,7 @@ export async function scan(
     openCodeAdapter(),
     cursorAdapter(),
     almaAdapter(),
+    cindyAdapter(),
   ],
   options: ScanOptions = {},
 ): Promise<ScanReport> {

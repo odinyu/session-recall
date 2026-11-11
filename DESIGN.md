@@ -54,6 +54,14 @@ on dots and labels.
   `<app dir>/prefs.json`, so it survives the port changing between launches
   (`localStorage` is only a first-paint cache for the current origin).
 - Segmented control: 1px border, 2px inner padding, active fill `--surface-3`.
+- Search scope: a two-state segmented control next to the query (`问答` / `过程`);
+  process mode hides the role filter and relabels each hit with its match field,
+  tool name, and status (`bash · error`).
+- Results sort by session last activity, newest first; within a session, newest
+  matching turn first. When the loaded row window covers only part of the
+  sessions, the footer offers `显示更多` rather than hiding the remainder.
+- A result hit that matched an answer scrolls to the answer block, not merely
+  the top of its turn; the matched block gets an accent label.
 - Project filter: a custom combobox — a `role="combobox"` trigger button plus a
   `role="listbox"` panel, because a native `<select>` popup cannot be styled.
   Full keyboard support (arrows, Home/End, Enter, Escape) and one clean focus
@@ -62,12 +70,21 @@ on dots and labels.
   column, shown once the page is scrolled past ~400px. Sessions open on a
   matched turn, so this is the way back up.
 - Hit: 12px radius hover surface; mono `提问` / `回答` labels; 2-line answer
-  clamp.
+  clamp. The `回答` label carries the agent name and, when the index recorded
+  one, the model that produced the answer in faint small text.
 - Process disclosure: one hairline `过程 N 项` toggle per turn, opened lazily;
   inside, one full-width hairline card per reasoning block or tool call.
   Reasoning and tool rows start collapsed; inputs and outputs use mono `pre`.
-- Resume command: a bordered mono row under the session meta with a copy button;
+  A process-search hit deep-links to its event sequence, opens that row, outlines
+  it in accent, and scrolls it below the sticky action bar.
+- Sticky action bar: the resume command and handoff button live in a thin bar
+  directly below the session header; it pins under the query bar while scrolling
+  so a jumped-to answer cannot push them out of view. The top offset follows the
+  measured topbar height.
+- Resume command: a bordered mono row in the action bar with a copy button;
   shown only when the agent has a local resume command (omp, OpenCode).
+- Handoff button: a small mono button beside the resume row; it is disabled
+  while the card is prefetched, then copies the Markdown card on click.
 - Daily brief: a date input plus `生成简报` in the rail footer; success becomes
   `在线查看` (rendered in the content column) and `下载 .md`.
 - Empty state: dashed hairline box, direct recovery copy.

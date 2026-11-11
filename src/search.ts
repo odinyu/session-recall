@@ -4,6 +4,7 @@ import { getMeta, indexStats } from "./db.ts";
 import { escapeLike } from "./util/values.ts";
 
 export type SearchRole = "all" | "user" | "assistant";
+export type SearchScope = "qa" | "process";
 
 export interface SearchParams {
   q: string;
@@ -12,6 +13,7 @@ export interface SearchParams {
   from: number | null;
   to: number | null;
   role: SearchRole;
+  scope: SearchScope;
   limit: number;
   offset: number;
 }
@@ -26,6 +28,16 @@ export interface SearchHit {
   assistantSnippet: string;
 }
 
+export interface ProcessHit {
+  turnIdx: number;
+  seq: number;
+  ts: number;
+  tool: string;
+  status: string;
+  matchField: "tool" | "input" | "error";
+  snippet: string;
+}
+
 export interface SearchSession {
   id: string;
   agent: AgentId;
@@ -34,15 +46,19 @@ export interface SearchSession {
   updatedAt: number;
   hits: SearchHit[];
   hitCount: number;
+  processHits: ProcessHit[];
+  processHitCount: number;
 }
 
 export interface SearchResult {
   q: string;
   terms: string[];
-  mode: "fts" | "like" | "recent";
+  scope: SearchScope;
+  mode: "fts" | "like" | "recent" | "process";
   tookMs: number;
   totalTurns: number;
   totalSessions: number;
+  processTotal: number;
   sessions: SearchSession[];
 }
 
@@ -211,6 +227,8 @@ function groupRows(rows: TurnRow[], terms: string[], params: SearchParams): Sear
         updatedAt: row.updated_at,
         hits: [],
         hitCount: row.session_hits,
+        processHits: [],
+        processHitCount: 0,
       };
       byId.set(row.session_id, session);
       sessions.push(session);
@@ -282,7 +300,9 @@ function executeFts(
     .query(
       `${rowQuery(table)}
        WHERE ${where}
-       ORDER BY rank ASC, COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC
+       ORDER BY s.updated_at DESC,
+                COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC,
+                rank ASC
        LIMIT ?`,
     )
     .all(...bound, limit) as TurnRow[];
@@ -314,7 +334,8 @@ function executeRecent(
     .query(
       `${rowQuery(null)}
        WHERE ${where}
-       ORDER BY COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC
+       ORDER BY s.updated_at DESC,
+                COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC
        LIMIT ?`,
     )
     .all(...base.params, limit) as TurnRow[];
@@ -351,7 +372,8 @@ function executeLike(
     .query(
       `${rowQuery(null)}
        WHERE ${where}
-       ORDER BY COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC
+       ORDER BY s.updated_at DESC,
+                COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC
        LIMIT ?`,
     )
     .all(...values, limit) as TurnRow[];
@@ -359,13 +381,332 @@ function executeLike(
   return { rows, totalTurns: count.turns, totalSessions: count.sessions };
 }
 
+interface ProcessRow {
+  session_id: string;
+  turn_idx: number;
+  seq: number;
+  name: string;
+  input: string;
+  error_text: string;
+  status: string;
+  agent: AgentId;
+  title: string;
+  project_path: string;
+  updated_at: number;
+  ts: number;
+  rank: number;
+  session_hits: number;
+}
+
+function processSource(ftsTable: string | null): string {
+  return ftsTable
+    ? `${ftsTable} JOIN event_search es ON es.id = ${ftsTable}.rowid`
+    : "event_search es";
+}
+
+function processRowQuery(ftsTable: string | null): string {
+  const rank = ftsTable ? `bm25(${ftsTable}) AS rank` : "0 AS rank";
+  return `SELECT es.session_id, es.turn_idx, es.seq, es.name, es.input,
+                 es.error_text, es.status, s.agent, s.title, s.project_path,
+                 s.updated_at,
+                 COALESCE(NULLIF(t.ts, 0), s.updated_at) AS ts, ${rank},
+                 0 AS session_hits
+          FROM ${processSource(ftsTable)}
+          JOIN session s ON s.id = es.session_id
+          LEFT JOIN turn t ON t.session_id = es.session_id AND t.idx = es.turn_idx`;
+}
+
+function processCountQuery(ftsTable: string | null, where: string): string {
+  return `SELECT count(*) AS hits, count(DISTINCT es.session_id) AS sessions
+          FROM ${processSource(ftsTable)}
+          JOIN session s ON s.id = es.session_id
+          LEFT JOIN turn t ON t.session_id = es.session_id AND t.idx = es.turn_idx
+          WHERE ${where}`;
+}
+
+function processLikeClause(term: string): Clause {
+  const pattern = likePattern(term);
+  return {
+    sql: "(es.name LIKE ? ESCAPE '\\' OR es.input LIKE ? ESCAPE '\\' OR es.error_text LIKE ? ESCAPE '\\')",
+    params: [pattern, pattern, pattern],
+  };
+}
+
+function processMatch(terms: string[]): string {
+  return terms.length === 1
+    ? ftsTerm(terms[0])
+    : `(${terms.map(ftsTerm).join(" AND ")})`;
+}
+
+function fillProcessCounts(
+  db: Database,
+  ftsTable: string | null,
+  rows: ProcessRow[],
+  where: string,
+  bound: (string | number)[],
+): void {
+  if (rows.length === 0) return;
+  const ids = [...new Set(rows.map((row) => row.session_id))];
+  const placeholders = ids.map(() => "?").join(", ");
+  const counts = db
+    .query(
+      `SELECT es.session_id AS id, count(*) AS n
+       FROM ${processSource(ftsTable)}
+       JOIN session s ON s.id = es.session_id
+       LEFT JOIN turn t ON t.session_id = es.session_id AND t.idx = es.turn_idx
+       WHERE ${where} AND es.session_id IN (${placeholders})
+       GROUP BY es.session_id`,
+    )
+    .all(...bound, ...ids) as { id: string; n: number }[];
+  const byId = new Map(counts.map((row) => [row.id, row.n]));
+  for (const row of rows) row.session_hits = byId.get(row.session_id) ?? 0;
+}
+
+function pickProcessHit(row: ProcessRow, terms: string[]): ProcessHit {
+  const candidates: { field: ProcessHit["matchField"]; text: string }[] = [
+    { field: "error", text: row.error_text },
+    { field: "input", text: row.input },
+    { field: "tool", text: row.name },
+  ];
+  for (const term of terms) {
+    const needle = term.toLowerCase();
+    for (const candidate of candidates) {
+      if (candidate.text.toLowerCase().includes(needle)) {
+        return {
+          turnIdx: row.turn_idx,
+          seq: row.seq,
+          ts: row.ts,
+          tool: row.name || "tool",
+          status: row.status,
+          matchField: candidate.field,
+          snippet: windowSnippet(candidate.text, term),
+        };
+      }
+    }
+  }
+  const fallback = candidates.find((candidate) => candidate.text) ?? candidates[2];
+  return {
+    turnIdx: row.turn_idx,
+    seq: row.seq,
+    ts: row.ts,
+    tool: row.name || "tool",
+    status: row.status,
+    matchField: fallback.field,
+    snippet: terms.length > 0
+      ? windowSnippet(fallback.text, terms[0])
+      : fallback.text.replace(/\s+/g, " ").slice(0, 240),
+  };
+}
+
+function groupProcessRows(
+  rows: ProcessRow[],
+  terms: string[],
+): SearchSession[] {
+  const sessions: SearchSession[] = [];
+  const byId = new Map<string, SearchSession>();
+  for (const row of rows) {
+    let session = byId.get(row.session_id);
+    if (!session) {
+      session = {
+        id: row.session_id,
+        agent: row.agent,
+        title: row.title,
+        projectPath: row.project_path,
+        updatedAt: row.updated_at,
+        hits: [],
+        hitCount: 0,
+        processHits: [],
+        processHitCount: row.session_hits,
+      };
+      byId.set(row.session_id, session);
+      sessions.push(session);
+    }
+    if (session.processHits.length < 3) {
+      session.processHits.push(pickProcessHit(row, terms));
+    }
+  }
+  return sessions;
+}
+
+function executeProcessRecent(
+  db: Database,
+  params: SearchParams,
+  limit: number,
+): { rows: ProcessRow[]; totalHits: number; totalSessions: number } {
+  const base = baseClause(params);
+  const where = base.sql;
+  const count = db.query(processCountQuery(null, where)).get(...base.params) as {
+    hits: number;
+    sessions: number;
+  };
+  const rows = db
+    .query(
+      `${processRowQuery(null)}
+       WHERE ${where}
+       ORDER BY s.updated_at DESC,
+                COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC,
+                es.seq DESC
+       LIMIT ?`,
+    )
+    .all(...base.params, limit) as ProcessRow[];
+  fillProcessCounts(db, null, rows, where, base.params);
+  return { rows, totalHits: count.hits, totalSessions: count.sessions };
+}
+
+function executeProcessLike(
+  db: Database,
+  params: SearchParams,
+  terms: string[],
+  limit: number,
+): { rows: ProcessRow[]; totalHits: number; totalSessions: number } {
+  const base = baseClause(params);
+  const clauses = [base.sql];
+  const values: (string | number)[] = [...base.params];
+  for (const term of terms) {
+    const clause = processLikeClause(term);
+    clauses.push(clause.sql);
+    values.push(...clause.params);
+  }
+  const where = clauses.join(" AND ");
+  const count = db.query(processCountQuery(null, where)).get(...values) as {
+    hits: number;
+    sessions: number;
+  };
+  const rows = db
+    .query(
+      `${processRowQuery(null)}
+       WHERE ${where}
+       ORDER BY s.updated_at DESC,
+                COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC,
+                es.seq DESC
+       LIMIT ?`,
+    )
+    .all(...values, limit) as ProcessRow[];
+  fillProcessCounts(db, null, rows, where, values);
+  return { rows, totalHits: count.hits, totalSessions: count.sessions };
+}
+
+function executeProcessFts(
+  db: Database,
+  params: SearchParams,
+  terms: string[],
+  table: "event_fts" | "event_fts_en",
+  shortTerms: string[],
+  limit: number,
+): { rows: ProcessRow[]; totalHits: number; totalSessions: number } {
+  const base = baseClause(params);
+  const clauses = [base.sql, `${table} MATCH ?`];
+  const values: (string | number)[] = [processMatch(terms), ...base.params];
+  for (const term of shortTerms) {
+    const clause = processLikeClause(term);
+    clauses.push(clause.sql);
+    values.push(...clause.params);
+  }
+  const where = clauses.join(" AND ");
+  const count = db.query(processCountQuery(table, where)).get(...values) as {
+    hits: number;
+    sessions: number;
+  };
+  const rows = db
+    .query(
+      `${processRowQuery(table)}
+       WHERE ${where}
+       ORDER BY s.updated_at DESC,
+                COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC,
+                es.seq DESC,
+                rank ASC
+       LIMIT ?`,
+    )
+    .all(...values, limit) as ProcessRow[];
+  fillProcessCounts(db, table, rows, where, values);
+  return { rows, totalHits: count.hits, totalSessions: count.sessions };
+}
+
+function searchProcess(
+  db: Database,
+  params: SearchParams,
+  terms: string[],
+  limit: number,
+  offset: number,
+): SearchResult {
+  const startedAt = performance.now();
+  let mode: "fts" | "like" | "recent" | "process" = "recent";
+  let outcome: {
+    rows: ProcessRow[];
+    totalHits: number;
+    totalSessions: number;
+  };
+
+  if (terms.length === 0) {
+    mode = "recent";
+    outcome = executeProcessRecent(db, params, limit + offset);
+  } else {
+    const longTerms = terms.filter((term) => runeLength(term) >= 3);
+    const shortTerms = terms.filter((term) => runeLength(term) < 3);
+    const asciiOnly = terms.every((term) => !hasCjk(term));
+    if (longTerms.length > 0) {
+      mode = "fts";
+      outcome = executeProcessFts(
+        db,
+        params,
+        longTerms,
+        "event_fts",
+        shortTerms,
+        limit + offset,
+      );
+      if (outcome.rows.length === 0 && asciiOnly) {
+        outcome = executeProcessFts(
+          db,
+          params,
+          longTerms,
+          "event_fts_en",
+          shortTerms,
+          limit + offset,
+        );
+      }
+    } else {
+      mode = "like";
+      outcome = executeProcessLike(db, params, terms, limit + offset);
+    }
+    if (outcome.rows.length === 0 && mode !== "like") {
+      mode = "like";
+      outcome = executeProcessLike(db, params, terms, limit + offset);
+    }
+  }
+
+  const sliced =
+    offset > 0
+      ? outcome.rows.slice(offset, offset + limit)
+      : outcome.rows.slice(0, limit);
+  const sessions = groupProcessRows(
+    sliced,
+    terms,
+  ).slice(0, limit);
+
+  return {
+    q: params.q,
+    terms,
+    scope: "process",
+    mode: mode === "process" ? "process" : mode,
+    tookMs: Math.round((performance.now() - startedAt) * 10) / 10,
+    totalTurns: outcome.totalHits,
+    totalSessions: outcome.totalSessions,
+    processTotal: outcome.totalHits,
+    sessions,
+  };
+}
+
 export function searchTurns(db: Database, params: SearchParams): SearchResult {
   const startedAt = performance.now();
   const terms = parseTerms(params.q);
   const requestedLimit = Number.isFinite(params.limit) ? params.limit : 120;
   const requestedOffset = Number.isFinite(params.offset) ? params.offset : 0;
-  const limit = Math.max(1, Math.min(500, requestedLimit));
+  const limit = Math.max(1, Math.min(5000, requestedLimit));
   const offset = Math.max(0, requestedOffset);
+
+  if (params.scope === "process") {
+    return searchProcess(db, params, terms, limit, offset);
+  }
 
   let mode: "fts" | "like" | "recent" = "recent";
   let outcome: { rows: TurnRow[]; totalTurns: number; totalSessions: number };
@@ -402,10 +743,12 @@ export function searchTurns(db: Database, params: SearchParams): SearchResult {
   return {
     q: params.q,
     terms,
+    scope: "qa",
     mode,
     tookMs: Math.round((performance.now() - startedAt) * 10) / 10,
     totalTurns: outcome.totalTurns,
     totalSessions: outcome.totalSessions,
+    processTotal: 0,
     sessions,
   };
 }

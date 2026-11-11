@@ -4,15 +4,17 @@ import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
 import { generateBrief, parseBriefDate, readBrief } from "./brief.ts";
 import { eventCountsFor, eventsForTurn, openDb } from "./db.ts";
 import type { IndexedDatabase } from "./db.ts";
+import { generateHandoff } from "./handoff.ts";
 import { InvalidPrefsError, readPrefs, updatePrefs } from "./prefs.ts";
 import { facets, getSessionDetail, searchTurns } from "./search.ts";
-import type { SearchParams, SearchRole } from "./search.ts";
+import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
 import type { AgentId } from "./adapters/types.ts";
 
-const AGENTS: AgentId[] = ["omp", "opencode", "cursor", "alma"];
+const AGENTS: AgentId[] = ["omp", "opencode", "cursor", "alma", "cindy"];
 const ROLES: SearchRole[] = ["all", "user", "assistant"];
+const SCOPES: SearchScope[] = ["qa", "process"];
 
 let db: IndexedDatabase | null = null;
 let scanning = false;
@@ -37,6 +39,10 @@ function parseRole(value: string | null): SearchRole {
   return ROLES.includes(value as SearchRole) ? (value as SearchRole) : "all";
 }
 
+function parseScope(value: string | null): SearchScope {
+  return SCOPES.includes(value as SearchScope) ? (value as SearchScope) : "qa";
+}
+
 function parseTime(value: string | null): number | null {
   if (!value) return null;
   const numeric = Number(value);
@@ -53,6 +59,7 @@ function searchParams(url: URL): SearchParams {
     from: parseTime(url.searchParams.get("from")),
     to: parseTime(url.searchParams.get("to")),
     role: parseRole(url.searchParams.get("role")),
+    scope: parseScope(url.searchParams.get("scope")),
     limit: Number(url.searchParams.get("limit") ?? 30),
     offset: Number(url.searchParams.get("offset") ?? 0),
   };
@@ -129,6 +136,18 @@ async function api(request: Request, url: URL): Promise<Response> {
   }
   if (request.method === "GET" && url.pathname.startsWith("/api/session/")) {
     const rest = url.pathname.slice("/api/session/".length);
+    if (rest.endsWith("/handoff")) {
+      if (!db) return json({ error: "index not open" }, 500);
+      const id = decodeURIComponent(rest.slice(0, -"/handoff".length));
+      const handoff = generateHandoff(db, id);
+      if (handoff === null) return json({ error: "session not found" }, 404);
+      return new Response(handoff, {
+        headers: {
+          "cache-control": "no-store",
+          "content-type": "text/markdown; charset=utf-8",
+        },
+      });
+    }
     if (rest.endsWith("/events")) {
       if (!db) return json({ error: "index not open" }, 500);
       const id = decodeURIComponent(rest.slice(0, -"/events".length));

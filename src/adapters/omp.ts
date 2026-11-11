@@ -44,7 +44,7 @@ export function ompAdapter(): Adapter {
   return {
     id: "omp",
     label: "omp",
-    version: 3,
+    version: 5,
 
     async list(): Promise<SessionRef[]> {
       const refs: SessionRef[] = [];
@@ -127,6 +127,8 @@ export function ompAdapter(): Adapter {
         if (!current) continue;
 
         if (role === "assistant") {
+          const model = readString(message, "model");
+          if (model && !current.model) current.model = model;
           const body: string[] = [];
           for (const part of readArray(message, "content")) {
             const block = objectValue(part);
@@ -218,6 +220,7 @@ export function ompAdapter(): Adapter {
           ts: turn.ts,
           userText: user.text,
           assistantText: assistant.text,
+          model: turn.model,
           truncated: user.truncated || assistant.truncated,
         };
       });

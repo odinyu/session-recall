@@ -3,19 +3,19 @@ import { basename, join, relative } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { AgentId } from "./adapters/types.ts";
 import { BRIEF_DIR, PROJECT_ROOT } from "./config.ts";
+import { resumeCommand, sessionDeepLink } from "./util/resume.ts";
 
 const AGENT_LABELS: Record<AgentId, string> = {
   omp: "omp",
   opencode: "OpenCode",
   cursor: "Cursor",
   alma: "Alma",
+  cindy: "Cindy",
 };
 
 const MAX_PROMPT_CHARS = 220;
 const MAX_TITLE_CHARS = 80;
 const FALLBACK_TURNS = 12;
-/** Mirrors `plugins.deep-link.desktop.schemes` in src-tauri/tauri.conf.json. */
-const DEEP_LINK_SCHEME = "sessionrecall";
 
 export interface BriefDate {
   key: string;
@@ -131,26 +131,6 @@ function codeSpan(value: string): string {
   const clean = oneLine(value);
   const ticks = clean.includes("`") ? "``" : "`";
   return `${ticks}${clean}${ticks}`;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function resumeCommand(session: BriefSession): string {
-  const cwd = session.projectPath
-    ? `cd ${shellQuote(session.projectPath)} && `
-    : "";
-  if (session.agent === "omp") {
-    const resumeId = session.externalId.slice(
-      session.externalId.lastIndexOf("_") + 1,
-    );
-    return `${cwd}omp --resume ${resumeId}`;
-  }
-  if (session.agent === "opencode") {
-    return `${cwd}opencode --session ${session.externalId}`;
-  }
-  return "";
 }
 
 function eventCounts(
@@ -299,7 +279,11 @@ function sessionBlock(session: BriefSession): string {
     lines.push("");
   }
 
-  const resume = resumeCommand(session);
+  const resume = resumeCommand(
+    session.agent,
+    session.externalId,
+    session.projectPath,
+  );
   if (resume) {
     lines.push(`**继续**：${codeSpan(resume)}`, "");
   }
@@ -307,7 +291,7 @@ function sessionBlock(session: BriefSession): string {
   // A stable address for the app itself: `http://127.0.0.1:<port>` would be the
   // port of whichever launch generated the brief, and would die on the next one
   // (and land in a browser when clicked from outside the app).
-  const link = `${DEEP_LINK_SCHEME}://session/${encodeURIComponent(session.id)}`;
+  const link = sessionDeepLink(session.id);
   lines.push(`[在 session-recall 打开](${link})`, "");
   return lines.join("\n");
 }
