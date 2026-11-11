@@ -10,6 +10,8 @@
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <script>
+      // First-paint hint only: the theme that matters lives in the sidecar's
+      // prefs.json and is fetched by app.ts before it renders anything.
       (() => {
         let saved = "auto";
         try {

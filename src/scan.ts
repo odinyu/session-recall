@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { ompAdapter } from "./adapters/omp.ts";
 import { openCodeAdapter } from "./adapters/opencode.ts";
 import { cursorAdapter } from "./adapters/cursor.ts";
+import { almaAdapter } from "./adapters/alma.ts";
 import type { Adapter, SessionRef } from "./adapters/types.ts";
 import {
   clearScanError,
@@ -46,7 +47,12 @@ function uniqueRefs(refs: SessionRef[]): SessionRef[] {
 
 export async function scan(
   db: Database,
-  adapters: Adapter[] = [ompAdapter(), openCodeAdapter(), cursorAdapter()],
+  adapters: Adapter[] = [
+    ompAdapter(),
+    openCodeAdapter(),
+    cursorAdapter(),
+    almaAdapter(),
+  ],
   options: ScanOptions = {},
 ): Promise<ScanReport> {
   const startedAt = Date.now();

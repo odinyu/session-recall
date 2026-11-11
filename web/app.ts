@@ -1,6 +1,7 @@
+import { inAppRoute } from "./links.ts";
 import { renderMarkdown } from "./markdown.ts";
 
-type AgentId = "omp" | "opencode" | "cursor";
+type AgentId = "omp" | "opencode" | "cursor" | "alma";
 type Role = "all" | "user" | "assistant";
 type Range = "all" | "7d" | "30d" | "90d";
 type ThemeMode = "auto" | "light" | "dark";
@@ -103,9 +104,10 @@ const AGENT_LABEL: Record<AgentId, string> = {
   omp: "omp",
   opencode: "OpenCode",
   cursor: "Cursor",
+  alma: "Alma",
 };
 
-const AGENTS: AgentId[] = ["cursor", "opencode", "omp"];
+const AGENTS: AgentId[] = ["cursor", "opencode", "omp", "alma"];
 const RANGES: { id: Range; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "7d", label: "7 天" },
@@ -122,7 +124,14 @@ const THEMES: { id: ThemeMode; label: string }[] = [
   { id: "light", label: "浅色" },
   { id: "dark", label: "深色" },
 ];
+/**
+ * Same-launch cache for the first paint only (see `applyTheme`): the packaged
+ * app's origin carries a fresh random port on every launch, so this value only
+ * survives a reload. The server's `prefs.json` is the authority.
+ */
 const THEME_KEY = "session-recall-theme";
+/** Scroll distance after which the floating "回到顶部" control appears. */
+const TO_TOP_THRESHOLD = 400;
 
 let state: UiState = defaultState();
 let facetsData: Facets | null = null;
@@ -132,7 +141,7 @@ let searchAbort: AbortController | null = null;
 let searchTimer: number | undefined;
 let pollTimer: number | undefined;
 let lastSearchHash = "#/search";
-let themeMode: ThemeMode = "auto";
+let themeMode: ThemeMode = cachedTheme();
 let briefDate = localDateKey();
 
 function localDateKey(date = new Date()): string {
@@ -271,15 +280,26 @@ function formatCount(value: number): string {
   return value.toLocaleString("zh-CN");
 }
 
-function savedTheme(): ThemeMode {
+function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "auto" || value === "light" || value === "dark";
+}
+
+/** The last value this origin painted with; empty or stale on a fresh launch. */
+function cachedTheme(): ThemeMode {
   try {
     const stored = localStorage.getItem(THEME_KEY);
-    return stored === "light" || stored === "dark" ? stored : "auto";
+    return isThemeMode(stored) ? stored : "auto";
   } catch {
     return "auto";
   }
 }
 
+/**
+ * Paint a theme and, unless told otherwise, refresh the same-launch cache.
+ *
+ * `auto` keeps following the system through `matchMedia`, here and in the
+ * `prefers-color-scheme` listener registered in `boot`.
+ */
 function applyTheme(mode: ThemeMode, persist = true): void {
   themeMode = mode;
   const dark =
@@ -292,6 +312,39 @@ function applyTheme(mode: ThemeMode, persist = true): void {
     localStorage.setItem(THEME_KEY, mode);
   } catch {
     // private browsing may refuse persistence; the session choice still applies
+  }
+}
+
+/**
+ * The server owns the theme: it is served by the sidecar out of
+ * `<app dir>/prefs.json`, so it outlives the port (and the origin) the packaged
+ * app picks on every launch. Run before the first paint, so nothing renders in
+ * the wrong theme.
+ */
+async function loadPrefs(): Promise<void> {
+  try {
+    const prefs = await api<{ theme?: unknown }>("/api/prefs");
+    applyTheme(isThemeMode(prefs.theme) ? prefs.theme : "auto");
+  } catch {
+    // No server to ask: the cache is the best available guess.
+    applyTheme(cachedTheme(), false);
+  }
+}
+
+/** Persist a theme choice; the local cache already switched, so failures are logged only. */
+async function saveTheme(mode: ThemeMode): Promise<void> {
+  try {
+    const prefs = await api<{ theme?: unknown }>("/api/prefs", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ theme: mode }),
+    });
+    if (isThemeMode(prefs.theme) && prefs.theme !== themeMode) {
+      // The server rejected or rewrote the value; its answer wins.
+      applyTheme(prefs.theme);
+    }
+  } catch (error) {
+    console.error("theme preference not saved", error);
   }
 }
 
@@ -373,7 +426,28 @@ function resumeCommand(session: SessionDetail["session"]): string {
   return "";
 }
 
+/**
+ * Alma has no shell resume command; its equivalent is a deep link that opens the
+ * thread inside the Alma app. Null for every other agent.
+ */
+function resumeDeepLink(session: SessionDetail["session"]): string | null {
+  if (session.agent !== "alma") return null;
+  const threadId = session.id.slice(session.agent.length + 1);
+  if (!threadId) return null;
+  return `alma://thread/${threadId}`;
+}
+
 function resumeBlock(session: SessionDetail["session"]): string {
+  const deepLink = resumeDeepLink(session);
+  if (deepLink) {
+    return `<div class="resume">
+    <span class="resume-label">在 Alma 中打开</span>
+    <a class="resume-link" href="${escapeAttr(deepLink)}" title="在 Alma 应用中打开这条对话">
+      <code class="resume-code">${escapeHtml(deepLink)}</code>
+    </a>
+    <button class="copy-command" type="button" data-command="${escapeAttr(deepLink)}">复制链接</button>
+  </div>`;
+  }
   const command = resumeCommand(session);
   if (!command) return "";
   return `<div class="resume">
@@ -418,8 +492,8 @@ async function copyCommand(button: HTMLButtonElement): Promise<void> {
   }, 1400);
 }
 
-async function api<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(path, { signal });
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(body?.error ?? `请求失败 (${response.status})`);
@@ -448,9 +522,15 @@ function renderShell(): void {
           </section>
           <section class="filter-block">
             <h2>项目</h2>
-            <select id="project-select" class="project-select" aria-label="按项目筛选">
-              <option value="">全部项目</option>
-            </select>
+            <div class="project-combobox" id="project-combobox">
+              <button class="project-trigger" id="project-select" type="button"
+                role="combobox" aria-haspopup="listbox" aria-expanded="false"
+                aria-controls="project-listbox" aria-label="按项目筛选">
+                <span class="project-value" id="project-value">全部项目</span>
+                <svg class="project-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="project-popup" id="project-listbox" role="listbox" aria-label="项目" hidden></div>
+            </div>
           </section>
           <section class="filter-block">
             <h2>时间</h2>
@@ -481,6 +561,9 @@ function renderShell(): void {
         </div>
       </main>
     </div>
+    <button class="to-top" id="to-top" type="button" title="回到顶部" aria-label="回到顶部" hidden>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 12.5 10 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <div class="scrim" id="scrim" hidden></div>
   `;
   bindShell();
@@ -505,14 +588,8 @@ function bindShell(): void {
   byId<HTMLButtonElement>("rail-close")?.addEventListener("click", closeFilters);
   byId<HTMLDivElement>("scrim")?.addEventListener("click", closeFilters);
 
-  byId<HTMLSelectElement>("project-select")?.addEventListener("change", (event) => {
-    ensureSearchView();
-    state.project = (event.target as HTMLSelectElement).value;
-    syncHash();
-    renderControls();
-    closeFilters();
-    void runSearch();
-  });
+  bindProjectCombobox();
+  bindToTop();
 
   byId<HTMLDivElement>("agent-filters")?.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-agent]");
@@ -563,8 +640,12 @@ function bindShell(): void {
       "button[data-theme-mode]",
     );
     if (themeButton) {
-      applyTheme(themeButton.dataset.themeMode as ThemeMode);
-      renderFoot();
+      const mode = themeButton.dataset.themeMode;
+      if (isThemeMode(mode)) {
+        applyTheme(mode);
+        renderFoot();
+        void saveTheme(mode);
+      }
       return;
     }
     if ((event.target as HTMLElement).closest("[data-brief]")) {
@@ -580,6 +661,8 @@ function bindShell(): void {
       briefDate = target.value || localDateKey();
     }
   });
+
+  byId<HTMLDivElement>("content")?.addEventListener("click", onContentClick);
 
   document.addEventListener("keydown", (event) => {
     const target = event.target as HTMLElement | null;
@@ -634,6 +717,263 @@ function closeFilters(): void {
   if (scrim) scrim.hidden = true;
 }
 
+/**
+ * Markdown from a brief can carry in-app links: the `sessionrecall://session/<id>`
+ * deep link the brief is generated with, and older absolute loopback links
+ * (`http://127.0.0.1:<port>/#/session/<id>`). Clicking either should stay inside
+ * the app — `links.ts` maps them to a hash route — rather than going out to the
+ * system browser or bouncing off the OS URL handler. External links, `download`
+ * anchors and unrelated schemes keep their default behaviour.
+ */
+function onContentClick(event: MouseEvent): void {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const anchor = target.closest("a");
+  if (!anchor || anchor.hasAttribute("download")) return;
+  const route = inAppRoute(anchor.getAttribute("href") ?? "");
+  if (!route) return;
+  event.preventDefault();
+  location.hash = route;
+}
+
+function bindToTop(): void {
+  byId<HTMLButtonElement>("to-top")?.addEventListener("click", () => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+  });
+  window.addEventListener("scroll", updateToTop, { passive: true });
+  updateToTop();
+}
+
+function updateToTop(): void {
+  const button = byId<HTMLButtonElement>("to-top");
+  if (button) button.hidden = window.scrollY <= TO_TOP_THRESHOLD;
+}
+
+/* ---------- project combobox ---------- */
+
+interface ProjectOption {
+  value: string;
+  label: string;
+}
+
+let projectOpen = false;
+let activeProjectIndex = 0;
+
+function projectOptions(): ProjectOption[] {
+  const options: ProjectOption[] = [{ value: "", label: "全部项目" }];
+  for (const project of facetsData?.projects ?? []) {
+    options.push({
+      value: project.path,
+      label: `${projectLabel(project.path)} · ${formatCount(project.sessions)}`,
+    });
+  }
+  return options;
+}
+
+function renderProjectControl(): void {
+  const value = byId<HTMLSpanElement>("project-value");
+  const popup = byId<HTMLDivElement>("project-listbox");
+  const options = projectOptions();
+  const current = options.find((option) => option.value === state.project) ?? options[0];
+  if (value && current) value.textContent = current.label;
+  if (!popup) return;
+  popup.innerHTML = options
+    .map(
+      (option, index) =>
+        `<button class="project-option${option.value === state.project ? " is-selected" : ""}" type="button" role="option" tabindex="-1" id="project-option-${index}" data-index="${index}" data-value="${escapeAttr(option.value)}" aria-selected="${option.value === state.project}">${escapeHtml(option.label)}</button>`,
+    )
+    .join("");
+  if (projectOpen) paintActiveProject();
+}
+
+/** Marks the keyboard-active row, distinct from the selected one. */
+function paintActiveProject(scrollIntoView = false): void {
+  const trigger = byId<HTMLButtonElement>("project-select");
+  const popup = byId<HTMLDivElement>("project-listbox");
+  if (!trigger || !popup) return;
+  const options = [...popup.querySelectorAll<HTMLElement>('[role="option"]')];
+  const active = options[activeProjectIndex];
+  options.forEach((option) => option.classList.toggle("is-active", option === active));
+  if (!active) return;
+  trigger.setAttribute("aria-activedescendant", active.id);
+  if (scrollIntoView) active.scrollIntoView({ block: "nearest" });
+}
+
+/**
+ * The popup escapes the rail's scroll clipping (and its stacking context) by
+ * positioning itself against the viewport, clamped to the space around the
+ * trigger.
+ */
+function positionProjectPopup(): void {
+  const trigger = byId<HTMLButtonElement>("project-select");
+  const popup = byId<HTMLDivElement>("project-listbox");
+  if (!trigger || !popup || popup.hidden) return;
+  const rect = trigger.getBoundingClientRect();
+  const gap = 6;
+  const margin = 16;
+  const limit = 300;
+  const below = window.innerHeight - rect.bottom - gap - margin;
+  const above = rect.top - gap - margin;
+  popup.style.left = `${Math.round(rect.left)}px`;
+  popup.style.width = `${Math.round(rect.width)}px`;
+  if (below >= Math.min(limit, 160) || below >= above) {
+    popup.style.top = `${Math.round(rect.bottom + gap)}px`;
+    popup.style.bottom = "auto";
+    popup.style.maxHeight = `${Math.round(Math.max(90, Math.min(limit, below)))}px`;
+  } else {
+    popup.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+    popup.style.top = "auto";
+    popup.style.maxHeight = `${Math.round(Math.max(90, Math.min(limit, above)))}px`;
+  }
+}
+
+function openProjectPopup(): void {
+  const trigger = byId<HTMLButtonElement>("project-select");
+  const popup = byId<HTMLDivElement>("project-listbox");
+  if (!trigger || !popup || projectOpen) return;
+  projectOpen = true;
+  const selected = projectOptions().findIndex((option) => option.value === state.project);
+  activeProjectIndex = selected >= 0 ? selected : 0;
+  popup.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  positionProjectPopup();
+  paintActiveProject(true);
+}
+
+function closeProjectPopup(focusTrigger = false): void {
+  if (!projectOpen) return;
+  projectOpen = false;
+  const trigger = byId<HTMLButtonElement>("project-select");
+  const popup = byId<HTMLDivElement>("project-listbox");
+  if (popup) popup.hidden = true;
+  if (trigger) {
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.removeAttribute("aria-activedescendant");
+    if (focusTrigger) trigger.focus();
+  }
+}
+
+function moveActiveProject(delta: number): void {
+  const count = projectOptions().length;
+  activeProjectIndex = Math.min(count - 1, Math.max(0, activeProjectIndex + delta));
+  paintActiveProject(true);
+}
+
+function selectProject(value: string): void {
+  ensureSearchView();
+  state.project = value;
+  syncHash();
+  closeProjectPopup();
+  renderControls();
+  closeFilters();
+  void runSearch();
+}
+
+function onProjectKeydown(event: KeyboardEvent): void {
+  const open = projectOpen;
+  switch (event.key) {
+    case "ArrowDown":
+    case "ArrowUp": {
+      event.preventDefault();
+      if (open) {
+        moveActiveProject(event.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+      openProjectPopup();
+      if (event.key === "ArrowUp") {
+        activeProjectIndex = Math.max(0, projectOptions().length - 1);
+        paintActiveProject(true);
+      }
+      return;
+    }
+    case "Home":
+    case "End": {
+      if (!open) return;
+      event.preventDefault();
+      activeProjectIndex =
+        event.key === "Home" ? 0 : Math.max(0, projectOptions().length - 1);
+      paintActiveProject(true);
+      return;
+    }
+    case "Enter":
+    case " ": {
+      // Handling both keys here (and cancelling the native activation) keeps a
+      // single code path: the browser would otherwise also fire `click`.
+      event.preventDefault();
+      if (!open) {
+        openProjectPopup();
+        return;
+      }
+      const option = projectOptions()[activeProjectIndex];
+      if (option) selectProject(option.value);
+      return;
+    }
+    case "Escape": {
+      if (!open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeProjectPopup(true);
+      return;
+    }
+    case "Tab": {
+      if (open) closeProjectPopup();
+      return;
+    }
+    default:
+  }
+}
+
+function bindProjectCombobox(): void {
+  const trigger = byId<HTMLButtonElement>("project-select");
+  const popup = byId<HTMLDivElement>("project-listbox");
+  const combo = byId<HTMLDivElement>("project-combobox");
+  if (!trigger || !popup || !combo) return;
+
+  trigger.addEventListener("click", () => {
+    if (projectOpen) closeProjectPopup();
+    else openProjectPopup();
+  });
+  trigger.addEventListener("keydown", onProjectKeydown);
+
+  popup.addEventListener("click", (event) => {
+    const option = (event.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!option) return;
+    const value = option.dataset.value;
+    if (value !== undefined) selectProject(value);
+  });
+
+  // Closing on pointer and focus movement (rather than on `blur` alone) also
+  // covers clicks on non-focusable chrome, and leaving option mousedown alone
+  // keeps the popup's own scrollbar draggable.
+  document.addEventListener("mousedown", (event) => {
+    if (!projectOpen) return;
+    const target = event.target;
+    if (target instanceof Node && combo.contains(target)) return;
+    closeProjectPopup();
+  });
+  combo.addEventListener("focusout", (event) => {
+    const next = (event as FocusEvent).relatedTarget;
+    if (next instanceof Node && combo.contains(next)) return;
+    closeProjectPopup();
+  });
+  window.addEventListener("resize", () => {
+    if (projectOpen) positionProjectPopup();
+  });
+  // A fixed-position panel cannot follow its trigger: close it when anything
+  // outside the popup scrolls, including the rail.
+  window.addEventListener(
+    "scroll",
+    (event) => {
+      if (!projectOpen) return;
+      const target = event.target;
+      if (target instanceof Node && popup.contains(target)) return;
+      closeProjectPopup();
+    },
+    { passive: true, capture: true },
+  );
+}
+
 function renderControls(): void {
   const agentFilters = byId<HTMLDivElement>("agent-filters");
   if (agentFilters) {
@@ -649,17 +989,7 @@ function renderControls(): void {
     }).join("");
   }
 
-  const projectSelect = byId<HTMLSelectElement>("project-select");
-  if (projectSelect && facetsData) {
-    const options = facetsData.projects
-      .map((project) => {
-        const label = projectLabel(project.path);
-        return `<option value="${escapeAttr(project.path)}"${state.project === project.path ? " selected" : ""}>${escapeHtml(label)} · ${formatCount(project.sessions)}</option>`;
-      })
-      .join("");
-    projectSelect.innerHTML = `<option value="">全部项目</option>${options}`;
-    if (state.project) projectSelect.value = state.project;
-  }
+  renderProjectControl();
 
   const rangeFilters = byId<HTMLDivElement>("range-filters");
   if (rangeFilters) {
@@ -757,7 +1087,9 @@ async function runSearch(): Promise<void> {
   const status = byId<HTMLDivElement>("search-status");
   if (status) status.textContent = "搜索中…";
   try {
-    const result = await api<SearchResult>(`/api/search?${paramsForSearch()}`, controller.signal);
+    const result = await api<SearchResult>(`/api/search?${paramsForSearch()}`, {
+      signal: controller.signal,
+    });
     if (controller.signal.aborted) return;
     currentResults = result;
     lastTerms = result.terms;
@@ -1109,8 +1441,8 @@ async function pollStatus(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
-  themeMode = savedTheme();
-  applyTheme(themeMode, false);
+  // The stored theme comes first: nothing below should paint in the wrong one.
+  await loadPrefs();
   window
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", () => {

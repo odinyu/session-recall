@@ -6,3 +6,10 @@ web/dist/
 .DS_Store
 .impeccable/
 brief/
+.alma-snapshots
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/
+# `bun build --compile` leaves a ~63 MB ".<hex>-00000000.bun-build" scratch file
+# in the working directory instead of cleaning it up.
+*.bun-build

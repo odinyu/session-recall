@@ -18,6 +18,7 @@
   --agent-cursor: #2f5f9e;
   --agent-opencode: #276b45;
   --agent-omp: #63499c;
+  --agent-alma: #9c5a2f;
   --shadow-drawer: 0 18px 50px rgba(20, 30, 24, 0.18);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -44,6 +45,7 @@
   --agent-cursor: #8ab4f8;
   --agent-opencode: #7cc9a0;
   --agent-omp: #b9a4ff;
+  --agent-alma: #e0a878;
   --shadow-drawer: 0 18px 50px rgba(0, 0, 0, 0.5);
 }
 
@@ -247,20 +249,112 @@ button {
   background: var(--agent-omp);
 }
 
-.project-select {
+.agent-dot.agent-alma {
+  background: var(--agent-alma);
+}
+
+/* custom combobox: the native <select> popup cannot be styled at all */
+
+.project-combobox {
+  position: relative;
+}
+
+.project-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
-  padding: 8px 30px 8px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   color: var(--ink);
   font-size: 13px;
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 15px) 51%, calc(100% - 10px) 51%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
+  text-align: left;
+}
+
+.project-trigger:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.project-trigger[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+/* One ring hugging the control, instead of the global offset outline that
+   reads as a double border around a bordered input. */
+.project-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.project-value {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-chevron {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--muted);
+}
+
+.project-trigger:hover .project-chevron,
+.project-trigger[aria-expanded="true"] .project-chevron {
+  color: var(--ink);
+}
+
+.project-popup {
+  position: fixed;
+  z-index: 30;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+}
+
+.project-popup[hidden] {
+  display: none;
+}
+
+.project-option {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12.5px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-option:hover,
+.project-option.is-active {
+  background: var(--surface-2);
+}
+
+.project-option.is-selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.project-option.is-selected.is-active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .segmented {
@@ -727,6 +821,16 @@ mark {
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.resume-link {
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.resume-link .resume-code {
+  display: block;
 }
 
 .resume-code {
@@ -1202,6 +1306,42 @@ mark {
   background: rgba(10, 16, 12, 0.32);
 }
 
+/* ---------- back to top ---------- */
+
+/* Right-anchored: the rail owns the left column, so this always lands in the
+   content area and can never cover the rail footer. */
+.to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-drawer);
+}
+
+.to-top[hidden] {
+  display: none;
+}
+
+.to-top:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.to-top svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* ---------- scrollbars ---------- */
 
 * {
@@ -1301,6 +1441,11 @@ mark {
 
   .project {
     max-width: 180px;
+  }
+
+  .to-top {
+    right: 16px;
+    bottom: 18px;
   }
 }
 

@@ -22,10 +22,15 @@ function inline(text: string, codeBlocks: string[]): string {
     inlineCodes.push(`<code>${code}</code>`);
     return token;
   });
+  // Web links open in the system browser; the app's own `sessionrecall://` deep
+  // link is resolved in place by the delegated click handler in app.ts, so it
+  // gets no `target` and never leaves the document.
   out = out.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    /\[([^\]]+)\]\(((?:https?|sessionrecall):\/\/[^\s)]+)\)/gi,
     (_match, label: string, href: string) =>
-      `<a href="${escapeAttr(href)}" target="_blank" rel="noreferrer">${label}</a>`,
+      /^https?:/i.test(href)
+        ? `<a href="${escapeAttr(href)}" target="_blank" rel="noreferrer">${label}</a>`
+        : `<a href="${escapeAttr(href)}">${label}</a>`,
   );
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");

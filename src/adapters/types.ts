@@ -1,4 +1,4 @@
-export type AgentId = "omp" | "opencode" | "cursor";
+export type AgentId = "omp" | "opencode" | "cursor" | "alma";
 
 export interface ParsedTurn {
   idx: number;

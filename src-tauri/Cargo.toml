@@ -1,0 +1,22 @@
+[package]
+name = "session-recall-app"
+version = "1.1.0"
+description = "Local, read-only full-text recall across coding-agent sessions."
+authors = ["odinyu"]
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# Registers the `sessionrecall://` scheme so a brief's link has one stable
+# address that opens (or focuses) this app instead of a browser.
+tauri-plugin-deep-link = "2"
+serde_json = "1"
+
+[profile.release]
+# Keep the shell small; the heavy lifting lives in the Bun sidecar.
+strip = true

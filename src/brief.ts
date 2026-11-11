@@ -2,18 +2,20 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import type { Database } from "bun:sqlite";
 import type { AgentId } from "./adapters/types.ts";
-import { BRIEF_DIR, PORT, PROJECT_ROOT } from "./config.ts";
+import { BRIEF_DIR, PROJECT_ROOT } from "./config.ts";
 
 const AGENT_LABELS: Record<AgentId, string> = {
   omp: "omp",
   opencode: "OpenCode",
   cursor: "Cursor",
+  alma: "Alma",
 };
 
-const MAX_PROMPTS = 3;
 const MAX_PROMPT_CHARS = 220;
 const MAX_TITLE_CHARS = 80;
 const FALLBACK_TURNS = 12;
+/** Mirrors `plugins.deep-link.desktop.schemes` in src-tauri/tauri.conf.json. */
+const DEEP_LINK_SCHEME = "sessionrecall";
 
 export interface BriefDate {
   key: string;
@@ -291,11 +293,8 @@ function sessionBlock(session: BriefSession): string {
     .filter(Boolean);
   if (prompts.length > 0) {
     lines.push("**提问**", "");
-    for (const prompt of prompts.slice(0, MAX_PROMPTS)) {
+    for (const prompt of prompts) {
       lines.push(`- ${clip(prompt, MAX_PROMPT_CHARS)}`);
-    }
-    if (prompts.length > MAX_PROMPTS) {
-      lines.push(`- 另有 ${prompts.length - MAX_PROMPTS} 轮提问未列出。`);
     }
     lines.push("");
   }
@@ -305,7 +304,10 @@ function sessionBlock(session: BriefSession): string {
     lines.push(`**继续**：${codeSpan(resume)}`, "");
   }
 
-  const link = `http://127.0.0.1:${PORT}/#/session/${encodeURIComponent(session.id)}`;
+  // A stable address for the app itself: `http://127.0.0.1:<port>` would be the
+  // port of whichever launch generated the brief, and would die on the next one
+  // (and land in a browser when clicked from outside the app).
+  const link = `${DEEP_LINK_SCHEME}://session/${encodeURIComponent(session.id)}`;
   lines.push(`[在 session-recall 打开](${link})`, "");
   return lines.join("\n");
 }

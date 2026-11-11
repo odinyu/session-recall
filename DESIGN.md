@@ -50,9 +50,17 @@ on dots and labels.
 
 - Agent badge: 8px dot + mono name, colored by agent.
 - Theme switch: a three-state segmented control (Auto / Light / Dark) in the
-  rail footer. Auto follows the system; the choice persists in `localStorage`.
+  rail footer. Auto follows the system; the choice persists server-side in
+  `<app dir>/prefs.json`, so it survives the port changing between launches
+  (`localStorage` is only a first-paint cache for the current origin).
 - Segmented control: 1px border, 2px inner padding, active fill `--surface-3`.
-- Project filter: native `<select>` styled with a CSS chevron.
+- Project filter: a custom combobox — a `role="combobox"` trigger button plus a
+  `role="listbox"` panel, because a native `<select>` popup cannot be styled.
+  Full keyboard support (arrows, Home/End, Enter, Escape) and one clean focus
+  ring, hugging the control instead of floating outside its border.
+- Back to top: a floating button pinned to the bottom-right of the content
+  column, shown once the page is scrolled past ~400px. Sessions open on a
+  matched turn, so this is the way back up.
 - Hit: 12px radius hover surface; mono `提问` / `回答` labels; 2-line answer
   clamp.
 - Process disclosure: one hairline `过程 N 项` toggle per turn, opened lazily;

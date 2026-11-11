@@ -4,13 +4,14 @@ import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
 import { generateBrief, parseBriefDate, readBrief } from "./brief.ts";
 import { eventCountsFor, eventsForTurn, openDb } from "./db.ts";
 import type { IndexedDatabase } from "./db.ts";
+import { InvalidPrefsError, readPrefs, updatePrefs } from "./prefs.ts";
 import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchRole } from "./search.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
 import type { AgentId } from "./adapters/types.ts";
 
-const AGENTS: AgentId[] = ["omp", "opencode", "cursor"];
+const AGENTS: AgentId[] = ["omp", "opencode", "cursor", "alma"];
 const ROLES: SearchRole[] = ["all", "user", "assistant"];
 
 let db: IndexedDatabase | null = null;
@@ -172,6 +173,29 @@ async function api(request: Request, url: URL): Promise<Response> {
         "cache-control": "no-store",
       },
     });
+  }
+  if (url.pathname === "/api/prefs") {
+    if (request.method === "GET") return json(readPrefs());
+    if (request.method === "PATCH") {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return json({ error: "invalid JSON body" }, 400);
+      }
+      if (typeof body !== "object" || body === null || Array.isArray(body)) {
+        return json({ error: "expected a JSON object" }, 400);
+      }
+      try {
+        return json(updatePrefs(body as Record<string, unknown>));
+      } catch (error) {
+        if (error instanceof InvalidPrefsError) {
+          return json({ error: error.message }, 400);
+        }
+        throw error;
+      }
+    }
+    return json({ error: "method not allowed" }, 405);
   }
   if (request.method === "GET" && url.pathname === "/api/status") {
     return json({
