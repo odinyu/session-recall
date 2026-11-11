@@ -140,3 +140,15 @@ test("backfills event_search from existing events on migration", () => {
     reopened.close();
   }
 });
+
+test("combines agent and project filters with process FTS", () => {
+  const hit = searchTurns(db, {
+    ...params("SomeFile.java"),
+    agents: ["omp"],
+    project: "/Users/test/project",
+  });
+  expect(hit.sessions).toHaveLength(1);
+
+  const miss = searchTurns(db, { ...params("SomeFile.java"), agents: ["cursor"] });
+  expect(miss.sessions).toHaveLength(0);
+});

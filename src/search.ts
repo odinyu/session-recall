@@ -285,7 +285,8 @@ function executeFts(
   const base = baseClause(params);
   const clauses = [base.sql, `${table} MATCH ?`];
   const match = ftsMatch(terms, params.role);
-  const bound: (string | number)[] = [match, ...base.params];
+  // Placeholder order must follow `clauses`: filters, then MATCH, then short terms.
+  const bound: (string | number)[] = [...base.params, match];
   for (const term of shortTerms) {
     const clause = likeClause(term, params.role);
     clauses.push(clause.sql);
@@ -596,7 +597,8 @@ function executeProcessFts(
 ): { rows: ProcessRow[]; totalHits: number; totalSessions: number } {
   const base = baseClause(params);
   const clauses = [base.sql, `${table} MATCH ?`];
-  const values: (string | number)[] = [processMatch(terms), ...base.params];
+  // Placeholder order must follow `clauses`: filters, then MATCH, then short terms.
+  const values: (string | number)[] = [...base.params, processMatch(terms)];
   for (const term of shortTerms) {
     const clause = processLikeClause(term);
     clauses.push(clause.sql);

@@ -4,6 +4,8 @@ import { openCodeAdapter } from "./adapters/opencode.ts";
 import { cursorAdapter } from "./adapters/cursor.ts";
 import { almaAdapter } from "./adapters/alma.ts";
 import { cindyAdapter } from "./adapters/cindy.ts";
+import { claudeCodeAdapter } from "./adapters/claude-code.ts";
+import { codexAdapter } from "./adapters/codex.ts";
 import type { Adapter, SessionRef } from "./adapters/types.ts";
 import {
   clearScanError,
@@ -54,6 +56,8 @@ export async function scan(
     cursorAdapter(),
     almaAdapter(),
     cindyAdapter(),
+    claudeCodeAdapter(),
+    codexAdapter(),
   ],
   options: ScanOptions = {},
 ): Promise<ScanReport> {

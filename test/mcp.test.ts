@@ -175,6 +175,22 @@ test("recall_handoff renders a Markdown card", () => {
   expect(recallHandoff(ctx, { sessionId: "omp:nope" }).isError).toBe(true);
 });
 
+test("recall_handoff targets another agent when asked", () => {
+  const card = recallHandoff(ctx, { sessionId: "omp:mcp-a", targetAgent: "claude-code" });
+  expect(card.isError).toBeFalsy();
+  const text = card.content[0]?.text ?? "";
+  expect(text).toContain("## 在 Claude Code 中继续");
+  expect(text).toContain("claude");
+  expect(text).toContain("新开一个会话");
+
+  const sameAgent = recallHandoff(ctx, { sessionId: "omp:mcp-a" });
+  expect(sameAgent.content[0]?.text).toContain("omp --resume mcp-a");
+
+  const invalid = recallHandoff(ctx, { sessionId: "omp:mcp-a", targetAgent: "nope" });
+  expect(invalid.isError).toBe(true);
+  expect(invalid.content[0]?.text).toContain("unknown targetAgent");
+});
+
 test("recall_scan refreshes and reports stats", async () => {
   const data = payload(await recallScan(ctx));
   expect(data.scanned).toBe(true);

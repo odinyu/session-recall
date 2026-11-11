@@ -24,6 +24,8 @@ export interface DeepLink {
   section: string;
   /** The decoded record id, e.g. `alma:mwbhgpzz9n7zy56fdm`. */
   id: string;
+  /** Session turn to open, from `?turn=<n>`; null when absent or invalid. */
+  turn: number | null;
 }
 
 /**
@@ -73,13 +75,27 @@ export function parseDeepLink(href: string): DeepLink | null {
   } catch {
     return null;
   }
-  return id ? { section, id } : null;
+  if (!id) return null;
+  // A turn addresses one block inside a session; other sections ignore it.
+  let turn: number | null = null;
+  if (section === "session") {
+    const raw = url.searchParams.get("turn");
+    if (raw !== null && /^\d+$/.test(raw)) {
+      const parsed = Number(raw);
+      if (Number.isSafeInteger(parsed)) turn = parsed;
+    }
+  }
+  return { section, id, turn };
 }
 
 /** The hash route a deep link addresses, re-encoded the way the router expects. */
 export function deepLinkRoute(href: string): string | null {
   const link = parseDeepLink(href);
-  return link ? `#/${link.section}/${encodeURIComponent(link.id)}` : null;
+  if (!link) return null;
+  const base = `#/${link.section}/${encodeURIComponent(link.id)}`;
+  // The router reads `turn` from the hash query and scrolls to that turn; an
+  // out-of-range index just leaves the session at the top.
+  return link.turn === null ? base : `${base}?turn=${link.turn}`;
 }
 
 /**

@@ -155,8 +155,11 @@ impl Routes {
 ///
 /// `sessionrecall://session/<id>` becomes `#/session/<id>`: the section is the
 /// URL host, the id its one path segment, still percent-encoded so the app's
-/// router decodes it exactly once. Anything else — a foreign scheme, an unknown
-/// section, a missing or nested id — is refused rather than guessed at.
+/// router decodes it exactly once. A session link may also carry
+/// `?turn=<n>` (as MCP search results do); the turn is forwarded into the hash
+/// query, where the UI scrolls to that turn. A non-numeric turn is dropped, and
+/// the app opens the session at the top. Anything else — a foreign scheme, an
+/// unknown section, a missing or nested id — is refused rather than guessed at.
 fn route_for(url: &Url) -> Option<String> {
     if url.scheme() != DEEP_LINK_SCHEME {
         return None;
@@ -169,7 +172,15 @@ fn route_for(url: &Url) -> Option<String> {
     if id.is_empty() || id.contains('/') {
         return None;
     }
-    Some(format!("#/{section}/{id}"))
+    let mut route = format!("#/{section}/{id}");
+    if section == "session" {
+        if let Some((_, turn)) = url.query_pairs().find(|(key, value)| {
+            key == "turn" && !value.is_empty() && value.chars().all(|c| c.is_ascii_digit())
+        }) {
+            route.push_str(&format!("?turn={turn}"));
+        }
+    }
+    Some(route)
 }
 
 /// Drive the UI to `route` and bring the window forward.
@@ -518,7 +529,9 @@ fn main() {
                         eprintln!("session-recall: could not install the default menu: {error}");
                     }
                 }
-                Err(error) => eprintln!("session-recall: could not build the default menu: {error}"),
+                Err(error) => {
+                    eprintln!("session-recall: could not build the default menu: {error}")
+                }
             }
             register_deep_links(app.handle());
             let handle = app.handle().clone();
@@ -535,4 +548,46 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::route_for;
+    use tauri::Url;
+
+    fn route(link: &str) -> Option<String> {
+        route_for(&Url::parse(link).expect("valid deep link"))
+    }
+
+    #[test]
+    fn forwards_a_session_turn_into_the_hash_route() {
+        assert_eq!(
+            route("sessionrecall://session/omp%3Aabc?turn=3").as_deref(),
+            Some("#/session/omp%3Aabc?turn=3")
+        );
+        assert_eq!(
+            route("sessionrecall://session/omp%3Aabc?turn=0").as_deref(),
+            Some("#/session/omp%3Aabc?turn=0")
+        );
+    }
+
+    #[test]
+    fn drops_a_turn_that_is_not_a_turn_index() {
+        for bad in ["abc", "-1", "1.5", ""] {
+            let link = format!("sessionrecall://session/omp%3Aabc?turn={bad}");
+            assert_eq!(
+                route(&link).as_deref(),
+                Some("#/session/omp%3Aabc"),
+                "turn={bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn briefs_never_carry_a_turn() {
+        assert_eq!(
+            route("sessionrecall://brief/2026-11-10?turn=2").as_deref(),
+            Some("#/brief/2026-11-10")
+        );
+    }
 }

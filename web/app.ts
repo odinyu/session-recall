@@ -1,7 +1,14 @@
 import { inAppRoute } from "./links.ts";
 import { renderMarkdown } from "./markdown.ts";
 
-type AgentId = "omp" | "opencode" | "cursor" | "alma" | "cindy";
+type AgentId =
+  | "omp"
+  | "opencode"
+  | "cursor"
+  | "alma"
+  | "cindy"
+  | "claude-code"
+  | "codex";
 type Role = "all" | "user" | "assistant";
 type Scope = "qa" | "process";
 type Range = "all" | "7d" | "30d" | "90d";
@@ -70,6 +77,14 @@ interface SessionEvent {
   truncated: number;
 }
 
+interface Continuation {
+  targetAgent: AgentId;
+  label: string;
+  kind: "resume" | "deep-link" | "launch" | "manual";
+  command: string;
+  note: string;
+}
+
 interface SessionDetail {
   session: {
     id: string;
@@ -80,6 +95,7 @@ interface SessionDetail {
     updatedAt: number;
     turnCount: number;
     sourceKind: string;
+    continuations: Continuation[];
   };
   turns: {
     idx: number;
@@ -125,9 +141,19 @@ const AGENT_LABEL: Record<AgentId, string> = {
   cursor: "Cursor",
   alma: "Alma",
   cindy: "Cindy",
+  "claude-code": "Claude Code",
+  codex: "Codex",
 };
 
-const AGENTS: AgentId[] = ["cursor", "opencode", "omp", "alma", "cindy"];
+const AGENTS: AgentId[] = [
+  "cursor",
+  "opencode",
+  "omp",
+  "claude-code",
+  "codex",
+  "alma",
+  "cindy",
+];
 const RANGES: { id: Range; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "7d", label: "7 天" },
@@ -462,53 +488,42 @@ function agentBadge(agent: AgentId): string {
   return `<span class="agent agent-${agent}"><span class="agent-dot"></span>${AGENT_LABEL[agent]}</span>`;
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function resumeCommand(session: SessionDetail["session"]): string {
-  const externalId = session.id.slice(session.agent.length + 1);
-  const cwd = session.projectPath
-    ? `cd ${shellQuote(session.projectPath)} && `
-    : "";
-  if (session.agent === "omp") {
-    const resumeId = externalId.slice(externalId.lastIndexOf("_") + 1);
-    return `${cwd}omp --resume ${resumeId}`;
+/** The command/link/note strip for the currently selected target agent. */
+function continuationDetail(continuation: Continuation): string {
+  if (continuation.kind === "deep-link") {
+    return `<a class="resume-link" href="${escapeAttr(continuation.command)}" title="${escapeAttr(continuation.note)}">
+      <code class="resume-code">${escapeHtml(continuation.command)}</code>
+    </a>
+    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">复制链接</button>`;
   }
-  if (session.agent === "opencode") {
-    return `${cwd}opencode --session ${externalId}`;
+  if (continuation.command) {
+    return `<code class="resume-code">${escapeHtml(continuation.command)}</code>
+    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">复制</button>`;
   }
-  return "";
+  return `<span class="resume-note">${escapeHtml(continuation.note)}</span>`;
 }
 
 /**
- * Alma has no shell resume command; its equivalent is a deep link that opens the
- * thread inside the Alma app. Null for every other agent.
+ * "Continue in <agent>": the server sends a continuation per target agent, so
+ * the page never guesses another agent's CLI. Picking a target swaps the
+ * command; same-agent picks the exact resume, cross-agent picks a new session in
+ * that agent with the handoff card as context.
  */
-function resumeDeepLink(session: SessionDetail["session"]): string | null {
-  if (session.agent !== "alma") return null;
-  const threadId = session.id.slice(session.agent.length + 1);
-  if (!threadId) return null;
-  return `alma://thread/${threadId}`;
-}
-
 function resumeBlock(session: SessionDetail["session"]): string {
-  const deepLink = resumeDeepLink(session);
-  if (deepLink) {
-    return `<div class="resume">
-    <span class="resume-label">在 Alma 中打开</span>
-    <a class="resume-link" href="${escapeAttr(deepLink)}" title="在 Alma 应用中打开这条对话">
-      <code class="resume-code">${escapeHtml(deepLink)}</code>
-    </a>
-    <button class="copy-command" type="button" data-command="${escapeAttr(deepLink)}">复制链接</button>
-  </div>`;
-  }
-  const command = resumeCommand(session);
-  if (!command) return "";
-  return `<div class="resume">
-    <span class="resume-label">继续会话</span>
-    <code class="resume-code">${escapeHtml(command)}</code>
-    <button class="copy-command" type="button" data-command="${escapeAttr(command)}">复制</button>
+  const continuations = session.continuations ?? [];
+  const selected =
+    continuations.find((row) => row.targetAgent === session.agent) ??
+    continuations[0];
+  const options = continuations
+    .map(
+      (row) =>
+        `<option value="${row.targetAgent}"${row === selected ? " selected" : ""}>${escapeHtml(row.label)}</option>`,
+    )
+    .join("");
+  return `<div class="resume" data-resume>
+    <span class="resume-label">继续到</span>
+    <select class="resume-target" aria-label="在哪个 agent 中继续">${options}</select>
+    <span class="resume-detail" data-resume-detail>${selected ? continuationDetail(selected) : ""}</span>
   </div>`;
 }
 
@@ -550,34 +565,43 @@ async function copyCommand(button: HTMLButtonElement): Promise<void> {
 async function copyHandoff(button: HTMLButtonElement): Promise<void> {
   const id = button.dataset.handoff;
   if (!id) return;
-  const handoff = handoffCache.get(id);
-  if (handoff === undefined) {
-    button.textContent = "准备中…";
-    return;
-  }
-  const original = "复制交接";
+  const target =
+    button
+      .closest(".session-actionbar")
+      ?.querySelector<HTMLSelectElement>(".resume-target")?.value ?? null;
   button.disabled = true;
-  const copied = await copyText(handoff);
-  button.textContent = copied ? "已复制" : "复制失败";
-  button.classList.toggle("is-copied", copied);
-  window.setTimeout(() => {
-    button.textContent = original;
-    button.disabled = false;
-    button.classList.remove("is-copied");
-  }, 1600);
+  button.textContent = "准备中…";
+  try {
+    const handoff = await loadHandoff(id, target);
+    const copied = await copyText(handoff);
+    button.textContent = copied ? "已复制" : "复制失败";
+    button.classList.toggle("is-copied", copied);
+  } catch {
+    button.textContent = "交接不可用";
+    button.title = "生成交接卡失败";
+  } finally {
+    window.setTimeout(() => {
+      button.textContent = "复制交接";
+      button.disabled = false;
+      button.classList.remove("is-copied");
+    }, 1600);
+  }
 }
 
 const handoffCache = new Map<string, string>();
 
-async function loadHandoff(id: string): Promise<string> {
-  const cached = handoffCache.get(id);
+async function loadHandoff(id: string, targetAgent: string | null): Promise<string> {
+  const key = `${id}|${targetAgent ?? ""}`;
+  const cached = handoffCache.get(key);
   if (cached !== undefined) return cached;
-  const response = await fetch(`/api/session/${encodeURIComponent(id)}/handoff`, {
-    cache: "no-store",
-  });
+  const query = targetAgent ? `?targetAgent=${encodeURIComponent(targetAgent)}` : "";
+  const response = await fetch(
+    `/api/session/${encodeURIComponent(id)}/handoff${query}`,
+    { cache: "no-store" },
+  );
   if (!response.ok) throw new Error(`请求失败 (${response.status})`);
   const handoff = await response.text();
-  handoffCache.set(id, handoff);
+  handoffCache.set(key, handoff);
   return handoff;
 }
 
@@ -1439,33 +1463,14 @@ async function renderSession(
     `;
     window.scrollTo({ top: 0, behavior: "auto" });
     syncTopbarHeight();
-    const handoffButton = content.querySelector<HTMLButtonElement>(".handoff-button");
-    if (handoffButton) {
-      const handoffId = handoffButton.dataset.handoff;
-      if (handoffId) {
-        handoffButton.disabled = true;
-        handoffButton.textContent = "准备交接…";
-        void loadHandoff(handoffId)
-          .then(() => {
-            if (
-              handoffButton.isConnected &&
-              handoffButton.dataset.handoff === handoffId
-            ) {
-              handoffButton.disabled = false;
-              handoffButton.textContent = "复制交接";
-            }
-          })
-          .catch(() => {
-            if (
-              handoffButton.isConnected &&
-              handoffButton.dataset.handoff === handoffId
-            ) {
-              handoffButton.textContent = "交接不可用";
-              handoffButton.title = "生成交接卡失败";
-            }
-          });
-      }
-    }
+    const resumeSelect = content.querySelector<HTMLSelectElement>(".resume-target");
+    resumeSelect?.addEventListener("change", () => {
+      const continuation = session.continuations?.find(
+        (row) => row.targetAgent === resumeSelect.value,
+      );
+      const detail = content.querySelector<HTMLElement>("[data-resume-detail]");
+      if (continuation && detail) detail.innerHTML = continuationDetail(continuation);
+    });
     if (turnIdx !== null) {
       requestAnimationFrame(() => {
         const target = document.getElementById(

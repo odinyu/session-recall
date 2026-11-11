@@ -106,3 +106,17 @@ test("empty query lists one prompt per session", () => {
   expect(result.sessions.length).toBe(2);
   expect(result.sessions.every((session) => session.hits.length === 1)).toBe(true);
 });
+
+test("combines an agent filter with a trigram FTS query", () => {
+  const hit = searchTurns(db, { ...base, q: "findFileByName", agents: ["omp"] });
+  expect(hit.mode).toBe("fts");
+  expect(hit.sessions.map((session) => session.id)).toEqual(["omp:beta"]);
+
+  const miss = searchTurns(db, { ...base, q: "findFileByName", agents: ["cursor"] });
+  expect(miss.sessions).toHaveLength(0);
+});
+
+test("combines a project filter with a trigram FTS query", () => {
+  const hit = searchTurns(db, { ...base, q: "findFileByName", project: "/tmp/project" });
+  expect(hit.sessions.map((session) => session.id)).toEqual(["omp:beta"]);
+});

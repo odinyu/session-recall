@@ -131,3 +131,37 @@ test("includes the Git branch and dirty files", () => {
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test("continues in another agent with that agent's new-session command", () => {
+  const card = generateHandoff(db, "omp:2026-11-11T09-00-00-000Z_01a1b2c3", {
+    targetAgent: "claude-code",
+  });
+  expect(card).toContain("## 在 Claude Code 中继续");
+  expect(card).toContain("cd '/Users/test/project' && claude");
+  expect(card).toContain("新开一个会话");
+  expect(card).not.toContain("## 继续");
+
+  const cursor = generateHandoff(db, "omp:2026-11-11T09-00-00-000Z_01a1b2c3", {
+    targetAgent: "cursor",
+  });
+  expect(cursor).toContain("## 在 Cursor 中继续");
+  expect(cursor).toContain("cursor '/Users/test/project'");
+  expect(cursor).toContain("在 Cursor 中打开项目");
+});
+
+test("keeps the exact resume when the target is the source agent", () => {
+  const card = generateHandoff(db, "omp:2026-11-11T09-00-00-000Z_01a1b2c3", {
+    targetAgent: "omp",
+  });
+  expect(card).toContain("## 在 omp 中继续");
+  expect(card).toContain("omp --resume 01a1b2c3");
+});
+
+test("explains a target without a shell entry point instead of failing", () => {
+  const card = generateHandoff(db, "omp:2026-11-11T09-00-00-000Z_01a1b2c3", {
+    targetAgent: "alma",
+  });
+  expect(card).toContain("## 在 Alma 中继续");
+  expect(card).toContain("在 Alma 中新建会话并粘贴交接卡");
+  expect(card).not.toContain("```bash");
+});

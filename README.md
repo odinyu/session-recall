@@ -5,7 +5,8 @@ Search a half-remembered Chinese phrase or a code identifier and get back the
 question, the answer, the agent, the project, and the date.
 
 Built for the sessions that pile up across **omp**, **OpenCode**, **Cursor**,
-**Alma**, and **Cindy**. It never writes to an agent's own storage.
+**Alma**, **Cindy**, **Claude Code**, and **Codex**. It never writes to an
+agent's own storage.
 
 ## Quick start
 
@@ -100,15 +101,17 @@ runtimes).
 | Cursor | `~/.cursor/projects/*/agent-transcripts/**/*.jsonl` and `state.vscdb` (`composerData` + `bubbleId`) | transcripts first, KV for chats without a transcript; project path from `workspaceIdentifier` |
 | Alma | `~/Library/Application Support/alma/chat_threads.db` | `chat_threads` + `chat_messages` (message JSON `parts`); project path from `workspaces.path`; threads marked `is_incognito` are never listed |
 | Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` (newest match wins) | `sessions` + `messages`: user rows are JSON `{text}`, assistant rows plain text, `thinking`/`tool_use`/`ask_user` rows become process events; project path from `working_dir`; `rewind_at` and messages before `cleared_at` are excluded |
+| Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | `user`/`assistant` records with Anthropic content blocks: text, `thinking` and `tool_use` become turns + process events, `tool_result` user records attach to their call; title from `ai-title`; project path from `cwd`; `isSidechain` subagent records are skipped |
+| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `session_meta` + `turn_context` for cwd/model; `response_item` messages, `function_call`/`*_output` and `reasoning` become turns + process events; `event_msg` message echoes are ignored unless a rollout has no `response_item` messages |
 
 The index unit is a **turn**: one user prompt plus the assistant text that
 followed it before the next prompt. Tool calls and reasoning traces are stored
 separately as process events (see below); their inputs, outputs, and errors are
 searchable in the **过程** scope, while reasoning text stays out of search.
 Each turn also stores the model that produced its answer when the agent
-records one. omp, OpenCode, Alma, and Cindy record it per turn; Cursor records
-only a session-level selection (`composerData.modelConfig.modelName`), which is
-stamped on every turn of that session — transcripts and KV bubbles carry no
+records one. omp, OpenCode, Alma, Cindy, Claude Code and Codex record it per turn; Cursor
+records only a session-level selection (`composerData.modelConfig.modelName`),
+which is stamped on every turn of that session — transcripts and KV bubbles carry no
 per-turn model, and Cursor's placeholder `default` stays blank. The session
 page shows the model next to the agent badge.
 
@@ -151,37 +154,50 @@ verbatim), files touched by tool calls, commands run, tool errors, and the
 current Git branch/status when the project is a Git worktree. The card is
 generated on demand from the local index; nothing is sent anywhere.
 
-- API: `GET /api/session/:id/handoff` returns the Markdown (`text/markdown`).
+- API: `GET /api/session/:id/handoff` returns the Markdown (`text/markdown`);
+  add `?targetAgent=<id>` for a cross-agent card.
 - The UI prefetches the card when a session opens, so the copy button can write
   to the clipboard synchronously from the click (async work before
   `navigator.clipboard` loses the browser's user activation).
 
-## Resume
+## Resume and cross-agent handoff
 
-omp and OpenCode session pages show a copyable continue command in a sticky action bar below the session header:
+Every session page has a `继续到` selector in the sticky action bar. It lists
+every supported agent and shows how to continue *this* session there:
+
+| Target | What the bar shows |
+| --- | --- |
+| Same agent | The exact resume command, or the app deep link where one exists |
+| Another agent | A new-session command in that agent, with the handoff card as context |
 
 ```bash
 cd '/path/to/project' && omp --resume <session-uuid>
 cd '/path/to/project' && opencode --session <session-id>
+cd '/path/to/project' && claude --resume <session-id>
+cd '/path/to/project' && codex resume <session-uuid>
+cd '/path/to/project' && omp            # cross-agent: new session
+cursor '/path/to/project'               # cross-agent: open the project
 ```
 
 The path is shell-quoted; the omp uuid is the suffix after the timestamp in the
-stored session filename. Cursor has no equivalent local resume command, so its
-pages omit the block.
-
-Alma has no shell resume command either. Instead of faking one, its session
-pages show the deep link that opens the thread in the Alma app:
+stored session filename, and for Codex it is the trailing uuid of the rollout
+file (Codex's `resume` syntax is version-dependent and unverified on this
+machine). Alma's equivalent is the deep link that opens the thread in the Alma app:
 
 ```text
 alma://thread/<thread-id>
 ```
 
-It is labelled `在 Alma 中打开` and is a link plus a copy button, not a command to
-paste into a terminal.
+Cross-agent handoff cannot transfer a session id: session ids only mean
+something to their own agent. The bar therefore launches a **new** session in
+the target agent and the copied handoff card becomes its context. Alma and Cindy
+have no shell entry point, so their entries show a plain instruction (“新建会话
+并粘贴交接卡”) instead of a broken command.
 
-Cindy has neither a CLI resume command nor a known deep-link scheme, so its
-session pages omit the resume block entirely instead of showing an empty or
-broken action.
+`GET /api/session/<id>/handoff?targetAgent=<id>` (and the UI button) renders
+the card for the selected target, adding a `## 在 <Agent> 中继续` section with
+that agent's command or instruction. The session API returns the full
+`continuations` list, so the UI never guesses another agent's CLI.
 
 The app addresses its own pages the same way, with the `sessionrecall://` scheme
 it registers at install time:
@@ -303,7 +319,7 @@ Tools:
 | `recall_search` | `query`, `agent?`, `scope?` (`qa`/`process`), `project?`, `from?`, `to?`, `limit?` (default 5) | One clipped question/answer per session with `sessionId`, `agent`, `project`, `date`, `title`, `turn`, `deepLink`, plus `indexAgeMs` and `totalSessions` |
 | `recall_session` | `sessionId`, `turn?` | The whole session (most recent 20 turns) or one turn |
 | `recall_facets` | — | Agents and projects with counts |
-| `recall_handoff` | `sessionId` | Markdown handoff card |
+| `recall_handoff` | `sessionId`, `targetAgent?` | Markdown handoff card; with `targetAgent` it carries that agent's resume/new-session command |
 | `recall_scan` | — | Refreshes the index and returns scan stats |
 
 - Read tools open the index **read-only**; they never scan inline or block on
@@ -312,9 +328,9 @@ Tools:
   says what happened: `refresh: "fresh" | "started" | "locked"` with
   `indexAgeMs`. `recall_scan` is the explicit, awaited refresh.
 - `deepLink` is `sessionrecall://session/<id>?turn=<n>`: hand it to the user and
-  the app opens that session. Turn targeting (`?turn=`) is emitted but not yet
-  honoured by the app's web and Rust routes, so it currently lands on the
-  session, not the exact turn.
+  the app opens that session and scrolls to the turn. The Rust URL handler and
+  the web router both forward `?turn=`; a turn that no longer exists (or a
+  non-numeric one) falls back to the top of the session.
 - The server is compact by default — one hit per session, clipped text, capped
   turn lists — because agent context is expensive. It reuses `searchTurns`,
   `getSessionDetail`, `facets` and `generateHandoff` from the core.
@@ -339,13 +355,15 @@ Tools:
   `~/Library/Application Support/alma/chat_threads.db`. Cindy's directory and
   database can be pinned with `SESSION_RECALL_CINDY_DIR` and
   `SESSION_RECALL_CINDY_DB`; the default directory is
-  `~/Library/Application Support/CindyGlobal`.
+  `~/Library/Application Support/CindyGlobal`. Claude Code's `~/.claude` and
+  Codex's `~/.codex` roots can be moved with `SESSION_RECALL_CLAUDE_DIR` and
+  `SESSION_RECALL_CODEX_DIR`.
 
 ## Project layout
 
 ```text
 src/
-  adapters/       omp, OpenCode, Cursor, Alma, Cindy parsers
+  adapters/       omp, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex parsers
   brief.ts        daily Markdown brief generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
@@ -372,14 +390,14 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     package the macOS .app
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
-test/             markdown, search, process search, events, brief, handoff, links, prefs, Alma, Cindy tests
+test/             markdown, search, process search, events, brief, handoff, links, prefs, Alma, Cindy, Claude Code, Codex tests
 brief/            generated daily briefs (git-ignored)
 ```
 
 ## Development
 
 ```bash
-bun test          # 80 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, Alma, Cindy
+bun test          # 95 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, Alma, Cindy, Claude Code, Codex
 bun run build     # bundle web/app.ts -> web/dist
 ```
 
@@ -392,8 +410,12 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
   without output.
 - **WorkBuddy**: its local SQLite stores session metadata only; transcripts are
   cloud-side, so it is not indexed yet.
-- **Claude Code / Codex**: adapters are planned but there was no local data on
-  this machine to verify them.
+- **Codex format**: the adapter follows the documented rollout format, but no
+  Codex sessions existed on this machine, so it is fixture-tested only; field
+  names may drift between Codex releases.
+- **Claude Code sidechains**: subagent (`isSidechain`) records are skipped so
+  they cannot interleave with the main conversation; their work is not indexed
+  on its own.
 - **Cursor timestamps**: project transcripts carry no top-level timestamps, so
   their activity date falls back to the file modification time.
 - **Unresolved Cursor projects**: a chat whose project no longer exists on disk

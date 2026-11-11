@@ -1,17 +1,10 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import type { Database } from "bun:sqlite";
+import { AGENT_LABELS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { BRIEF_DIR, PROJECT_ROOT } from "./config.ts";
 import { resumeCommand, sessionDeepLink } from "./util/resume.ts";
-
-const AGENT_LABELS: Record<AgentId, string> = {
-  omp: "omp",
-  opencode: "OpenCode",
-  cursor: "Cursor",
-  alma: "Alma",
-  cindy: "Cindy",
-};
 
 const MAX_PROMPT_CHARS = 220;
 const MAX_TITLE_CHARS = 80;

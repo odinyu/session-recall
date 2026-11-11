@@ -11,8 +11,9 @@ import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
 import { scanLockPath, tryAcquireScanLock } from "./scan-lock.ts";
-import { AGENT_IDS } from "./adapters/types.ts";
+import { AGENT_IDS, AGENT_LABELS, isAgentId } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
+import { continuationFor } from "./util/resume.ts";
 
 const ROLES: SearchRole[] = ["all", "user", "assistant"];
 const SCOPES: SearchScope[] = ["qa", "process"];
@@ -92,6 +93,7 @@ function sessionDetail(id: string): Response {
     session: {
       id: string;
       agent: AgentId;
+      external_id: string;
       title: string;
       project_path: string;
       started_at: number;
@@ -121,6 +123,15 @@ function sessionDetail(id: string): Response {
       updatedAt: raw.session.updated_at,
       turnCount: raw.session.turn_count,
       sourceKind: raw.session.source_kind,
+      continuations: AGENT_IDS.map((agent) => ({
+        targetAgent: agent,
+        label: AGENT_LABELS[agent],
+        ...continuationFor(agent, {
+          agent: raw.session.agent,
+          externalId: raw.session.external_id,
+          projectPath: raw.session.project_path,
+        }),
+      })),
     },
     turns: raw.turns.map((turn) => ({
       idx: turn.idx,
@@ -144,7 +155,15 @@ async function api(request: Request, url: URL): Promise<Response> {
     if (rest.endsWith("/handoff")) {
       if (!db) return json({ error: "index not open" }, 500);
       const id = decodeURIComponent(rest.slice(0, -"/handoff".length));
-      const handoff = generateHandoff(db, id);
+      const targetParam = url.searchParams.get("targetAgent");
+      if (targetParam !== null && !isAgentId(targetParam)) {
+        return json({ error: `unknown targetAgent "${targetParam}"` }, 400);
+      }
+      const handoff = generateHandoff(
+        db,
+        id,
+        targetParam ? { targetAgent: targetParam } : {},
+      );
       if (handoff === null) return json({ error: "session not found" }, 404);
       return new Response(handoff, {
         headers: {

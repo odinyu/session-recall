@@ -1,7 +1,33 @@
-export type AgentId = "omp" | "opencode" | "cursor" | "alma" | "cindy";
+export type AgentId =
+  | "omp"
+  | "opencode"
+  | "cursor"
+  | "alma"
+  | "cindy"
+  | "claude-code"
+  | "codex";
 
 /** Every id in the `AgentId` union, for validation and help text. */
-export const AGENT_IDS = ["omp", "opencode", "cursor", "alma", "cindy"] as const;
+export const AGENT_IDS = [
+  "omp",
+  "opencode",
+  "cursor",
+  "alma",
+  "cindy",
+  "claude-code",
+  "codex",
+] as const;
+
+/** Human-facing names, shared by the brief, handoff card and MCP tools. */
+export const AGENT_LABELS: Record<AgentId, string> = {
+  omp: "omp",
+  opencode: "OpenCode",
+  cursor: "Cursor",
+  alma: "Alma",
+  cindy: "Cindy",
+  "claude-code": "Claude Code",
+  codex: "Codex",
+};
 
 export function isAgentId(value: unknown): value is AgentId {
   return typeof value === "string" && (AGENT_IDS as readonly string[]).includes(value);

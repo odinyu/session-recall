@@ -1,7 +1,13 @@
 import { execFileSync } from "node:child_process";
 import type { Database } from "bun:sqlite";
+import { AGENT_LABELS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
-import { almaDeepLink, resumeCommand, sessionDeepLink } from "./util/resume.ts";
+import {
+  almaDeepLink,
+  continuationFor,
+  resumeCommand,
+  sessionDeepLink,
+} from "./util/resume.ts";
 
 const MAX_TURNS = 6;
 const MAX_PROMPT_CHARS = 320;
@@ -207,20 +213,48 @@ function gitState(projectPath: string): string[] {
   }
 }
 
-function markdown(session: SessionRow, turns: TurnRow[], events: EventRow[]): string {
+function continuationLines(
+  session: SessionRow,
+  targetAgent: AgentId | undefined,
+): string[] {
+  if (targetAgent) {
+    const continuation = continuationFor(targetAgent, {
+      agent: session.agent,
+      externalId: session.external_id,
+      projectPath: session.project_path,
+    });
+    const lines = ["", `## 在 ${AGENT_LABELS[targetAgent]} 中继续`, ""];
+    if (continuation.kind === "deep-link") {
+      lines.push(`- ${continuation.note}：${codeSpan(continuation.command)}`);
+    } else if (continuation.command) {
+      lines.push("```bash", continuation.command, "```", "", `> ${continuation.note}`);
+    } else {
+      lines.push(`> ${continuation.note}`);
+    }
+    return lines;
+  }
+
+  const resume = resumeCommand(session.agent, session.external_id, session.project_path);
+  if (resume) return ["", "## 继续", "", "```bash", resume, "```"];
+  if (session.agent === "alma") {
+    return ["", "## 继续", "", `- 在 Alma 中打开：${codeSpan(almaDeepLink(session.external_id))}`];
+  }
+  return [];
+}
+
+function markdown(
+  session: SessionRow,
+  turns: TurnRow[],
+  events: EventRow[],
+  targetAgent?: AgentId,
+): string {
   const title = oneLine(session.title) || oneLine(turns[0]?.user_text ?? "") || "未命名会话";
   const lines: string[] = [`# 交接：${clip(title, 100)}`, ""];
   if (session.project_path) lines.push(`- 项目：${codeSpan(session.project_path)}`);
-  lines.push(`- Agent：${session.agent}`);
+  lines.push(`- Agent：${AGENT_LABELS[session.agent]}`);
   lines.push(`- 时间：${timeLabel(session)}`);
   lines.push(`- 会话：${sessionDeepLink(session.id)}`);
-
-  const resume = resumeCommand(session.agent, session.external_id, session.project_path);
-  if (resume) {
-    lines.push("", "## 继续", "", "```bash", resume, "```");
-  } else if (session.agent === "alma") {
-    lines.push(`- 在 Alma 中打开：${codeSpan(almaDeepLink(session.external_id))}`);
-  }
+  lines.push(...continuationLines(session, targetAgent));
 
   const prompts = turns
     .map((turn) => oneLine(turn.user_text))
@@ -266,7 +300,16 @@ function markdown(session: SessionRow, turns: TurnRow[], events: EventRow[]): st
   return lines.join("\n");
 }
 
-export function generateHandoff(db: Database, id: string): string | null {
+export interface HandoffOptions {
+  /** Continue in this agent instead of the session's own agent. */
+  targetAgent?: AgentId;
+}
+
+export function generateHandoff(
+  db: Database,
+  id: string,
+  options: HandoffOptions = {},
+): string | null {
   const session = db
     .query(
       `SELECT id, agent, external_id, title, project_path, started_at, updated_at
@@ -286,5 +329,5 @@ export function generateHandoff(db: Database, id: string): string | null {
        WHERE session_id = ? AND kind = 'tool' ORDER BY turn_idx, seq`,
     )
     .all(id) as EventRow[];
-  return markdown(session, turns, events);
+  return markdown(session, turns, events, options.targetAgent);
 }

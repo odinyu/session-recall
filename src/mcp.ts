@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import type { Database } from "bun:sqlite";
-import { isAgentId } from "./adapters/types.ts";
+import { AGENT_IDS, isAgentId } from "./adapters/types.ts";
 import type { Adapter, AgentId } from "./adapters/types.ts";
 import { localDateKey } from "./brief.ts";
 import { DB_PATH } from "./config.ts";
@@ -407,16 +407,23 @@ export function recallFacets(ctx: McpContext, rawArgs: unknown): ToolCallResult 
 
 export function recallHandoff(ctx: McpContext, rawArgs: unknown): ToolCallResult {
   let sessionId: string;
+  let targetAgent: AgentId | undefined;
   try {
     const args = argsRecord(rawArgs);
     sessionId = typeof args.sessionId === "string" ? args.sessionId.trim() : "";
     if (!sessionId) throw new ToolArgsError("sessionId is required");
+    if (args.targetAgent !== undefined && args.targetAgent !== null) {
+      if (!isAgentId(args.targetAgent)) {
+        throw new ToolArgsError(`unknown targetAgent "${String(args.targetAgent)}"`);
+      }
+      targetAgent = args.targetAgent;
+    }
   } catch (error) {
     return toolError(messageOf(error));
   }
 
   return withIndex(ctx, (db) => {
-    const card = generateHandoff(db, sessionId);
+    const card = generateHandoff(db, sessionId, targetAgent ? { targetAgent } : {});
     if (!card) return toolError(`session not found: ${sessionId}`);
     return ok(card);
   });
@@ -465,7 +472,7 @@ export const TOOLS = [
       type: "object",
       properties: {
         query: { type: "string", description: "Bare terms or a quoted phrase; multi-term is ANDed." },
-        agent: { type: "string", enum: ["omp", "opencode", "cursor", "alma", "cindy"] },
+        agent: { type: "string", enum: [...AGENT_IDS] },
         scope: { type: "string", enum: ["qa", "process"], default: "qa" },
         project: { type: "string", description: "Exact project path to filter on." },
         from: { type: "string", description: "ISO date or epoch milliseconds, inclusive." },
@@ -497,11 +504,18 @@ export const TOOLS = [
   },
   {
     name: "recall_handoff",
-    description: "Render the Markdown handoff card for a session, ready to paste into a new agent.",
+    description:
+      "Render the Markdown handoff card for a session, ready to paste into a new agent. " +
+      "Pass targetAgent to get that agent's resume command or new-session command in the card.",
     inputSchema: {
       type: "object",
       properties: {
         sessionId: { type: "string", description: "The id returned by recall_search." },
+        targetAgent: {
+          type: "string",
+          enum: [...AGENT_IDS],
+          description: "Continue in this agent; omit to keep the source agent's own resume section.",
+        },
       },
       required: ["sessionId"],
       additionalProperties: false,

@@ -56,7 +56,7 @@ MCP server: `session-recall mcp` over **stdio**, read-only, no network.
 | `recall_search` | `query`, optional `agent`, `scope` (`qa`/`process`), `project`, `from`, `to`, `limit` (default 5) | compact results: `sessionId`, `agent`, `project`, `date`, `title`, `question`, `answer` (clipped), `deepLink`, `indexAgeMs`, `totalSessions` |
 | `recall_session` | `sessionId`, optional `turn` | one turn or the whole session's turns |
 | `recall_facets` | — | agents and projects with counts |
-| `recall_handoff` | `sessionId` | Markdown handoff card |
+| `recall_handoff` | `sessionId`, optional `targetAgent` | Markdown handoff card; with `targetAgent`, the card carries that agent's resume or new-session command |
 | `recall_scan` | — | refresh the index, return stats |
 
 Design rules: default compact, clip answers, always attach a `deepLink`, include

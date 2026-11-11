@@ -49,6 +49,7 @@ test("decodes the deep-link id exactly once", () => {
   expect(parseDeepLink("sessionrecall://session/alma%3Amwbhgpzz9n7zy56fdm")).toEqual({
     section: "session",
     id: "alma:mwbhgpzz9n7zy56fdm",
+    turn: null,
   });
   const route = deepLinkRoute("sessionrecall://session/alma%3Amwbhgpzz9n7zy56fdm");
   expect(route).toBe("#/session/alma%3Amwbhgpzz9n7zy56fdm");
@@ -77,4 +78,23 @@ test("rejects malformed deep links instead of inventing a route", () => {
   expect(deepLinkRoute("https://example.com/sessionrecall://session/x")).toBeNull();
   // A deep-link-shaped path under another scheme stays external.
   expect(inAppRoute("https://example.com/sessionrecall://session/x")).toBeNull();
+});
+
+test("keeps ?turn= in the route the app navigates to", () => {
+  expect(deepLinkRoute("sessionrecall://session/omp%3Aabc?turn=3")).toBe(
+    "#/session/omp%3Aabc?turn=3",
+  );
+  expect(inAppRoute("sessionrecall://session/omp%3Aabc?turn=0")).toBe(
+    "#/session/omp%3Aabc?turn=0",
+  );
+  // Junk turns fall back to the session top instead of an invalid route.
+  for (const bad of ["abc", "-1", "1.5", ""]) {
+    expect(deepLinkRoute(`sessionrecall://session/omp%3Aabc?turn=${bad}`)).toBe(
+      "#/session/omp%3Aabc",
+    );
+  }
+  // Only sessions address a turn; briefs ignore it.
+  expect(deepLinkRoute("sessionrecall://brief/2026-11-10?turn=2")).toBe(
+    "#/brief/2026-11-10",
+  );
 });

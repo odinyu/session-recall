@@ -40,6 +40,14 @@ export function cindyDbPath(): string {
   return join(CINDY_DIR, "cindy.db");
 }
 
+/** Claude Code: one JSONL per session under `projects/<slug>/`. */
+export const CLAUDE_DIR =
+  process.env.SESSION_RECALL_CLAUDE_DIR ?? join(HOME, ".claude");
+
+/** Codex CLI: rollout JSONL files under `sessions/YYYY/MM/DD/`. */
+export const CODEX_DIR =
+  process.env.SESSION_RECALL_CODEX_DIR ?? join(HOME, ".codex");
+
 export const PORT = Number(process.env.SESSION_RECALL_PORT ?? 4319);
 
 export const PROJECT_ROOT = join(import.meta.dir, "..");
