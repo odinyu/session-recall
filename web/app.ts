@@ -194,6 +194,10 @@ let lastSearchHash = "#/search";
 const INITIAL_RESULT_LIMIT = 200;
 const MAX_RESULT_LIMIT = 5000;
 let resultLimit = INITIAL_RESULT_LIMIT;
+// Identifies the current query/filters. "Show more" grows resultLimit for the
+// same criteria; a new query or filter must start from the initial limit again,
+// otherwise every later search keeps fetching hundreds of rows.
+let lastSearchKey = "";
 let themeMode: ThemeMode = cachedTheme();
 let briefDate = localDateKey();
 
@@ -241,16 +245,27 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Wrap query terms in `<mark>` without corrupting HTML entities. The match runs
+ * over the raw text and each slice is escaped afterwards, so a term like "amp"
+ * can never match inside `&amp;`. Matching after escaping (the old approach)
+ * injected `<mark>` into entities and rendered garbage.
+ */
 function highlight(text: string, terms: string[]): string {
-  const escaped = escapeHtml(text);
-  if (terms.length === 0) return escaped;
-  const parts = terms
-    .map((term) => escapeHtml(term))
-    .filter(Boolean)
-    .sort((a, b) => b.length - a.length);
-  if (parts.length === 0) return escaped;
+  if (terms.length === 0) return escapeHtml(text);
+  const parts = terms.filter(Boolean).sort((a, b) => b.length - a.length);
+  if (parts.length === 0) return escapeHtml(text);
   const matcher = new RegExp(`(${parts.map(escapeRegExp).join("|")})`, "gi");
-  return escaped.replace(matcher, "<mark>$1</mark>");
+  let out = "";
+  let last = 0;
+  for (const match of text.matchAll(matcher)) {
+    const index = match.index ?? 0;
+    out += escapeHtml(text.slice(last, index));
+    out += `<mark>${escapeHtml(match[0])}</mark>`;
+    last = index + match[0].length;
+  }
+  out += escapeHtml(text.slice(last));
+  return out;
 }
 
 function parseTerms(value: string): string[] {
@@ -485,7 +500,7 @@ function projectLabel(path: string): string {
 }
 
 function agentBadge(agent: AgentId): string {
-  return `<span class="agent agent-${agent}"><span class="agent-dot"></span>${AGENT_LABEL[agent]}</span>`;
+  return `<span class="agent agent-${agent}"><span class="agent-dot agent-${agent}"></span>${AGENT_LABEL[agent]}</span>`;
 }
 
 /** The command/link/note strip for the currently selected target agent. */
@@ -747,7 +762,7 @@ function renderShell(): void {
       <main class="main">
         <div class="main-inner">
           <header class="topbar">
-            <button class="icon-btn filters-toggle" id="filters-toggle" aria-label="打开筛选">
+            <button class="icon-btn filters-toggle" id="filters-toggle" aria-label="打开筛选" aria-controls="rail" aria-expanded="false">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M6 10h8M8 15h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </button>
             <div class="search-field">
@@ -771,7 +786,7 @@ function renderShell(): void {
     <button class="to-top" id="to-top" type="button" title="回到顶部" aria-label="回到顶部" hidden>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 12.5 10 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
-    <div class="scrim" id="scrim" hidden></div>
+    <div class="scrim" id="scrim" hidden aria-hidden="true"></div>
   `;
   bindShell();
 }
@@ -788,9 +803,12 @@ function bindShell(): void {
   });
 
   byId<HTMLButtonElement>("filters-toggle")?.addEventListener("click", () => {
-    document.body.classList.toggle("filters-open");
-    const scrim = byId<HTMLDivElement>("scrim");
-    if (scrim) scrim.hidden = !document.body.classList.contains("filters-open");
+    const open = !document.body.classList.contains("filters-open");
+    setFiltersOpen(open);
+    // Move focus into the drawer when it opens, and back to the toggle when it
+    // closes, so keyboard users are never stranded on the page behind it.
+    if (open) byId<HTMLButtonElement>("rail-close")?.focus();
+    else byId<HTMLButtonElement>("filters-toggle")?.focus();
   });
   byId<HTMLButtonElement>("rail-close")?.addEventListener("click", closeFilters);
   byId<HTMLDivElement>("scrim")?.addEventListener("click", closeFilters);
@@ -882,6 +900,7 @@ function bindShell(): void {
   byId<HTMLDivElement>("content")?.addEventListener("click", onContentClick);
 
   document.addEventListener("keydown", (event) => {
+    trapFiltersFocus(event);
     const target = event.target as HTMLElement | null;
     const typing =
       target instanceof HTMLInputElement ||
@@ -933,10 +952,52 @@ function bindShell(): void {
   });
 }
 
-function closeFilters(): void {
-  document.body.classList.remove("filters-open");
+/**
+ * Show/hide the off-canvas filter drawer and keep the toggle's state in sync.
+ * `aria-expanded` is what tells assistive tech the rail is showing.
+ */
+function setFiltersOpen(open: boolean): void {
+  document.body.classList.toggle("filters-open", open);
   const scrim = byId<HTMLDivElement>("scrim");
-  if (scrim) scrim.hidden = true;
+  if (scrim) scrim.hidden = !open;
+  byId<HTMLButtonElement>("filters-toggle")?.setAttribute("aria-expanded", String(open));
+}
+
+function closeFilters(): void {
+  const wasOpen = document.body.classList.contains("filters-open");
+  setFiltersOpen(false);
+  // Only restore focus when this actually closed the drawer; closeFilters also
+  // runs on Escape and on views that never opened it.
+  if (wasOpen) byId<HTMLButtonElement>("filters-toggle")?.focus();
+}
+
+/**
+ * While the drawer is open it covers the page, so Tab must cycle inside it
+ * rather than walking the hidden content behind the scrim.
+ */
+function trapFiltersFocus(event: KeyboardEvent): void {
+  if (event.key !== "Tab" || !document.body.classList.contains("filters-open")) return;
+  const rail = byId<HTMLElement>("rail");
+  if (!rail) return;
+  const focusable = Array.from(
+    rail.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => el.getClientRects().length > 0);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+  const inside = active !== null && rail.contains(active);
+  if (event.shiftKey) {
+    if (!inside || active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (!inside || active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 /**
@@ -1196,7 +1257,31 @@ function bindProjectCombobox(): void {
   );
 }
 
+/** Attributes that identify a filter/theme control across an innerHTML rerender. */
+const FOCUS_ATTRS = ["data-agent", "data-range", "data-scope", "data-role", "data-theme-mode"];
+
+/**
+ * Remember which control has focus so a rerender can restore it. Rewriting a
+ * group's innerHTML destroys the focused button and drops focus to <body>, which
+ * makes the filters unusable from the keyboard.
+ */
+function focusedControlSelector(): string | null {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el || el === document.body) return null;
+  for (const attr of FOCUS_ATTRS) {
+    const value = el.getAttribute(attr);
+    if (value !== null) return `[${attr}="${CSS.escape(value)}"]`;
+  }
+  return null;
+}
+
+function restoreControlFocus(selector: string | null): void {
+  if (!selector) return;
+  document.querySelector<HTMLElement>(selector)?.focus();
+}
+
 function renderControls(): void {
+  const focus = focusedControlSelector();
   const search = byId<HTMLInputElement>("search");
   if (search) {
     search.placeholder =
@@ -1250,13 +1335,16 @@ function renderControls(): void {
   if (clear) clear.hidden = state.agents.length === 0 && !state.project && state.range === "all";
 
   renderFoot();
+  restoreControlFocus(focus);
 }
 
 function renderFoot(): void {
+  const focus = focusedControlSelector();
   const foot = byId<HTMLElement>("rail-foot");
   if (!foot) return;
   if (!facetsData) {
     foot.innerHTML = `${themeSwitchHtml()}<span class="foot-muted">正在读取索引…</span>`;
+    restoreControlFocus(focus);
     return;
   }
   const { sessions, turns } = facetsData.total;
@@ -1277,6 +1365,7 @@ function renderFoot(): void {
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8A5.8 5.8 0 1 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 4.8v3.4h-3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>`;
+  restoreControlFocus(focus);
 }
 
 function route(): void {
@@ -1324,8 +1413,25 @@ function paramsForSearch(): string {
   return params.toString();
 }
 
+/** The inputs that define a result set, ignoring the page size. */
+function searchCriteriaKey(): string {
+  return JSON.stringify({
+    q: state.q,
+    agents: state.agents,
+    project: state.project,
+    role: state.role,
+    scope: state.scope,
+    range: state.range,
+  });
+}
+
 async function runSearch(): Promise<void> {
   if (state.view !== "search") return;
+  const key = searchCriteriaKey();
+  if (key !== lastSearchKey) {
+    lastSearchKey = key;
+    resultLimit = INITIAL_RESULT_LIMIT;
+  }
   searchAbort?.abort();
   const controller = new AbortController();
   searchAbort = controller;
