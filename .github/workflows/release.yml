@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   macos-app:
-    runs-on: macos-14
+    # macos-14's arm64 pool is gone for this repo tier; macos-15 is arm64 and
+    # still cross-compiles the Intel slice fine.
+    runs-on: macos-15
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
