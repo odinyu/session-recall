@@ -250,6 +250,11 @@ bun run brief --week 2026-W46              # weekly rollup
 bun run brief --help                       # flags
 ```
 
+The app's sidebar footer carries the same two reports: pick a day in the
+calendar, choose **日报** or **周报**, then press **生成**. The report opens in
+the content pane (a weekly one links to `#/brief/2026-W46?format=week`) and is
+also offered as a `.md` download.
+
 Files live under `<app dir>/brief/` — `~/Library/Application Support/session-recall/brief/`
 by default, next to the index, so this works from inside the packaged `.app`
 too. Override with `SESSION_RECALL_BRIEF_DIR=/some/dir`.

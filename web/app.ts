@@ -110,6 +110,8 @@ interface SessionDetail {
 
 interface BriefPayload {
   date: string;
+  week?: string | null;
+  range?: string | null;
   path: string;
   relativePath: string;
   sessions: number;
@@ -123,6 +125,7 @@ interface UiState {
   view: "search" | "session" | "brief";
   sessionId: string;
   briefDate: string;
+  briefFormat: "day" | "week";
   turnIdx: number | null;
   focus: "user" | "assistant" | null;
   processOpen: boolean;
@@ -200,10 +203,279 @@ let resultLimit = INITIAL_RESULT_LIMIT;
 let lastSearchKey = "";
 let themeMode: ThemeMode = cachedTheme();
 let briefDate = localDateKey();
+// Which report the footer generates: a single day, or the ISO week that the
+// chosen day falls in.
+let briefMode: "day" | "week" = "day";
 
 function localDateKey(date = new Date()): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** `YYYY-MM-DD` as a local date; malformed keys fall back to today. */
+function parseDateKey(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  const date = new Date(year || 1970, (month || 1) - 1, day || 1);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+/** Monday..Sunday of the ISO week that contains `key`. */
+function weekRange(key: string): { start: string; end: string } {
+  const date = parseDateKey(key);
+  const mondayOffset = (date.getDay() + 6) % 7;
+  const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - mondayOffset);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return { start: localDateKey(monday), end: localDateKey(sunday) };
+}
+
+/** Compact label under the date button: `2026/11/12` or the week `11/16–11/22`. */
+function briefDateLabel(): string {
+  if (briefMode === "week") {
+    const { start, end } = weekRange(briefDate);
+    return `${start.slice(5).replace("-", "/")}–${end.slice(5).replace("-", "/")}`;
+  }
+  return briefDate.replace(/-/g, "/");
+}
+
+function briefDateLabelHtml(): string {
+  return `<span class="brief-date-label">${escapeHtml(briefDateLabel())}</span>
+    <svg class="brief-date-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5h11M5.5 2.2v3M10.5 2.2v3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`;
+}
+
+/* -------------------------------------------------------------------------
+ * Date picker
+ *
+ * A `<input type="date">` hands its popup to the OS or browser, which cannot be
+ * themed; this is a small calendar drawn with the app's own tokens instead. It
+ * keeps the native behaviours that matter: Monday-first ISO weeks (the weekly
+ * report groups by ISO week), arrow/Page/Home/End navigation, Enter to pick,
+ * Escape to close, and a focus ring.
+ * ---------------------------------------------------------------------- */
+
+interface DatePicker {
+  el: HTMLDivElement;
+  trigger: HTMLElement;
+  view: Date; // first day of the visible month
+  focus: Date; // the day that owns keyboard focus
+  onOutside: (event: MouseEvent) => void;
+}
+let datePicker: DatePicker | null = null;
+
+const CAL_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+
+function openDatePicker(trigger: HTMLElement): void {
+  closeDatePicker(false);
+  const selected = parseDateKey(briefDate);
+  const el = document.createElement("div");
+  el.className = "date-picker";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "false");
+  el.setAttribute("aria-label", "选择日期");
+  document.body.appendChild(el);
+  const picker: DatePicker = {
+    el,
+    trigger,
+    view: new Date(selected.getFullYear(), selected.getMonth(), 1),
+    focus: selected,
+    onOutside: () => {},
+  };
+  datePicker = picker;
+  el.addEventListener("click", onDatePickerClick);
+  el.addEventListener("keydown", onDatePickerKey);
+  renderDatePicker();
+  positionDatePicker();
+  trigger.setAttribute("aria-expanded", "true");
+  picker.onOutside = (event) => {
+    const target = event.target as Node | null;
+    if (!target) return;
+    if (el.contains(target) || trigger.contains(target)) return;
+    closeDatePicker();
+  };
+  // Defer, or the click that opened the picker also counts as "outside".
+  window.setTimeout(() => {
+    if (datePicker === picker) document.addEventListener("mousedown", picker.onOutside, true);
+  }, 0);
+  focusDateCell();
+}
+
+function closeDatePicker(restoreFocus = true): void {
+  if (!datePicker) return;
+  const { el, trigger, onOutside } = datePicker;
+  document.removeEventListener("mousedown", onOutside, true);
+  trigger.setAttribute("aria-expanded", "false");
+  el.remove();
+  datePicker = null;
+  if (restoreFocus) trigger.focus();
+}
+
+/** Keep the open picker attached to the current footer button after a rerender. */
+function anchorDatePicker(): void {
+  if (!datePicker) return;
+  const trigger = byId<HTMLElement>("brief-date");
+  if (!trigger) {
+    closeDatePicker(false);
+    return;
+  }
+  datePicker.trigger = trigger;
+  trigger.setAttribute("aria-expanded", "true");
+  positionDatePicker();
+}
+
+function renderDatePicker(): void {
+  if (!datePicker) return;
+  const { view, focus } = datePicker;
+  const year = view.getFullYear();
+  const month = view.getMonth();
+  const lead = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+  const start = new Date(year, month, 1 - lead);
+  const todayKey = localDateKey();
+  const focusKey = localDateKey(focus);
+  const rows: string[] = [];
+  for (let row = 0; row < 6; row += 1) {
+    const cells: string[] = [];
+    for (let col = 0; col < 7; col += 1) {
+      const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + row * 7 + col);
+      const key = localDateKey(day);
+      const classes = ["date-cell"];
+      if (day.getMonth() !== month) classes.push("is-outside");
+      if (key === todayKey) classes.push("is-today");
+      if (key === briefDate) classes.push("is-selected");
+      if (key === focusKey) classes.push("is-focus");
+      cells.push(
+        `<button type="button" class="${classes.join(" ")}" data-date="${key}" role="gridcell" aria-selected="${key === briefDate}" aria-label="${day.getFullYear()}年${day.getMonth() + 1}月${day.getDate()}日" tabindex="${key === focusKey ? 0 : -1}">${day.getDate()}</button>`,
+      );
+    }
+    rows.push(`<div class="date-row" role="row">${cells.join("")}</div>`);
+  }
+  datePicker.el.innerHTML = `
+    <div class="date-head">
+      <button type="button" class="date-nav" data-date-nav="-1" aria-label="上个月">‹</button>
+      <span class="date-title" aria-live="polite">${year}年${month + 1}月</span>
+      <button type="button" class="date-nav" data-date-nav="1" aria-label="下个月">›</button>
+    </div>
+    <div class="date-grid" role="grid" aria-label="${year}年${month + 1}月">
+      <div class="date-week" role="row">${CAL_WEEKDAYS.map((label) => `<span role="columnheader">${label}</span>`).join("")}</div>
+      ${rows.join("")}
+    </div>`;
+}
+
+function focusDateCell(): void {
+  if (!datePicker) return;
+  const key = localDateKey(datePicker.focus);
+  datePicker.el.querySelector<HTMLButtonElement>(`[data-date="${key}"]`)?.focus();
+}
+
+function shiftPickerMonth(delta: number): void {
+  if (!datePicker) return;
+  const { view, focus } = datePicker;
+  const nextView = new Date(view.getFullYear(), view.getMonth() + delta, 1);
+  const lastDay = new Date(nextView.getFullYear(), nextView.getMonth() + 1, 0).getDate();
+  datePicker.view = nextView;
+  datePicker.focus = new Date(nextView.getFullYear(), nextView.getMonth(), Math.min(focus.getDate(), lastDay));
+  renderDatePicker();
+  focusDateCell();
+}
+
+function shiftPickerDays(delta: number): void {
+  if (!datePicker) return;
+  const focus = datePicker.focus;
+  const next = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate() + delta);
+  datePicker.focus = next;
+  if (next.getFullYear() !== datePicker.view.getFullYear() || next.getMonth() !== datePicker.view.getMonth()) {
+    datePicker.view = new Date(next.getFullYear(), next.getMonth(), 1);
+  }
+  renderDatePicker();
+  focusDateCell();
+}
+
+function pickDate(key: string): void {
+  briefDate = key;
+  closeDatePicker();
+  // Update the label in place rather than rerendering the whole footer.
+  const label = document.querySelector<HTMLElement>("#brief-date .brief-date-label");
+  if (label) label.textContent = briefDateLabel();
+}
+
+function onDatePickerClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+  const nav = target.closest<HTMLButtonElement>("[data-date-nav]");
+  if (nav) {
+    shiftPickerMonth(Number(nav.dataset.dateNav));
+    return;
+  }
+  const cell = target.closest<HTMLButtonElement>("[data-date]");
+  if (cell?.dataset.date) pickDate(cell.dataset.date);
+}
+
+function onDatePickerKey(event: KeyboardEvent): void {
+  if (!datePicker) return;
+  const dow = (datePicker.focus.getDay() + 6) % 7;
+  switch (event.key) {
+    case "Escape":
+      event.preventDefault();
+      closeDatePicker();
+      return;
+    case "ArrowLeft":
+      event.preventDefault();
+      shiftPickerDays(-1);
+      return;
+    case "ArrowRight":
+      event.preventDefault();
+      shiftPickerDays(1);
+      return;
+    case "ArrowUp":
+      event.preventDefault();
+      shiftPickerDays(-7);
+      return;
+    case "ArrowDown":
+      event.preventDefault();
+      shiftPickerDays(7);
+      return;
+    case "PageUp":
+      event.preventDefault();
+      shiftPickerMonth(-1);
+      return;
+    case "PageDown":
+      event.preventDefault();
+      shiftPickerMonth(1);
+      return;
+    case "Home":
+      event.preventDefault();
+      shiftPickerDays(-dow);
+      return;
+    case "End":
+      event.preventDefault();
+      shiftPickerDays(6 - dow);
+      return;
+    case "Enter":
+    case " ": {
+      const key = (document.activeElement as HTMLElement | null)?.getAttribute("data-date");
+      if (key) {
+        event.preventDefault();
+        pickDate(key);
+      }
+      return;
+    }
+  }
+}
+
+function positionDatePicker(): void {
+  if (!datePicker) return;
+  const { el, trigger } = datePicker;
+  const rect = trigger.getBoundingClientRect();
+  el.style.visibility = "hidden";
+  el.style.left = "0px";
+  el.style.top = "0px";
+  const width = el.offsetWidth;
+  const height = el.offsetHeight;
+  const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
+  // The trigger sits in the rail footer, so open upwards unless there is no room.
+  let top = rect.top - height - 8;
+  if (top < 8) top = rect.bottom + 8;
+  el.style.left = `${left}px`;
+  el.style.top = `${Math.max(8, top)}px`;
+  el.style.visibility = "";
 }
 
 function defaultState(): UiState {
@@ -211,6 +483,7 @@ function defaultState(): UiState {
     view: "search",
     sessionId: "",
     briefDate: "",
+    briefFormat: "day",
     turnIdx: null,
     focus: null,
     processOpen: false,
@@ -278,11 +551,13 @@ function parseTerms(value: string): string[] {
 function parseHash(): UiState {
   const raw = location.hash.replace(/^#/, "");
   if (raw.startsWith("/brief/")) {
-    const [path] = raw.split("?");
+    const [path, query] = raw.split("?");
+    const params = new URLSearchParams(query ?? "");
     return {
       ...defaultState(),
       view: "brief",
       briefDate: decodeURIComponent(path.slice("/brief/".length)),
+      briefFormat: params.get("format") === "week" ? "week" : "day",
     };
   }
   if (raw.startsWith("/session/")) {
@@ -326,10 +601,11 @@ function parseHash(): UiState {
 
 function syncHash(): void {
   if (state.view === "brief") {
+    const suffix = state.briefFormat === "week" ? "?format=week" : "";
     history.replaceState(
       null,
       "",
-      `#/brief/${encodeURIComponent(state.briefDate)}`,
+      `#/brief/${encodeURIComponent(state.briefDate)}${suffix}`,
     );
     return;
   }
@@ -871,17 +1147,21 @@ function bindShell(): void {
   });
 
   byId<HTMLDivElement>("rail-foot")?.addEventListener("click", (event) => {
-    const dateInput = (event.target as HTMLElement).closest<HTMLInputElement>("#brief-date");
-    if (dateInput) {
-      // The platform's calendar indicator is hidden so the field matches the
-      // rail; open the native picker from the click instead. Browsers without
-      // showPicker still focus the field, where it can be typed and stepped.
-      const picker = dateInput as HTMLInputElement & { showPicker?: () => void };
-      try {
-        picker.showPicker?.();
-      } catch {
-        // Not a user gesture, or unsupported: the field is already focused.
+    const modeButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-brief-mode]");
+    if (modeButton) {
+      const mode = modeButton.dataset.briefMode === "week" ? "week" : "day";
+      if (mode !== briefMode) {
+        briefMode = mode;
+        renderFoot();
+        // The mode switch rerendered the footer; keep the picker anchored.
+        anchorDatePicker();
       }
+      return;
+    }
+    const dateTrigger = (event.target as HTMLElement).closest<HTMLElement>("#brief-date");
+    if (dateTrigger) {
+      if (datePicker) closeDatePicker();
+      else openDatePicker(dateTrigger);
       return;
     }
     const themeButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
@@ -901,13 +1181,6 @@ function bindShell(): void {
       return;
     }
     if ((event.target as HTMLElement).closest("[data-refresh]")) void refreshIndex();
-  });
-
-  byId<HTMLDivElement>("rail-foot")?.addEventListener("change", (event) => {
-    const target = event.target;
-    if (target instanceof HTMLInputElement && target.id === "brief-date") {
-      briefDate = target.value || localDateKey();
-    }
   });
 
   byId<HTMLDivElement>("content")?.addEventListener("click", onContentClick);
@@ -931,6 +1204,10 @@ function bindShell(): void {
       return;
     }
     if (event.key === "Escape") {
+      if (datePicker) {
+        closeDatePicker();
+        return;
+      }
       closeFilters();
       if (target === byId<HTMLInputElement>("search")) {
         if (state.q) {
@@ -1366,9 +1643,13 @@ function renderFoot(): void {
     : "尚未索引";
   foot.innerHTML = `
     ${themeSwitchHtml()}
+    <div class="segmented brief-mode" id="brief-mode" role="group" aria-label="简报类型">
+      <button class="seg${briefMode === "day" ? " is-active" : ""}" type="button" data-brief-mode="day" aria-pressed="${briefMode === "day"}">日报</button>
+      <button class="seg${briefMode === "week" ? " is-active" : ""}" type="button" data-brief-mode="week" aria-pressed="${briefMode === "week"}">周报</button>
+    </div>
     <div class="brief-row">
-      <input id="brief-date" class="brief-date" type="date" value="${escapeAttr(briefDate)}" aria-label="简报日期">
-      <button class="brief-button" type="button" data-brief>生成简报</button>
+      <button class="brief-date" id="brief-date" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="选择日期">${briefDateLabelHtml()}</button>
+      <button class="brief-button" type="button" data-brief>生成</button>
     </div>
     <div class="brief-status" id="brief-status" aria-live="polite"></div>
     <div class="foot-stats"><strong>${formatCount(sessions)}</strong> 会话 · <strong>${formatCount(turns)}</strong> 问答</div>
@@ -1379,14 +1660,17 @@ function renderFoot(): void {
       </button>
     </div>`;
   restoreControlFocus(focus);
+  anchorDatePicker();
 }
 
 function route(): void {
+  // Keep the footer's 日报/周报 switch in step with the report being viewed.
+  if (state.view === "brief") briefMode = state.briefFormat;
   const input = byId<HTMLInputElement>("search");
   if (input && input.value !== state.q) input.value = state.q;
   renderControls();
   if (state.view === "brief") {
-    void renderBrief(state.briefDate);
+    void renderBrief(state.briefDate, state.briefFormat);
   } else if (state.view === "session") {
     void renderSession(
       state.sessionId,
@@ -1602,30 +1886,40 @@ function stripFrontMatter(markdown: string): string {
   return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
 }
 
-async function renderBrief(date: string): Promise<void> {
+/** `2026-W46 · 11/09–11/15` — the ISO week plus the days it covers. */
+function weekSubtitle(week: string, range: string | null | undefined): string {
+  const [start, end] = (range ?? "").split("..");
+  if (!start || !end) return week;
+  const short = (key: string) => key.slice(5).replace("-", "/");
+  return `${week} · ${short(start)}–${short(end)}`;
+}
+
+async function renderBrief(ref: string, format: "day" | "week" = "day"): Promise<void> {
   const content = byId<HTMLDivElement>("content");
   if (!content) return;
   const status = byId<HTMLDivElement>("search-status");
   if (status) status.textContent = "";
   content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
+  const isWeek = format === "week";
+  const endpoint = isWeek
+    ? `/api/brief?format=week&week=${encodeURIComponent(ref)}`
+    : `/api/brief?date=${encodeURIComponent(ref)}`;
   try {
-    const response = await fetch(
-      `/api/brief?date=${encodeURIComponent(date)}`,
-      { method: "POST" },
-    );
+    const response = await fetch(endpoint, { method: "POST" });
     const data = (await response.json().catch(() => null)) as
       | (BriefPayload & { error?: string })
       | null;
     if (!response.ok || !data?.markdown) {
       throw new Error(data?.error ?? `请求失败 (${response.status})`);
     }
+    const subtitle = isWeek ? weekSubtitle(data.week ?? ref, data.range) : data.date;
     content.innerHTML = `
       <a class="back" href="${lastSearchHash}">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         返回搜索
       </a>
       <div class="brief-toolbar">
-        <span class="foot-muted">${escapeHtml(data.date)} · ${formatCount(data.projects)} 个项目 · ${formatCount(data.sessions)} 个会话 · ${formatCount(data.turns)} 轮问答</span>
+        <span class="foot-muted">${escapeHtml(subtitle)} · ${formatCount(data.projects)} 个项目 · ${formatCount(data.sessions)} 个会话 · ${formatCount(data.turns)} 轮问答</span>
         <a class="brief-download" href="${escapeAttr(data.download)}" download>下载 .md</a>
       </div>
       <article class="markdown brief-view">${renderMarkdown(stripFrontMatter(data.markdown))}</article>
@@ -1873,28 +2167,35 @@ function renderError(error: unknown): void {
 
 async function generateBriefFile(): Promise<void> {
   const status = byId<HTMLDivElement>("brief-status");
-  const input = byId<HTMLInputElement>("brief-date");
-  const date = input?.value || briefDate || localDateKey();
+  const date = briefDate || localDateKey();
   briefDate = date;
+  const isWeek = briefMode === "week";
   if (status) status.innerHTML = `<span class="foot-muted">正在生成…</span>`;
   try {
-    const response = await fetch(
-      `/api/brief?date=${encodeURIComponent(date)}`,
-      { method: "POST" },
-    );
+    const query = isWeek
+      ? `format=week&date=${encodeURIComponent(date)}`
+      : `date=${encodeURIComponent(date)}`;
+    const response = await fetch(`/api/brief?${query}`, { method: "POST" });
     const body = (await response.json().catch(() => null)) as
       | {
           error?: string;
           path?: string;
           relativePath?: string;
           download?: string;
+          date?: string;
+          week?: string | null;
         }
       | null;
     if (!response.ok || !body?.download) {
       throw new Error(body?.error ?? `请求失败 (${response.status})`);
     }
+    // A weekly report is keyed by ISO week, so the in-app link carries both the
+    // week and the format that tells the brief view how to load it.
+    const ref = isWeek ? (body.week ?? date) : (body.date ?? date);
+    const suffix = isWeek ? "?format=week" : "";
+    const href = `#/brief/${encodeURIComponent(ref)}${suffix}`;
     if (status) {
-      status.innerHTML = `已生成 <a href="#/brief/${encodeURIComponent(date)}" title="${escapeAttr(body.path ?? "")}">在线查看</a> · <a href="${escapeAttr(body.download)}" download>下载 .md</a>`;
+      status.innerHTML = `已生成 <a href="${escapeAttr(href)}" title="${escapeAttr(body.path ?? "")}">在线查看</a> · <a href="${escapeAttr(body.download)}" download>下载 .md</a>`;
     }
   } catch (error) {
     if (status) {
