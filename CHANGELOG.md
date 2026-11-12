@@ -24,6 +24,13 @@ release workflow builds the macOS app from the tag.
 - Reports: a 日报 / 周报 switch in the sidebar footer with a self-drawn,
   theme-aware calendar; weekly reports open in-app at
   `#/brief/<week>?format=week`.
+- Deep links carry their search: `sessionrecall://session/<id>?turn=3&q=…` now
+  highlights the terms in prompts, answers and code blocks, adds a 「来自搜索」
+  strip, points 「返回搜索」 at those results, and centres the target turn. Links
+  without `q` behave as before.
+- First paint and failed searches: the content pane shows a skeleton on the
+  first search instead of staying blank, and a failed request keeps the results
+  on screen with a `role="alert"` error bar and a 重试 button.
 
 ## 1.1.1 — 2026-11-11
 

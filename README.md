@@ -237,6 +237,20 @@ That is the link a daily brief emits and the link the iOS-style "open in app"
 gesture resolves to. It is also accepted inside the app, where it is routed
 directly rather than round-tripping through the OS.
 
+Two query parameters carry context into the session page:
+
+```text
+sessionrecall://session/<id>?turn=3&q=websocket
+```
+
+- `turn` opens the session at that turn index and centres it in the viewport; a
+  non-numeric or out-of-range value (or a stale index) opens the top instead.
+- `q` is the search that produced the link. The app highlights those terms in
+  the prompt, the answer and its code blocks, shows a 「来自搜索 “…” · 查看搜索结果」
+  strip above the action bar, and points 「返回搜索」 at those results — so a
+  cold start from a link does not land in a blank search page. Without `q` the
+  link behaves exactly as before.
+
 ## Reports (daily and weekly)
 
 Daily reports are short **standups** by default; the old full dump is still one
