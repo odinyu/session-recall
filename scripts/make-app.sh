@@ -5,14 +5,19 @@
 #   bash scripts/make-app.sh                 # host architecture only (fast)
 #   bash scripts/make-app.sh --native        # the same thing, spelled out
 #   bash scripts/make-app.sh --universal     # arm64 + x86_64 in one bundle
+#   bash scripts/make-app.sh --arch <triple> # one specific slice:
+#                                            #   aarch64-apple-darwin (Apple silicon)
+#                                            #   x86_64-apple-darwin  (Intel)
 #   bash scripts/make-app.sh --no-install    # build only, leave /Applications alone
 #
 # Steps: build the web UI, compile the Bun CLI into a self-contained sidecar
-# binary — one per architecture for --universal, lipo'd into a single file —
-# then let Tauri bundle it together with the UI, and install the result into
-# /Applications so it is double-clickable from Finder and Spotlight.
+# binary — one per architecture for --universal/--arch, lipo'd into a single
+# file for --universal — then let Tauri bundle it together with the UI, and
+# install the result into /Applications so it is double-clickable from Finder
+# and Spotlight.
 #
 # Build output: src-tauri/target/release/bundle/macos/Session Recall.app
+#               src-tauri/target/<triple>/release/bundle/macos/Session Recall.app
 #               src-tauri/target/universal-apple-darwin/release/bundle/macos/Session Recall.app
 # Install path: /Applications/Session Recall.app
 set -euo pipefail
@@ -21,23 +26,35 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 MODE="native"
+ARCH=""
 INSTALL=1
-for arg in "$@"; do
-  case "$arg" in
-    --native)     MODE="native" ;;
-    --universal)  MODE="universal" ;;
-    --install)    INSTALL=1 ;;
-    --no-install) INSTALL=0 ;;
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --native)     MODE="native"; shift ;;
+    --universal)  MODE="universal"; shift ;;
+    --arch)       MODE="arch"; [[ $# -ge 2 ]] || { echo "error: --arch needs a triple" >&2; exit 1; }; ARCH="$2"; shift 2 ;;
+    --arch=*)     MODE="arch"; ARCH="${1#*=}"; shift ;;
+    --install)    INSTALL=1; shift ;;
+    --no-install) INSTALL=0; shift ;;
     -h|--help)
-      sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
-      echo "error: unknown option '$arg' (expected --native, --universal, --no-install)" >&2
+      echo "error: unknown option '$1' (expected --native, --universal, --arch <triple>, --no-install)" >&2
       exit 1
       ;;
   esac
 done
+
+case "$MODE" in
+  arch)
+    [[ "$ARCH" == "aarch64-apple-darwin" || "$ARCH" == "x86_64-apple-darwin" ]] || {
+      echo "error: --arch expects aarch64-apple-darwin or x86_64-apple-darwin (got '$ARCH')" >&2
+      exit 1
+    }
+    ;;
+esac
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "error: make-app.sh only builds macOS bundles (found $(uname -s))" >&2
@@ -138,6 +155,13 @@ if [[ "$MODE" == "universal" ]]; then
 
   run_tauri_build universal-apple-darwin
   APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Session Recall.app"
+elif [[ "$MODE" == "arch" ]]; then
+  # One slice only: Tauri names the external binary "<name>-<triple>", so a
+  # per-arch sidecar is all it takes — no lipo.
+  require_rust_target "$ARCH"
+  compile_sidecar "$ARCH"
+  run_tauri_build "$ARCH"
+  APP="src-tauri/target/$ARCH/release/bundle/macos/Session Recall.app"
 else
   compile_sidecar "$TRIPLE"
   run_tauri_build

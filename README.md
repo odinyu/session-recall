@@ -91,9 +91,10 @@ link that arrives before the webview has finished loading is queued and applied
 on the first finished page load, so a cold start cannot drop it.
 
 `bash scripts/make-app.sh` builds for the host architecture only (arm64 on
-Apple silicon, ~67 MB). `--universal` instead builds one bundle covering both
-arm64 and x86_64 (~140 MB, roughly double the size because it carries two Bun
-runtimes).
+Apple silicon, ~67 MB). `--arch aarch64-apple-darwin` / `--arch
+x86_64-apple-darwin` build one specific slice, cross-compiling the sidecar if
+needed; `--universal` builds one bundle covering both arm64 and x86_64 (~140 MB,
+roughly double the size because it carries two Bun runtimes).
 
 ## Screenshots
 
@@ -540,8 +541,9 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
   than `sessions.cleared_at` are filtered in SQL, matching what the Cindy UI
   shows. Forked sessions keep their `parent_session_id` in the index.
 
-Prebuilt macOS builds (universal, ad-hoc signed, not notarized) are attached
-to each [release](https://github.com/odinyu/session-recall/releases).
+Prebuilt macOS builds (one single-architecture bundle per slice — Apple silicon
+and Intel — ad-hoc signed, not notarized) are attached to each
+[release](https://github.com/odinyu/session-recall/releases).
 
 ## License
 

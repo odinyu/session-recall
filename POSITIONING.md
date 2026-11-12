@@ -63,10 +63,10 @@ the index or the adapters.
 State as of 2026-11-12. Done:
 
 - **LICENSE** — MIT.
-- **Distribution** — a tagged release workflow builds a universal macOS `.app`
-  (Apple silicon + Intel), zips it with a SHA-256 checksum and attaches both to
-  the GitHub Release. Ad-hoc signed, not notarized (documented in the release
-  notes).
+- **Distribution** — a tagged release workflow builds two single-architecture
+  macOS `.app`s (one Apple silicon, one Intel), zips each with a SHA-256
+  checksum and attaches all four files to the GitHub Release. Ad-hoc signed, not
+  notarized (documented in the release notes).
 - **CI** — `bun test` and `bun run build` on every push and pull request.
 - **README** — screenshots generated from synthetic sessions, plus the
   "What gets indexed" table of supported agents.
