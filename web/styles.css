@@ -23,6 +23,9 @@
   --agent-claude-code: #b3552b;
   --agent-codex: #2f6f5e;
   --shadow-drawer: 0 18px 50px rgba(20, 30, 24, 0.18);
+  /* A theme-coloured calendar glyph for the date field; the browser's own
+     indicator is hidden because its colour cannot be controlled everywhere. */
+  --calendar-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%235f665e' stroke-width='1.3' stroke-linecap='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2'/%3E%3Cpath d='M2.5 6.5h11M5.5 2.2v3M10.5 2.2v3'/%3E%3C/svg%3E");
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
@@ -53,6 +56,7 @@
   --agent-claude-code: #e8a184;
   --agent-codex: #7fc7b3;
   --shadow-drawer: 0 18px 50px rgba(0, 0, 0, 0.5);
+  --calendar-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23a2aaa0' stroke-width='1.3' stroke-linecap='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='2'/%3E%3Cpath d='M2.5 6.5h11M5.5 2.2v3M10.5 2.2v3'/%3E%3C/svg%3E");
 }
 
 *,
@@ -427,32 +431,50 @@ button {
 
 .brief-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
   margin-top: 10px;
+}
+
+/* The date picker and the button share one height, radius and type size so the
+   native date control stops looking like a foreign widget in the rail. */
+.brief-date,
+.brief-button {
+  box-sizing: border-box;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .brief-date {
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
+  padding: 0 26px 0 8px;
+  color: var(--ink);
+  cursor: pointer;
+  /* Drop the browser's own field chrome and draw our own icon, so light and
+     dark themes share one glyph instead of the platform control's. */
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--surface) var(--calendar-icon) right 7px center / 13px 13px no-repeat;
+}
+
+.brief-date::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+.brief-date:hover {
+  border-color: var(--accent);
 }
 
 .brief-button {
   flex: none;
-  padding: 3px 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface);
+  padding: 0 10px;
   color: var(--muted);
-  font-family: var(--mono);
-  font-size: 10px;
   cursor: pointer;
 }
 

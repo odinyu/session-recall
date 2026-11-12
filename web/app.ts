@@ -871,6 +871,19 @@ function bindShell(): void {
   });
 
   byId<HTMLDivElement>("rail-foot")?.addEventListener("click", (event) => {
+    const dateInput = (event.target as HTMLElement).closest<HTMLInputElement>("#brief-date");
+    if (dateInput) {
+      // The platform's calendar indicator is hidden so the field matches the
+      // rail; open the native picker from the click instead. Browsers without
+      // showPicker still focus the field, where it can be typed and stepped.
+      const picker = dateInput as HTMLInputElement & { showPicker?: () => void };
+      try {
+        picker.showPicker?.();
+      } catch {
+        // Not a user gesture, or unsupported: the field is already focused.
+      }
+      return;
+    }
     const themeButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
       "button[data-theme-mode]",
     );
