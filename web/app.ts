@@ -543,6 +543,44 @@ function highlight(text: string, terms: string[]): string {
   return out;
 }
 
+/**
+ * Mark terms inside already-rendered Markdown.
+ *
+ * Answer bodies go through `renderMarkdown()`, so they cannot use the string
+ * highlighter; walk their text nodes and wrap matches in `<mark>` instead. This
+ * is what makes a deep-linked hit visible when the match sits in the answer
+ * rather than in the prompt. Labels and existing marks are left alone.
+ */
+function markRenderedTerms(root: ParentNode, terms: string[]): void {
+  const parts = terms.filter(Boolean).sort((a, b) => b.length - a.length);
+  if (parts.length === 0) return;
+  const matcher = new RegExp(`(${parts.map(escapeRegExp).join("|")})`, "gi");
+  const walker = document.createTreeWalker(root as Node, NodeFilter.SHOW_TEXT);
+  const texts: Text[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    if (!node.data.trim()) continue;
+    if (node.parentElement?.closest("mark, .msg-label")) continue;
+    texts.push(node);
+  }
+  for (const node of texts) {
+    matcher.lastIndex = 0;
+    if (!matcher.test(node.data)) continue;
+    const fragment = document.createDocumentFragment();
+    let last = 0;
+    for (const match of node.data.matchAll(matcher)) {
+      const index = match.index ?? 0;
+      if (index > last) fragment.append(node.data.slice(last, index));
+      const mark = document.createElement("mark");
+      mark.textContent = match[0];
+      fragment.append(mark);
+      last = index + match[0].length;
+    }
+    if (last < node.data.length) fragment.append(node.data.slice(last));
+    node.replaceWith(fragment);
+  }
+}
+
 function parseTerms(value: string): string[] {
   return value
     .split(/\s+/)
@@ -2061,6 +2099,9 @@ async function renderSession(
         ${detail.turns.map((turn) => turnBlock(turn, session.agent, terms, turnIdx, focus)).join("")}
       </div>
     `;
+    // Answers are Markdown, so their matches are marked after the fact.
+    const turnsEl = content.querySelector<HTMLElement>(".turns");
+    if (turnsEl) markRenderedTerms(turnsEl, terms);
     window.scrollTo({ top: 0, behavior: "auto" });
     syncTopbarHeight();
     const resumeSelect = content.querySelector<HTMLSelectElement>(".resume-target");
