@@ -38,11 +38,10 @@ on dots and labels.
   title, 22px query line, 30px transcript title.
 - Body measure stays under 75ch inside the 920px content column.
 
-Known drift: `web/styles.css` still carries about twenty distinct font sizes
-(9.5, 10, 11, 11.5, 12.5, 13, 13.5, 15, 18, 19, 20, 24 …) on top of the seven
-above, and several 9.5–10px labels use `--faint`, which is thin at those sizes
-in dark mode. Consolidating onto the scale is an open cleanup; new UI should use
-one of the seven sizes instead of adding another.
+Known drift: `web/styles.css` still carries several off-scale sizes (9.5, 10,
+11, 11.5, 12.5, 13, 13.5, 15, 18–24 …) on top of the seven above. Consolidating
+onto the scale is an open cleanup; new UI should use one of the seven sizes
+instead of adding another.
 
 ## Composition
 

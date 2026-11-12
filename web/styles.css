@@ -6,7 +6,7 @@
   --surface-3: #e2e6dc;
   --ink: #1d201d;
   --muted: #5f665e;
-  --faint: #686f66;
+  --faint: #5d645c;
   --line: #d9dcd3;
   --line-strong: #c3c8bd;
   --accent: #2f6b58;
@@ -36,7 +36,7 @@
   --surface-3: #2a302b;
   --ink: #e6eae3;
   --muted: #a2aaa0;
-  --faint: #8f988d;
+  --faint: #9aa398;
   --line: #2c322d;
   --line-strong: #3b433c;
   --accent: #7cc4a7;
@@ -147,7 +147,7 @@ button {
 
 .brand {
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: 16.5px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -164,7 +164,7 @@ button {
 .rail-sub {
   margin: 4px 0 26px;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .rail-scroll {
@@ -225,13 +225,13 @@ button {
 
 .agent-name {
   flex: 1;
-  font-size: 13.5px;
+  font-size: 14.5px;
 }
 
 .agent-count {
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -288,7 +288,7 @@ button {
   border-radius: 8px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12px;
   text-align: left;
 }
 
@@ -354,7 +354,7 @@ button {
   border-radius: 7px;
   background: transparent;
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: 12px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -395,7 +395,7 @@ button {
   border-radius: 7px;
   background: transparent;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -413,7 +413,7 @@ button {
   border: 0;
   background: none;
   color: var(--accent);
-  font-size: 12.5px;
+  font-size: 12px;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -450,7 +450,7 @@ button {
   border-radius: 7px;
   background: var(--surface);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -538,7 +538,7 @@ button {
   border-radius: 6px;
   background: none;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 16.5px;
   line-height: 1;
   cursor: pointer;
 }
@@ -564,7 +564,7 @@ button {
 .date-week span {
   padding: 2px 0 4px;
   color: var(--faint);
-  font-size: 10px;
+  font-size: 10.5px;
   text-align: center;
 }
 
@@ -576,7 +576,7 @@ button {
   background: none;
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
@@ -611,7 +611,7 @@ button {
 .brief-status {
   margin-top: 6px;
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -635,7 +635,7 @@ button {
 
 .theme-switch .seg {
   padding: 3px 5px;
-  font-size: 11px;
+  font-size: 10.5px;
 }
 
 .foot-stats strong {
@@ -681,7 +681,7 @@ button {
 
 .rail-close {
   display: none;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
 }
 
@@ -790,7 +790,7 @@ button {
 .status-line {
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -829,7 +829,7 @@ button {
 .result-head p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .results {
@@ -873,7 +873,7 @@ button {
   gap: 6px;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .agent-cursor {
@@ -919,7 +919,7 @@ button {
   margin-left: auto;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 
 .hits {
@@ -942,7 +942,7 @@ button {
   margin-bottom: 3px;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
 }
 
@@ -974,7 +974,7 @@ button {
   overflow: hidden;
   margin: 5px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.6;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -984,14 +984,14 @@ button {
   margin-right: 6px;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
 }
 
 .list-foot {
   margin: 22px 0 0;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .load-more {
@@ -1021,7 +1021,7 @@ mark {
   gap: 6px;
   margin: 28px 0 14px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .back svg {
@@ -1054,7 +1054,7 @@ mark {
   border-radius: 0 8px 8px 0;
   background: var(--accent-soft);
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .session-from-search a {
@@ -1100,7 +1100,7 @@ mark {
   flex: none;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1114,7 +1114,7 @@ mark {
   background: var(--surface);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 
 .resume-detail {
@@ -1127,7 +1127,7 @@ mark {
 
 .resume-note {
   color: var(--faint);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -1147,7 +1147,7 @@ mark {
   overflow-x: auto;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.5;
   white-space: nowrap;
   scrollbar-width: none;
@@ -1165,7 +1165,7 @@ mark {
   background: var(--surface);
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   cursor: pointer;
 }
 
@@ -1244,7 +1244,7 @@ mark {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 
 .brief-download {
@@ -1317,7 +1317,7 @@ mark {
   margin-bottom: 5px;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1351,7 +1351,7 @@ mark {
 }
 
 .markdown {
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.72;
   overflow-wrap: anywhere;
 }
@@ -1378,15 +1378,15 @@ mark {
 }
 
 .markdown h2 {
-  font-size: 19px;
-}
-
-.markdown h3 {
   font-size: 16.5px;
 }
 
+.markdown h3 {
+  font-size: 14.5px;
+}
+
 .markdown h4 {
-  font-size: 15px;
+  font-size: 14.5px;
 }
 
 .markdown ul,
@@ -1439,7 +1439,7 @@ mark {
   padding: 0;
   border-radius: 0;
   background: transparent;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .markdown a {
@@ -1456,7 +1456,7 @@ mark {
 .markdown table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 14.5px;
 }
 
 .markdown th,
@@ -1503,7 +1503,7 @@ mark {
   cursor: pointer;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   list-style: none;
   user-select: none;
 }
@@ -1561,7 +1561,7 @@ mark {
   cursor: pointer;
   color: var(--muted);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10.5px;
   list-style: none;
 }
 
@@ -1582,13 +1582,13 @@ mark {
 
 .process-tool-name {
   color: var(--ink);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .process-status {
   margin-left: auto;
   color: var(--faint);
-  font-size: 10px;
+  font-size: 10.5px;
 }
 
 .process-pre {
@@ -1597,7 +1597,7 @@ mark {
   overflow: auto;
   max-height: 320px;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1612,7 +1612,7 @@ mark {
   padding: 9px 11px 0;
   color: var(--faint);
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1636,7 +1636,7 @@ mark {
 
 .empty h2 {
   margin: 0 0 8px;
-  font-size: 18px;
+  font-size: 16.5px;
   font-weight: 600;
 }
 
@@ -1644,7 +1644,7 @@ mark {
   max-width: 52ch;
   margin: 0 0 12px;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14.5px;
 }
 
 .empty code {
@@ -1652,7 +1652,7 @@ mark {
   border-radius: 4px;
   background: var(--code-bg);
   font-family: var(--mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
 }
 
 /* A failed search keeps the old results; this bar sits above them. */
@@ -1668,7 +1668,7 @@ mark {
   border-radius: 10px;
   background: var(--surface);
   color: var(--danger);
-  font-size: 13.5px;
+  font-size: 14.5px;
 }
 
 .search-error-text {
@@ -1679,7 +1679,7 @@ mark {
 
 .search-error .text-btn {
   flex: 0 0 auto;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .skeleton {
@@ -1825,7 +1825,7 @@ mark {
   }
 
   .search-field input {
-    font-size: 18px;
+    font-size: 16.5px;
   }
 
   .search-field kbd {
@@ -1842,11 +1842,11 @@ mark {
   }
 
   .result-head h1 {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .session-page-head h1 {
-    font-size: 24px;
+    font-size: 28px;
   }
 
   .turn {
