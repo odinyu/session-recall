@@ -1047,6 +1047,22 @@ mark {
   text-wrap: balance;
 }
 
+.session-from-search {
+  margin: 14px 0 0;
+  padding: 7px 12px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--accent-soft);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.session-from-search a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .session-actionbar {
   position: sticky;
   top: var(--topbar-h, 130px);
@@ -1260,6 +1276,13 @@ mark {
   margin-inline: -14px;
   border-radius: 12px;
   background: var(--accent-soft);
+}
+
+/* Inside the highlighted turn, give the matched terms real contrast against the
+   soft background instead of the gentle search-page mark. */
+.turn.is-target mark {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .turn:last-child {
