@@ -148,13 +148,36 @@ fields. A minimal wrapper to hand an agent:
 bun run sr "$@" --json --limit 5
 ```
 
-Because the CLI is read-only and offline, it is safe to let an agent call it:
-it never scans, mutates the index, or touches an agent's own store.
+Because `search` is read-only and offline, it is safe to let an agent call it:
+it never scans, mutates the index, or touches an agent's own store. (`forget` /
+`unforget`, below, are the only commands that write, so do not hand those to an
+agent you would not trust with the index.)
+
+## Forgetting a session
+
+Removing a session from the index does not touch the original transcript:
+
+```bash
+bun run src/cli.ts forget omp:2026-11-10T01-13-16-427Z_01a1c304
+bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304
+```
+
+The id is the `<agent>:<id>` form that search output and the JSON fields use.
+`forget` deletes the session's rows and FTS entries, rebuilds and compacts the
+index, and records the id in `forgotten_session` so every later scan keeps
+skipping it. `unforget` clears that mark; the next scan indexes the session
+again. Both take the shared scan lock and refuse to run while a scan is in
+progress.
+
+Generated briefs are plain Markdown and are never rewritten, so `forget` lists
+the files that still mention the session — regenerate or delete them yourself.
+In the app the same action is a 「忘记此会话」 button on the session page, with
+「撤销」 offered in the status line.
 
 ## Notes and limits
 
-- **Read-only.** The CLI only calls `searchTurns` from `src/search.ts`; it never
-  scans, writes the index, or opens an agent's store for writing.
+- **Read-only search.** `search` only calls `searchTurns` from `src/search.ts`;
+  it never scans, writes the index, or opens an agent's store for writing.
 - **Short / CJK queries.** A query under three characters (e.g. a two-character
   Chinese word) falls back to indexed `LIKE` with the same filters; `mode`
   reports `like`.

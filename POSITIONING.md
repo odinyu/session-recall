@@ -41,33 +41,40 @@ people actually use.
 
 Ordered by leverage. Effort is a rough relative estimate.
 
-| # | Direction | What | Value | Effort |
-| --- | --- | --- | --- | --- |
-| **A** | Agent-accessible recall (CLI / MCP) | `sr "query"` CLI and an MCP server so Claude Code / omp / Codex can search past sessions themselves | ★★★★★ | M |
-| **B** | Adapters: Claude Code, Codex | Currently deferred for lack of local data to verify. Biggest reach gap for open source | ★★★★★ | M |
-| **C** | Semantic / hybrid search | Optional local embeddings so fuzzy phrasing ("that websocket reconnect fix") matches | ★★★★ | H |
-| **D** | Cross-agent handoff | Package a session into a portable card and continue it in another agent (handoff already exists as a card) | ★★★★ | M |
-| **E** | Global launcher | Cmd+K palette / menu-bar quick search on top of the packaged app | ★★★ | L |
-| **F** | Timeline / topic views | "What did I do this week", grouped by topic rather than project | ★★ | M |
+| # | Direction | What | Value | Effort | Status |
+| --- | --- | --- | --- | --- | --- |
+| **A** | Agent-accessible recall (CLI / MCP) | `sr "query"` CLI and an MCP server so Claude Code / omp / Codex can search past sessions themselves | ★★★★★ | M | **shipped** — `sr` CLI (USAGE.md) and a stdio MCP server (MCP.md) |
+| **B** | Adapters: Claude Code, Codex | Biggest reach gap for open source | ★★★★★ | M | **shipped** — seven adapters, see "What gets indexed" in the README |
+| **C** | Semantic / hybrid search | Optional local embeddings so fuzzy phrasing ("that websocket reconnect fix") matches | ★★★★ | H | not started |
+| **D** | Cross-agent handoff | Package a session into a portable card and continue it in another agent | ★★★★ | M | **shipped** — handoff card plus `sessionrecall://` resume links |
+| **E** | Global launcher | Cmd+K palette / menu-bar quick search on top of the packaged app | ★★★ | L | not started (Cmd+K only focuses the in-app search) |
+| **F** | Timeline / topic views | "What did I do this week", grouped by topic rather than project | ★★ | M | partial — daily/weekly reports cover the question, no timeline view |
 
 ### A — the near-term wedge
 
-Ship the **CLI** first (`sr "query"` → top question/answer pairs with session id,
-agent, project, date; `--json`, `--agent`, `--limit`, role/scope). It is cheap,
-works in shells and scripts, and is the fastest way to test whether agents will
-actually query history. Add the MCP server once demand is shown. The CLI must
-reuse the existing search layer (`src/search.ts`) and must not mutate the index
-or adapters.
+Shipped. `bun run sr "query"` returns top question/answer pairs with session id,
+agent, project and date (`--json`, `--agent`, `--limit`, role/scope), and
+`session-recall mcp` exposes the same search over stdio so an agent can look up
+how something was solved before. Both reuse `src/search.ts` and neither mutates
+the index or the adapters.
 
 ## Open-source readiness
 
-Required before promotion:
+State as of 2026-11-12. Done:
 
-- **Add a LICENSE.** The repo currently has none; without one it is not
-  open-source in practice.
-- Distribution: brew tap and/or a single-file GitHub Release binary.
-- README: real screenshots and a 30-second demo; add a "supported agents" table.
-- Document the adapter interface so new agents are easy to contribute.
+- **LICENSE** — MIT.
+- **Distribution** — a tagged release workflow builds a universal macOS `.app`
+  (Apple silicon + Intel), zips it with a SHA-256 checksum and attaches both to
+  the GitHub Release. Ad-hoc signed, not notarized (documented in the release
+  notes).
+- **CI** — `bun test` and `bun run build` on every push and pull request.
+- **README** — screenshots generated from synthetic sessions, plus the
+  "What gets indexed" table of supported agents.
+
+Still open:
+
+- A brew tap (or a single-file binary) so installing does not mean unzipping.
+- Documenting the adapter interface so new agents are easy to contribute.
 
 ## Risks / honest limits
 

@@ -429,6 +429,23 @@ wording searchable. Redacting the local home user inside an absolute path
 `RedactOptions.homeUsers`. The writer does not enable it by default, so
 fixture paths and paths belonging to other machines are never rewritten.
 
+A session you no longer want searchable can be dropped without touching the
+original transcript:
+
+```bash
+bun run src/cli.ts forget omp:2026-11-10T01-13-16-427Z_01a1c304   # rows + FTS
+bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304 # undo
+```
+
+`forget` deletes the session's rows and FTS entries, rebuilds the indexes, and
+records the id in `forgotten_session`, so every later scan keeps skipping it.
+`unforget` clears that mark and the next scan indexes the session again. The
+same action is a 「忘记此会话」 button on the session page, with 「撤销」 in the
+status line. Generated briefs are plain Markdown copies and are never rewritten:
+both the CLI and the UI list the brief files that still mention the session so
+you can regenerate or delete them. The MCP server stays read-only — it has no
+forget tool.
+
 ## Project layout
 
 ```text

@@ -4,7 +4,8 @@
 
 ## Platform
 
-web
+macOS desktop app (Tauri shell around a Bun sidecar, `sessionrecall://` deep
+links) plus the web UI it serves on a random loopback port.
 
 ## Stack
 
@@ -12,7 +13,9 @@ Bun + TypeScript, zero runtime dependencies: `Bun.serve` for HTTP, `bun:sqlite` 
 
 ## Users
 
-The owner: a developer on macOS who runs several coding agents (omp, OpenCode, Cursor) across many projects, often in Chinese and English. The job is to find a past task — "where did I solve this?" — when the only memory left is a phrase from a prompt or an answer.
+The owner: a developer on macOS who runs several coding agents (omp, OpenCode,
+Cursor, Alma, Cindy, Claude Code, Codex) across many projects, often in Chinese
+and English. The job is to find a past task — "where did I solve this?" — when the only memory left is a phrase from a prompt or an answer.
 
 ## Product Purpose
 
@@ -31,19 +34,23 @@ A recall tool, not an agent dashboard or usage meter. It persists a turn-level f
 
 ## Capabilities and Constraints
 
-- v1 adapters: omp, OpenCode (v1 and v2 tables), Cursor IDE (transcripts + composer/bubble KV).
-- Search across prompts and answers, with agent, project, date, and role filters.
-- Session view pairs each prompt with the answer that followed it.
+- Adapters: omp, OpenCode (v1 and v2 tables), Cursor (transcripts + composer/bubble KV), Alma, Cindy, Claude Code, Codex.
+- Search across prompts, answers and process events (tool calls, commands, errors), with agent, project, date, scope, and role filters.
+- Session view pairs each prompt with the answer that followed it; the 过程 disclosure opens the tool/reasoning trail.
 - Read-only: agent databases are opened read-only; the index lives under `~/Library/Application Support/session-recall`.
+- Write-time redaction of secrets and PII, plus 「忘记会话」 (`forget` / `unforget`) to drop a session from the index without touching its transcript.
+- Agent-accessible recall: the `sr` CLI and a read-only stdio MCP server.
+- Daily standup and ISO-week reports, in the sidebar and via `bun run brief`.
 - WorkBuddy exposes local session metadata only; transcripts are cloud-side. Deferred with an explicit "no local transcript" state.
-- Claude Code and Codex adapters are deferred; no local data existed on this machine to verify them.
 - Assumption (not yet confirmed): the owner wants local-only storage and no cloud sync.
 
 ## Evidence on Hand
 
 - Live local data: 89 omp sessions, 181 OpenCode v2 sessions, 425 Cursor composers, 256 Cursor transcripts.
 - A throwaway feasibility run produced 3,141 turns / 6.6 MB of text; Chinese trigram queries returned in 0.3 ms and a two-character LIKE fallback in 7 ms.
-- No product copy, brand assets, testimonials, or screenshots exist; none should be fabricated.
+- Screenshots live in `docs/screenshots/`, generated from synthetic sessions by
+  `scripts/capture-screenshots.sh` (the real index is never opened). No
+  testimonials or brand assets exist; none should be fabricated.
 
 ## Product Principles
 

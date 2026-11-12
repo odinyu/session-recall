@@ -6,6 +6,24 @@ release workflow builds the macOS app from the tag.
 ## Unreleased
 
 - MIT license, continuous integration, and a tagged macOS release workflow.
+- Write-time redaction of secrets and PII: API keys, bearer and `Authorization`
+  tokens, JWTs, PEM blocks, `KEY=value` credentials, database URLs with credentials,
+  e-mail addresses and Chinese mobile numbers are stored as
+  `[REDACTED:<kind>]` placeholders, so the index, FTS tables, MCP results and
+  generated briefs all agree. Raising `REDACTION_VERSION` makes the next scan
+  rewrite existing rows.
+- 「忘记会话」: `forget` / `unforget` via the CLI, `POST /api/session/:id/forget`
+  and a button on the session page (with an undo in the status line). A
+  forgotten id is dropped from the index and its FTS rows, then skipped by later
+  scans; the command lists generated briefs that still mention it, because plain
+  Markdown copies are not rewritten.
+- UI: visible focus ring on the search field, focus preserved across filter and
+  theme re-renders, drawer `aria-expanded` with a focus trap, highlighted
+  matches escaped after matching (searching `amp` no longer breaks entities),
+  `resultLimit` reset when the query changes, agent dots coloured per agent.
+- Reports: a 日报 / 周报 switch in the sidebar footer with a self-drawn,
+  theme-aware calendar; weekly reports open in-app at
+  `#/brief/<week>?format=week`.
 
 ## 1.1.1 — 2026-11-11
 

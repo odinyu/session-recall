@@ -38,6 +38,12 @@ on dots and labels.
   title, 22px query line, 30px transcript title.
 - Body measure stays under 75ch inside the 920px content column.
 
+Known drift: `web/styles.css` still carries about twenty distinct font sizes
+(9.5, 10, 11, 11.5, 12.5, 13, 13.5, 15, 18, 19, 20, 24 …) on top of the seven
+above, and several 9.5–10px labels use `--faint`, which is thin at those sizes
+in dark mode. Consolidating onto the scale is an open cleanup; new UI should use
+one of the seven sizes instead of adding another.
+
 ## Composition
 
 - 272px index rail, sticky, with its own scroll and a footer for index stats.
@@ -49,6 +55,15 @@ on dots and labels.
 ## Components
 
 - Agent badge: 8px dot + mono name, colored by agent.
+- Report controls: a 日报 / 周报 segmented control above the date row in the rail
+  footer. In 周报 the date button shows the ISO week range the chosen day falls
+  in (`11/09–11/15`) and 生成 writes `<app dir>/brief/weekly/<week>.md`; the
+  generated report opens in-app at `#/brief/<week>?format=week`.
+- Date picker: a self-drawn calendar popover rather than `<input type="date">`,
+  whose popup belongs to the OS/browser and cannot follow the theme. Monday-first
+  (matching ISO weeks), 42 cells, today outlined, selection filled with the
+  accent, arrows navigate months, PageUp/PageDown jump months, Home/End go to the
+  week's ends, Enter picks, Escape closes and returns focus to the button.
 - Theme switch: a three-state segmented control (Auto / Light / Dark) in the
   rail footer. Auto follows the system; the choice persists server-side in
   `<app dir>/prefs.json`, so it survives the port changing between launches

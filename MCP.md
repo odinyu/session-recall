@@ -32,8 +32,10 @@ Agent context is expensive: **MCP is compact by default**, deep dive via
 ## Writer / reader model
 
 - The app sidecar is the long-lived writer (it already rescans every 90 s).
-- MCP and the CLI are **read-only** readers that open the DB directly. MCP must
-  work with the app closed — it does not depend on the app's random port.
+- MCP is a **read-only** reader and has no write tools; the CLI's `search` is
+  read-only too. `forget` / `unforget` are the only CLI commands that change the
+  index, and they take the shared scan lock. Both open the DB directly, so they
+  work with the app closed — neither depends on the app's random port.
 - A **shared scan lock** (a lock file next to the index, e.g.
   `index.db.scan.lock`) ensures only one process scans at a time. App, CLI and
   MCP all take it before writing.

@@ -31,6 +31,11 @@ One dataset, three views, selected with `--format`:
 | `archive` | the current full dump; forensics | unbounded |
 | `week` | weekly rollup | one page |
 
+The app reaches the same views: the rail footer's 日报 / 周报 switch plus the
+calendar pick a day and generate it in place. A weekly report opens at
+`#/brief/<week>?format=week`, and its download link is
+`/api/brief/file?format=week&week=<week>`.
+
 ## Daily (`--format standup`)
 
 ```markdown
