@@ -1734,6 +1734,15 @@ async function runSearch(): Promise<void> {
   searchAbort = controller;
   const status = byId<HTMLDivElement>("search-status");
   if (status) status.textContent = "搜索中…";
+  // Keep a rendered result set on screen through the request; anything else
+  // (cold start, an empty result set, a session/brief page left behind by
+  // navigation) gets a skeleton so the page never sits blank.
+  const content = byId<HTMLDivElement>("content");
+  const keepResults =
+    !!content && hasSearchResults() && !!content.querySelector(".result-head");
+  if (content && !keepResults) {
+    content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
+  }
   try {
     const result = await api<SearchResult>(`/api/search?${paramsForSearch()}`, {
       signal: controller.signal,
@@ -1751,8 +1760,49 @@ async function runSearch(): Promise<void> {
   } catch (error) {
     if (controller.signal.aborted) return;
     if (status) status.textContent = "";
-    renderError(error);
+    // The results already on screen survive a failed request; only a search
+    // with nothing to show falls back to the full-page error state.
+    if (keepResults) renderSearchErrorBar(error);
+    else renderError(error);
   }
+}
+
+/** True when the in-memory search result set holds at least one session. */
+function hasSearchResults(): boolean {
+  return !!currentResults && currentResults.sessions.length > 0;
+}
+
+/** Remove the transient error bar above the current results, if any. */
+function clearSearchError(): void {
+  byId<HTMLElement>("search-error")?.remove();
+}
+
+/**
+ * Keep the results on screen and surface the failure above them. The bar is a
+ * child of `#content`, so the next successful renderResults() replaces it away.
+ */
+function renderSearchErrorBar(error: unknown): void {
+  const content = byId<HTMLDivElement>("content");
+  if (!content) return;
+  clearSearchError();
+  const message = error instanceof Error ? error.message : String(error);
+  const bar = document.createElement("div");
+  bar.className = "search-error";
+  bar.id = "search-error";
+  bar.setAttribute("role", "alert");
+  const text = document.createElement("span");
+  text.className = "search-error-text";
+  text.textContent = `搜索失败：${message}`;
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "text-btn";
+  retry.textContent = "重试";
+  retry.addEventListener("click", () => {
+    clearSearchError();
+    void runSearch();
+  });
+  bar.append(text, retry);
+  content.prepend(bar);
 }
 
 function renderResults(): void {
