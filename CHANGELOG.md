@@ -3,9 +3,11 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
-## Unreleased
+## 1.2.0 — 2026-11-12
 
-- MIT license, continuous integration, and a tagged macOS release workflow.
+- MIT license, continuous integration, and a tagged macOS release workflow that
+  attaches one Apple silicon and one Intel `.app` zip (plus SHA-256 checksums)
+  to each release.
 - Write-time redaction of secrets and PII: API keys, bearer and `Authorization`
   tokens, JWTs, PEM blocks, `KEY=value` credentials, database URLs with credentials,
   e-mail addresses and Chinese mobile numbers are stored as
@@ -31,6 +33,8 @@ release workflow builds the macOS app from the tag.
 - First paint and failed searches: the content pane shows a skeleton on the
   first search instead of staying blank, and a failed request keeps the results
   on screen with a `role="alert"` error bar and a 重试 button.
+- Type scale consolidated onto the seven sizes DESIGN.md defines, and `--faint`
+  adjusted so 10.5px labels pass WCAG AA in both themes.
 
 ## 1.1.1 — 2026-11-11
 
