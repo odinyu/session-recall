@@ -18,7 +18,8 @@ jobs:
   test:
     # macOS-only project: the adapters read macOS agent stores and the packaged
     # app is a Tauri bundle for macOS 11+, so CI runs on the same platform.
-    runs-on: macos-14
+    # macos-15 because macos-14's arm64 pool is gone for this repo tier.
+    runs-on: macos-15
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
