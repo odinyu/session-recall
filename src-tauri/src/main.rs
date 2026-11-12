@@ -157,9 +157,12 @@ impl Routes {
 /// URL host, the id its one path segment, still percent-encoded so the app's
 /// router decodes it exactly once. A session link may also carry
 /// `?turn=<n>` (as MCP search results do); the turn is forwarded into the hash
-/// query, where the UI scrolls to that turn. A non-numeric turn is dropped, and
-/// the app opens the session at the top. Anything else — a foreign scheme, an
-/// unknown section, a missing or nested id — is refused rather than guessed at.
+/// query, where the UI scrolls to that turn. A search that produced the link
+/// may also pass `?q=<terms>`; it travels with the route so a cold start can
+/// highlight the hit and offer a way back to the results. A non-numeric turn is
+/// dropped, and the app opens the session at the top. Anything else — a foreign
+/// scheme, an unknown section, a missing or nested id — is refused rather than
+/// guessed at.
 fn route_for(url: &Url) -> Option<String> {
     if url.scheme() != DEEP_LINK_SCHEME {
         return None;
@@ -174,13 +177,45 @@ fn route_for(url: &Url) -> Option<String> {
     }
     let mut route = format!("#/{section}/{id}");
     if section == "session" {
-        if let Some((_, turn)) = url.query_pairs().find(|(key, value)| {
-            key == "turn" && !value.is_empty() && value.chars().all(|c| c.is_ascii_digit())
-        }) {
-            route.push_str(&format!("?turn={turn}"));
+        let mut params: Vec<String> = Vec::new();
+        for (key, value) in url.query_pairs() {
+            match key.as_ref() {
+                "turn" if !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()) => {
+                    params.push(format!("turn={value}"));
+                }
+                "q" if !value.is_empty() => {
+                    params.push(format!("q={}", encode_component(&value)));
+                }
+                _ => {}
+            }
+        }
+        if !params.is_empty() {
+            route.push('?');
+            route.push_str(&params.join("&"));
         }
     }
     Some(route)
+}
+
+/// `encodeURIComponent`-equivalent percent-encoding.
+///
+/// The webview decodes the forwarded `q` with `decodeURIComponent`, so keep
+/// exactly that unreserved set and escape everything else — including `&` and
+/// `=`, which would otherwise split the hash query.
+fn encode_component(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        let ch = char::from(*byte);
+        if ch.is_ascii_alphanumeric()
+            || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
+        {
+            out.push(ch);
+        } else {
+            out.push('%');
+            out.push_str(&format!("{byte:02X}"));
+        }
+    }
+    out
 }
 
 /// Drive the UI to `route` and bring the window forward.
@@ -581,6 +616,34 @@ mod tests {
                 "turn={bad}"
             );
         }
+    }
+
+    #[test]
+    fn forwards_a_session_search_query_into_the_hash_route() {
+        assert_eq!(
+            route("sessionrecall://session/omp%3Aabc?turn=3&q=rust%20mutex").as_deref(),
+            Some("#/session/omp%3Aabc?turn=3&q=rust%20mutex")
+        );
+        assert_eq!(
+            route("sessionrecall://session/omp%3Aabc?q=deep%20link").as_deref(),
+            Some("#/session/omp%3Aabc?q=deep%20link")
+        );
+    }
+
+    #[test]
+    fn escapes_reserved_characters_in_the_search_query() {
+        assert_eq!(
+            route("sessionrecall://session/omp%3Aabc?q=a%26b%3Dc%23d").as_deref(),
+            Some("#/session/omp%3Aabc?q=a%26b%3Dc%23d")
+        );
+    }
+
+    #[test]
+    fn without_a_query_the_route_is_unchanged() {
+        assert_eq!(
+            route("sessionrecall://session/omp%3Aabc").as_deref(),
+            Some("#/session/omp%3Aabc")
+        );
     }
 
     #[test]

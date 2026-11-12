@@ -185,6 +185,8 @@ const THEMES: { id: ThemeMode; label: string }[] = [
 const THEME_KEY = "session-recall-theme";
 /** Scroll distance after which the floating "回到顶部" control appears. */
 const TO_TOP_THRESHOLD = 400;
+/** Deep-linked search terms are capped before they reach the DOM. */
+const MAX_HASH_Q = 300;
 
 let state: UiState = defaultState();
 let facetsData: Facets | null = null;
@@ -548,6 +550,25 @@ function parseTerms(value: string): string[] {
     .filter(Boolean);
 }
 
+/** Percent-decode a raw `k=v` value, tolerating malformed escapes. */
+function decodeHashValue(raw: string | null): string {
+  if (!raw) return "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/** The raw (still-encoded) value for `name` in a `k=v&k=v` query string. */
+function rawHashParam(query: string, name: string): string | null {
+  for (const part of query.split("&")) {
+    const eq = part.indexOf("=");
+    if (eq > 0 && part.slice(0, eq) === name) return part.slice(eq + 1);
+  }
+  return null;
+}
+
 function parseHash(): UiState {
   const raw = location.hash.replace(/^#/, "");
   if (raw.startsWith("/brief/")) {
@@ -569,6 +590,9 @@ function parseHash(): UiState {
     const hit = params.get("hit");
     const seqParam = params.get("event");
     const seq = seqParam === null ? Number.NaN : Number(seqParam);
+    // The search that produced the link travels in `q`; read it from the raw
+    // query so it decodes exactly once, and cap it before it reaches the DOM.
+    const q = decodeHashValue(rawHashParam(query ?? "", "q")).slice(0, MAX_HASH_Q);
     return {
       ...defaultState(),
       view: "session",
@@ -577,6 +601,7 @@ function parseHash(): UiState {
       focus: hit === "user" || hit === "assistant" ? hit : null,
       processOpen: params.get("process") === "1",
       processSeq: Number.isFinite(seq) && seq >= 0 ? seq : null,
+      q,
     };
   }
   const queryIndex = raw.indexOf("?");
@@ -616,10 +641,15 @@ function syncHash(): void {
     if (state.processOpen) params.set("process", "1");
     if (state.processSeq !== null) params.set("event", String(state.processSeq));
     const query = params.toString();
+    // Keep the originating search on the URL so back/forward does not lose it.
+    // `q` is encoded the way the deep-link shell encodes it, so `parseHash`
+    // decodes it with `decodeURIComponent` (URLSearchParams would use `+`).
+    const q = state.q ? `q=${encodeURIComponent(state.q)}` : "";
+    const joined = [query, q].filter(Boolean).join("&");
     history.replaceState(
       null,
       "",
-      `#/session/${encodeURIComponent(state.sessionId)}${query ? `?${query}` : ""}`,
+      `#/session/${encodeURIComponent(state.sessionId)}${joined ? `?${joined}` : ""}`,
     );
     return;
   }
@@ -1994,11 +2024,20 @@ async function renderSession(
   try {
     const detail = await api<SessionDetail>(`/api/session/${encodeURIComponent(id)}`);
     const session = detail.session;
-    const terms = lastTerms;
+    const query = state.q.trim();
+    // A deep link carries the search that produced it: it wins over whatever
+    // this launch searched before, so the highlights and the back link always
+    // describe the link that was opened.
+    const terms = query ? parseTerms(query) : lastTerms;
+    const searchHash = `#/search?q=${encodeURIComponent(query)}`;
+    const backHref = query ? searchHash : lastSearchHash;
     const project = projectLabel(session.projectPath);
     const showProject = project.toLowerCase() !== AGENT_LABEL[session.agent].toLowerCase();
+    const fromSearch = query
+      ? `<p class="session-from-search">来自搜索 “${escapeHtml(query)}” · <a href="${searchHash}">查看搜索结果</a></p>`
+      : "";
     content.innerHTML = `
-      <a class="back" href="${lastSearchHash}">
+      <a class="back" href="${backHref}">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         返回搜索
       </a>
@@ -2012,6 +2051,7 @@ async function renderSession(
           <span>${formatCount(detail.turns.length)} 轮问答</span>
         </div>
       </header>
+      ${fromSearch}
       <div class="session-actionbar">
         ${resumeBlock(session)}
         <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="复制包含问题、文件、命令和 Git 状态的交接卡">复制交接</button>
@@ -2074,20 +2114,10 @@ function syncTopbarHeight(): void {
 }
 
 function scrollSessionTarget(target: HTMLElement): void {
-  const topbar = document.querySelector<HTMLElement>(".topbar");
-  const actionbar = document.querySelector<HTMLElement>(".session-actionbar");
-  const offset =
-    (topbar?.getBoundingClientRect().height ?? 0) +
-    (actionbar?.getBoundingClientRect().height ?? 0) +
-    16;
-  const rect = target.getBoundingClientRect();
-  // Do not scroll a target that is already comfortably visible. This keeps the
-  // session header (resume / handoff) on screen when the first turn is opened.
-  if (rect.top >= offset && rect.top <= window.innerHeight * 0.7) return;
-  window.scrollTo({
-    top: Math.max(0, window.scrollY + rect.top - offset),
-    behavior: "auto",
-  });
+  // Center the target instead of aligning it just below the sticky chrome: a
+  // deep-linked hit often has the previous turn crowding it at the top, and
+  // centering keeps the matched turn clear of both the topbar and the actionbar.
+  target.scrollIntoView({ block: "center", behavior: "auto" });
 }
 
 function turnBlock(
