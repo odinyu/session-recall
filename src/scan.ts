@@ -12,7 +12,10 @@ import {
   deleteSession,
   existingIds,
   fingerprintsFor,
+  forgottenIds,
   indexStats,
+  purgeDeletedBytes,
+  REDACTION_VERSION,
   recordScanError,
   setMeta,
   writeSession,
@@ -65,14 +68,18 @@ export async function scan(
   const agents: Record<string, AgentScan> = {};
   const errors: { source: string; message: string }[] = [];
   const log = options.onProgress ?? (() => {});
+  // Read once, before any adapter lists: a session the user forgot must not be
+  // loaded (and rewritten) by a scan that started before the forget landed.
+  const forgotten = forgottenIds(db);
+  let purgedForgottenRows = false;
 
   for (const adapter of adapters) {
     const stat: AgentScan = { refs: 0, updated: 0, removed: 0, errors: 0 };
     agents[adapter.id] = stat;
 
-    let refs: SessionRef[];
+    let listed: SessionRef[];
     try {
-      refs = uniqueRefs(await adapter.list());
+      listed = uniqueRefs(await adapter.list());
     } catch (error) {
       const message = messageOf(error);
       recordScanError(db, adapter.id, message);
@@ -83,6 +90,10 @@ export async function scan(
       continue;
     }
 
+    // Dropped here, before `load`, so no adapter can put a forgotten session
+    // back; the deletion pass below still clears rows a forget left behind.
+    const refs = listed.filter((ref) => !forgotten.has(`${ref.agent}:${ref.externalId}`));
+
     stat.refs = refs.length;
     clearScanError(db, adapter.id);
     const known = fingerprintsFor(db, adapter.id);
@@ -90,7 +101,9 @@ export async function scan(
 
     for (const [index, ref] of refs.entries()) {
       const id = `${ref.agent}:${ref.externalId}`;
-      const fingerprint = `${ref.fingerprint}:v${adapter.version ?? 1}`;
+      // The redaction revision rides along, so an index written before the
+      // current redactor existed is re-read and rewritten once.
+      const fingerprint = `${ref.fingerprint}:v${adapter.version ?? 1}:r${REDACTION_VERSION}`;
       keep.add(id);
       if (known.get(id) === fingerprint) continue;
       try {
@@ -116,21 +129,41 @@ export async function scan(
     }
 
     const existing = existingIds(db, adapter.id);
-    if (refs.length === 0 && existing.size > 0) {
-      log(`${adapter.label}: no sessions listed; keeping the existing index`);
+    const stale = [...existing].filter((id) => !keep.has(id));
+    const forgottenRows = stale.filter((id) => forgotten.has(id));
+    if (listed.length === 0 && existing.size > 0) {
+      // Nothing listed at all is read as a source outage (an unmounted store),
+      // so the existing index is kept — except for forgotten sessions, whose
+      // rows must never outlive a scan.
+      if (forgottenRows.length === 0) {
+        log(`${adapter.label}: no sessions listed; keeping the existing index`);
+      } else {
+        log(
+          `${adapter.label}: no sessions listed; dropped ${forgottenRows.length} forgotten session(s)`,
+        );
+      }
+      for (const id of forgottenRows) {
+        deleteSession(db, adapter.id, id.slice(adapter.id.length + 1));
+        stat.removed++;
+      }
     } else {
-      for (const id of existing) {
-        if (keep.has(id)) continue;
+      for (const id of stale) {
         deleteSession(db, adapter.id, id.slice(adapter.id.length + 1));
         stat.removed++;
       }
     }
+    if (forgottenRows.length > 0) purgedForgottenRows = true;
 
     adapter.close?.();
     log(
       `${adapter.label}: ${stat.refs} sessions, ${stat.updated} updated, ${stat.removed} removed, ${stat.errors} errors`,
     );
   }
+
+  // Only reachable when this scan had to finish a forget (the row was still
+  // indexed); rebuild the FTS indexes and drop the WAL so the removed text
+  // leaves no searchable residue behind.
+  if (purgedForgottenRows) purgeDeletedBytes(db);
 
   const stats = indexStats(db);
   const finishedAt = Date.now();

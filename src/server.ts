@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
 import {
+  briefFilesMentioning,
   generateBrief,
   generateWeekReport,
   isoWeekKey,
@@ -9,7 +10,14 @@ import {
   readBrief,
 } from "./brief.ts";
 import type { BriefFormat, BriefResult } from "./brief.ts";
-import { eventCountsFor, eventsForTurn, openDb } from "./db.ts";
+import {
+  eventCountsFor,
+  eventsForTurn,
+  forgetSession,
+  openDb,
+  splitSessionId,
+  unforgetSession,
+} from "./db.ts";
 import type { IndexedDatabase } from "./db.ts";
 import { generateHandoff } from "./handoff.ts";
 import { InvalidPrefsError, readPrefs, updatePrefs } from "./prefs.ts";
@@ -17,7 +25,7 @@ import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
-import { scanLockPath, tryAcquireScanLock } from "./scan-lock.ts";
+import { acquireScanLock, scanLockPath, tryAcquireScanLock } from "./scan-lock.ts";
 import { AGENT_IDS, AGENT_LABELS, isAgentId } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { continuationFor } from "./util/resume.ts";
@@ -162,6 +170,42 @@ async function api(request: Request, url: URL): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/search") {
     if (!db) return json({ error: "index not open" }, 500);
     return json(searchTurns(db, searchParams(url)));
+  }
+  if (
+    request.method === "POST" &&
+    url.pathname.startsWith("/api/session/") &&
+    (url.pathname.endsWith("/forget") || url.pathname.endsWith("/unforget"))
+  ) {
+    if (!db) return json({ error: "index not open" }, 500);
+    const forget = url.pathname.endsWith("/forget");
+    const suffix = forget ? "/forget" : "/unforget";
+    const rawId = decodeURIComponent(url.pathname.slice("/api/session/".length, -suffix.length));
+    const target = splitSessionId(rawId);
+    if (!target) return json({ error: `invalid session id "${rawId}"` }, 400);
+    // Removing a session races the 90s background scan, which rewrites sessions
+    // in bulk; both paths take the same cross-process lock. Refusing is better
+    // than waiting: the forget itself rebuilds the FTS indexes and checkpoints
+    // the WAL, so a long wait would push the request past the idle timeout.
+    if (scanning) return json({ error: "正在重新索引，请稍后重试" }, 409);
+    const lock = await acquireScanLock(scanLockPath(DB_PATH), { timeoutMs: 5_000 });
+    if (!lock) return json({ error: "正在重新索引，请稍后重试" }, 409);
+    try {
+      if (!forget) {
+        const wasForgotten = unforgetSession(db, target.agent, target.externalId);
+        return json({ id: rawId, forgotten: false, wasForgotten, removed: false, briefs: [] });
+      }
+      const outcome = forgetSession(db, target.agent, target.externalId);
+      return json({
+        id: outcome.id,
+        forgotten: true,
+        removed: outcome.removed,
+        wasForgotten: outcome.already,
+        // Briefs are Markdown copies; the UI tells the user they can be stale.
+        briefs: briefFilesMentioning(outcome.id),
+      });
+    } finally {
+      lock.release();
+    }
   }
   if (request.method === "GET" && url.pathname.startsWith("/api/session/")) {
     const rest = url.pathname.slice("/api/session/".length);
@@ -339,6 +383,10 @@ export function serve(): void {
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: PORT,
+    // A forget rebuilds the FTS indexes and vacuums the index, which can take
+    // seconds on a large index; the default 10s idle timeout would abort the
+    // request while the delete was already committed.
+    idleTimeout: 60,
     async fetch(request) {
       const url = new URL(request.url);
       if (url.pathname.startsWith("/api/")) {

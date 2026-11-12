@@ -605,6 +605,97 @@ async function loadHandoff(id: string, targetAgent: string | null): Promise<stri
   return handoff;
 }
 
+/**
+ * Forgetting is destructive and permanent: the rows leave the index and a marker
+ * keeps every later scan from re-reading the session. The confirm step is the
+ * only guard, so it spells out both halves; a successful forget also drops the
+ * cached handoff cards and returns to the results.
+ */
+async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
+  const id = button.dataset.forget ?? "";
+  if (!id) return;
+  const title = button.closest(".session-page-head")?.querySelector("h1")?.textContent ?? id;
+  const confirmed = window.confirm(
+    `忘记此会话？\n\n${title}\n\n它会被永久移出本机索引，之后的扫描也不会再索引它。`,
+  );
+  if (!confirmed) return;
+  button.disabled = true;
+  button.textContent = "正在忘记…";
+  try {
+    const result = await api<{ briefs?: string[] }>(
+      `/api/session/${encodeURIComponent(id)}/forget`,
+      { method: "POST" },
+    );
+    // The cached handoff card is a full copy of the session.
+    for (const key of [...handoffCache.keys()]) {
+      if (key.startsWith(`${id}|`)) handoffCache.delete(key);
+    }
+    ensureSearchView();
+    // The page still renders the forgotten turns until the results come back;
+    // clear it now so the text does not linger on screen.
+    const content = byId<HTMLDivElement>("content");
+    if (content) {
+      content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+    await loadFacets();
+    await runSearch();
+    const status = byId<HTMLDivElement>("search-status");
+    if (status) {
+      const stale = result.briefs?.length ?? 0;
+      const note =
+        stale > 0
+          ? `已忘记该会话；${stale} 个已生成的简报仍引用它，可重新生成或删除`
+          : "已忘记该会话，后续扫描不会再索引它";
+      // Forgetting is permanent by design, but a misclick should still be
+      // recoverable without dropping to a terminal. The undo calls the same
+      // /unforget endpoint as the CLI, then re-scans so the session returns.
+      status.textContent = "";
+      const text = document.createElement("span");
+      text.textContent = `${note} · `;
+      const undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "status-undo";
+      undo.textContent = "撤销";
+      undo.title = "恢复该会话，之后的扫描会重新索引它";
+      undo.addEventListener("click", () => void unforgetFromUi(undo, id));
+      status.append(text, undo);
+    }
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "忘记失败";
+    button.title = error instanceof Error ? error.message : String(error);
+    window.setTimeout(() => {
+      button.textContent = "忘记此会话";
+      button.title = "从本机索引中永久移除该会话，之后扫描不会再索引它";
+    }, 2400);
+  }
+}
+
+/** Undo a forget from the status line; the next scan re-indexes the session. */
+async function unforgetFromUi(button: HTMLButtonElement, id: string): Promise<void> {
+  button.disabled = true;
+  button.textContent = "正在恢复…";
+  try {
+    await api(`/api/session/${encodeURIComponent(id)}/unforget`, { method: "POST" });
+    const status = byId<HTMLDivElement>("search-status");
+    if (status) status.textContent = "已恢复该会话，正在重新索引…";
+    // The marker is gone; a scan is what actually puts the rows back.
+    await fetch("/api/scan", { method: "POST" }).catch(() => null);
+    await loadFacets();
+    await runSearch();
+    if (status) status.textContent = "已恢复该会话";
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "撤销";
+    button.title = error instanceof Error ? error.message : String(error);
+    const status = byId<HTMLDivElement>("search-status");
+    if (status) {
+      status.textContent = `恢复失败：${button.title}。可在终端运行 bun run src/cli.ts unforget ${id}`;
+    }
+  }
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
@@ -1461,6 +1552,7 @@ async function renderSession(
       <div class="session-actionbar">
         ${resumeBlock(session)}
         <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="复制包含问题、文件、命令和 Git 状态的交接卡">复制交接</button>
+        <button class="forget-button" type="button" data-forget="${escapeAttr(session.id)}" title="从本机索引中永久移除该会话，之后扫描不会再索引它">忘记此会话</button>
       </div>
       <div class="turns">
         ${detail.turns.map((turn) => turnBlock(turn, session.agent, terms, turnIdx, focus)).join("")}
@@ -1750,6 +1842,8 @@ async function boot(): Promise<void> {
     if (button) void copyCommand(button);
     const handoff = target.closest<HTMLButtonElement>(".handoff-button");
     if (handoff) void copyHandoff(handoff);
+    const forget = target.closest<HTMLButtonElement>(".forget-button");
+    if (forget) void forgetSessionFromUi(forget);
     if (target.closest("[data-more]")) {
       resultLimit = Math.min(MAX_RESULT_LIMIT, resultLimit * 2);
       void runSearch();

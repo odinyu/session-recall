@@ -1008,3 +1008,42 @@ export function readBrief(options: ReadBriefOptions): string | null {
     return null;
   }
 }
+
+/** `readdirSync` with directories included, and a missing dir as nothing. */
+function briefDirEntries(dir: string): { name: string; isDirectory(): boolean }[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Generated brief files that still quote a session. A brief is a plain Markdown
+ * snapshot, so forgetting the session cannot rewrite it: the caller reports the
+ * files that have to be regenerated or deleted by hand. Every brief links to the
+ * session it came from, and the deep link carries the encoded session id.
+ */
+export function briefFilesMentioning(sessionId: string, outDir: string = BRIEF_DIR): string[] {
+  const needle = encodeURIComponent(sessionId);
+  const found: string[] = [];
+  const scanDir = (dir: string): void => {
+    for (const entry of briefDirEntries(dir).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanDir(path);
+        continue;
+      }
+      if (!entry.name.endsWith(".md")) continue;
+      try {
+        if (readFileSync(path, "utf8").includes(needle)) {
+          found.push(relative(PROJECT_ROOT, path));
+        }
+      } catch {
+        // An unreadable brief cannot be reported, and must not fail the forget.
+      }
+    }
+  };
+  scanDir(outDir);
+  return found;
+}

@@ -1,5 +1,8 @@
 # session recall
 
+[![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
+[![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
+
 A local, read-only full-text index over the coding-agent sessions on this Mac.
 Search a half-remembered Chinese phrase or a code identifier and get back the
 question, the answer, the agent, the project, and the date.
@@ -91,6 +94,30 @@ on the first finished page load, so a cold start cannot drop it.
 Apple silicon, ~67 MB). `--universal` instead builds one bundle covering both
 arm64 and x86_64 (~140 MB, roughly double the size because it carries two Bun
 runtimes).
+
+## Screenshots
+
+Every screenshot below is rendered from a handful of invented sessions seeded
+into a throwaway index by `scripts/capture-screenshots.sh`; the real index is
+never read and never photographed.
+
+![Search results for a mixed Chinese and English query](docs/screenshots/search-results.png)
+
+A mixed Chinese/English query across every indexed agent: the rail filters by
+agent, project and time, and each hit shows the question, the answer, and where
+the terms matched.
+
+![One session, deep-linked to a single highlighted question](docs/screenshots/session-detail.png)
+
+One session, opened through a `?turn=` deep link that jumps to a single turn in
+the dark theme: the addressed question is highlighted, its answer follows, and
+the continue-in strip carries the exact resume command.
+
+![Process search for a tool error](docs/screenshots/process-search.png)
+
+Process search looks past the prose into tool calls, commands and error output,
+which is how a failing run behind a conversation gets found.
+
 
 ## What gets indexed
 
@@ -381,6 +408,22 @@ Tools:
   Codex's `~/.codex` roots can be moved with `SESSION_RECALL_CLAUDE_DIR` and
   `SESSION_RECALL_CODEX_DIR`.
 
+Secrets are redacted before a row is written, so the index rows, the FTS
+tables and every report built from them hold placeholders such as
+`[REDACTED:api-key]` instead: API keys (OpenAI/Anthropic `sk-`, Stripe
+`sk_live_`, AWS `AKIA`, GitHub `ghp_`/`github_pat_`, Slack
+`xox[baprs]-`, Google `AIza`), `Bearer` and `Authorization` tokens, JWTs, PEM
+private-key blocks, `KEY=value` credentials in shell, `.env`, YAML and JSON
+text, database connection strings with an embedded credential, e-mail addresses
+and Chinese mobile numbers. The rule is a pure text pass over titles, project
+paths, turn text and tool/reasoning events, so every adapter and every read
+path (CLI search, MCP, handoff cards, briefs) sees the same redacted content;
+placeholders keep JSON and Markdown well formed and leave the surrounding
+wording searchable. Redacting the local home user inside an absolute path
+(`/Users/<name>/`, `/home/<name>/`) is opt-in: pass that user name through
+`RedactOptions.homeUsers`. The writer does not enable it by default, so
+fixture paths and paths belonging to other machines are never rewritten.
+
 ## Project layout
 
 ```text
@@ -400,6 +443,7 @@ src/
   search.ts       query building, ranking, facets
   server.ts       Bun.serve API + static UI
   util/resume.ts  shell resume commands and app deep links
+  util/redact.ts  write-time redaction of secrets and PII
 web/
   app.ts          hash-routed UI
   markdown.ts     safe Markdown renderer
@@ -419,7 +463,7 @@ brief/            generated daily briefs (git-ignored)
 ## Development
 
 ```bash
-bun test          # 104 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, Alma, Cindy, Claude Code, Codex
+bun test          # 128 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, Alma, Cindy, Claude Code, Codex
 bun run build     # bundle web/app.ts -> web/dist
 ```
 
@@ -459,3 +503,10 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
 - **Cindy hidden messages**: `messages.rewind_at` (edit/rewind) and rows older
   than `sessions.cleared_at` are filtered in SQL, matching what the Cindy UI
   shows. Forked sessions keep their `parent_session_id` in the index.
+
+Prebuilt macOS builds (universal, ad-hoc signed, not notarized) are attached
+to each [release](https://github.com/odinyu/session-recall/releases).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

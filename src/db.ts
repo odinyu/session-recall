@@ -1,8 +1,10 @@
 import { Database } from "bun:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { isAgentId } from "./adapters/types.ts";
 import type { AgentId, ParsedEvent, ParsedSession } from "./adapters/types.ts";
 import { capEventText, EVENT_CAPS, limitEvents } from "./util/events.ts";
+import { redactSession } from "./util/redact.ts";
 
 const ERROR_LINE =
   /error|exception|failed|fatal|denied|rejected|失败|错误|异常|拒绝/i;
@@ -181,9 +183,21 @@ CREATE TABLE IF NOT EXISTS scan_error (
   message TEXT NOT NULL,
   at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS forgotten_session (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL
+);
 `;
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
+
+/**
+ * Revision of the write-path redaction. It is part of the scan fingerprint, so
+ * bumping it makes the next scan re-read and rewrite every indexed session
+ * through the new redactor instead of trusting rows written by an older one.
+ */
+export const REDACTION_VERSION = 1;
 
 function numberField(value: unknown, key: string): number | null {
   if (typeof value !== "object" || value === null || !(key in value)) return null;
@@ -279,6 +293,12 @@ export function openDb(path: string): IndexedDatabase {
            )`,
       );
     }
+    if (version < 5) {
+      // v5 adds the `forgotten_session` marker table (created by SCHEMA above)
+      // and the redacted write path. Rows are not rewritten here: the scan
+      // fingerprint carries REDACTION_VERSION, so the next scan re-reads every
+      // source and rewrites it through the redactor.
+    }
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
   return db;
@@ -301,7 +321,10 @@ export function existingIds(db: IndexedDatabase, agent: AgentId): Set<string> {
   return new Set(rows.map((row) => row.id));
 }
 
-export function writeSession(db: IndexedDatabase, session: ParsedSession): void {
+export function writeSession(db: IndexedDatabase, raw: ParsedSession): void {
+  // Every adapter writes through here, so text is redacted once, before any row
+  // or FTS entry exists.
+  const session = redactSession(raw);
   const id = `${session.agent}:${session.externalId}`;
   const insertTurn = db.query(
     "INSERT INTO turn(session_id, idx, ts, user_text, assistant_text, model, truncated) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -416,6 +439,95 @@ export function deleteSession(db: IndexedDatabase, agent: AgentId, externalId: s
     db.run("DELETE FROM session WHERE id = ?", [id]);
   });
   remove();
+}
+
+/** Every id the user asked to forget; scans drop them before loading a source. */
+export function forgottenIds(db: IndexedDatabase): Set<string> {
+  const rows = db.query("SELECT id FROM forgotten_session").all() as { id: string }[];
+  return new Set(rows.map((row) => row.id));
+}
+
+/** `${agent}:${externalId}` back into its parts; null when the id is malformed. */
+export function splitSessionId(id: string): { agent: AgentId; externalId: string } | null {
+  const at = id.indexOf(":");
+  if (at <= 0) return null;
+  const agent = id.slice(0, at);
+  const externalId = id.slice(at + 1);
+  if (!isAgentId(agent) || externalId === "") return null;
+  return { agent, externalId };
+}
+
+export interface ForgetOutcome {
+  id: string;
+  /** True when the session was indexed and its rows were removed. */
+  removed: boolean;
+  /** True when the marker was already in place. */
+  already: boolean;
+}
+
+/**
+ * Forgetting is permanent, not a tombstone: the marker goes in first, then every
+ * row that mentions the session goes away, so no read path can serve it again
+ * even if the process dies between the two writes.
+ */
+export function forgetSession(
+  db: IndexedDatabase,
+  agent: AgentId,
+  externalId: string,
+): ForgetOutcome {
+  const id = `${agent}:${externalId}`;
+  let removed = false;
+  let already = false;
+  const forget = db.transaction(() => {
+    already = db.query("SELECT 1 FROM forgotten_session WHERE id = ?").get(id) !== null;
+    removed = db.query("SELECT 1 FROM session WHERE id = ?").get(id) !== null;
+    db.run(
+      "INSERT OR IGNORE INTO forgotten_session(id, at) VALUES (?, ?)",
+      [id, Date.now()],
+    );
+    db.run("DELETE FROM event_search WHERE session_id = ?", [id]);
+    db.run("DELETE FROM event WHERE session_id = ?", [id]);
+    db.run("DELETE FROM turn WHERE session_id = ?", [id]);
+    db.run("DELETE FROM session WHERE id = ?", [id]);
+  });
+  forget();
+  purgeDeletedBytes(db);
+  return { id, removed, already };
+}
+
+/**
+ * Drops the marker so the next scan may index the session again. The rows the
+ * forget removed stay gone; a scan brings them back from the source.
+ */
+export function unforgetSession(db: IndexedDatabase, agent: AgentId, externalId: string): boolean {
+  const id = `${agent}:${externalId}`;
+  const marked = db.query("SELECT 1 FROM forgotten_session WHERE id = ?").get(id) !== null;
+  db.run("DELETE FROM forgotten_session WHERE id = ?", [id]);
+  return marked;
+}
+
+/**
+ * FTS5 keeps its tokens in shadow tables, and a deleted row's pages stay in the
+ * file (and in the WAL) until something overwrites them, so a DELETE alone can
+ * leave searchable-looking bytes behind. Rebuilding each index rewrites the
+ * shadow tables from the surviving rows, the truncating checkpoint drops the
+ * WAL, and VACUUM (best effort — it needs exclusive access) rewrites the file.
+ */
+export function purgeDeletedBytes(db: IndexedDatabase): void {
+  for (const table of ["turn_fts", "turn_fts_en", "event_fts", "event_fts_en"]) {
+    try {
+      db.run(`INSERT INTO ${table}(${table}) VALUES('rebuild')`);
+    } catch {
+      // A missing FTS table must never fail the delete it cleans up after.
+    }
+  }
+  for (const statement of ["PRAGMA wal_checkpoint(TRUNCATE)", "VACUUM"]) {
+    try {
+      db.run(statement);
+    } catch {
+      // Another connection can hold these back; the rows are already gone.
+    }
+  }
 }
 
 export function recordScanError(db: IndexedDatabase, source: string, message: string): void {

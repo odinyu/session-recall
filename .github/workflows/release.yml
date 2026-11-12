@@ -1,0 +1,117 @@
+name: Release
+
+# Pushing a `v*` tag is the only way to publish a build.
+on:
+  push:
+    tags: ["v*"]
+
+# softprops/action-gh-release creates the release and uploads the assets.
+permissions:
+  contents: write
+
+jobs:
+  macos-app:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+
+      # Both slices: make-app.sh cross-compiles one Bun sidecar per target and
+      # lipos them into a single universal binary, so both targets must exist.
+      - name: Set up Rust with both Apple targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.12"
+
+      # Fail fast, before a ~15 minute build, if the tag and the manifests disagree.
+      - name: Check tag against package version
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
+          echo "tag=${GITHUB_REF_NAME} package=$version"
+          test "${GITHUB_REF_NAME#v}" = "$version" || {
+            echo "tag ${GITHUB_REF_NAME} does not match package.json version $version" >&2
+            exit 1
+          }
+          grep -q "^version = \"$version\"$" src-tauri/Cargo.toml || {
+            echo "src-tauri/Cargo.toml is not at $version" >&2
+            exit 1
+          }
+          grep -q "\"version\": \"$version\"" src-tauri/tauri.conf.json || {
+            echo "src-tauri/tauri.conf.json is not at $version" >&2
+            exit 1
+          }
+          grep -A1 '^name = "session-recall-app"$' src-tauri/Cargo.lock | grep -q "^version = \"$version\"$" || {
+            echo "src-tauri/Cargo.lock is not at $version" >&2
+            exit 1
+          }
+
+      - name: Test
+        run: bun test
+
+      # make-app.sh handles the CI-variable trap on purpose: the Tauri CLI binds
+      # `CI` to its boolean `--ci` flag, so the script unsets a non-boolean value.
+      # Do not call `cargo tauri build` directly here or CI=true would be rejected.
+      - name: Build universal .app
+        run: bash scripts/make-app.sh --no-install --universal
+
+      # A GitHub Release cannot carry a directory, so the .app is archived with
+      # ditto — which keeps the ad-hoc signature, ACLs and resource forks intact.
+      - name: Package zip and checksum
+        id: package
+        run: |
+          set -euo pipefail
+          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/Session Recall.app"
+          test -d "$app" || { echo "expected bundle missing: $app" >&2; exit 1; }
+          version="${GITHUB_REF_NAME#v}"
+          zip="session-recall_${version}_macos-universal.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
+          shasum -a 256 "$zip" > "$zip.sha256"
+          cat "$zip.sha256"
+          echo "shell:   $(lipo -archs "$app/Contents/MacOS/session-recall-app")"
+          echo "sidecar: $(lipo -archs "$app/Contents/MacOS/session-recall")"
+          {
+            echo "version=$version"
+            echo "checksum=$(cut -d' ' -f1 < "$zip.sha256")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Session Recall ${{ github.ref_name }}
+          fail_on_unmatched_files: true
+          files: |
+            session-recall_${{ steps.package.outputs.version }}_macos-universal.zip
+            session-recall_${{ steps.package.outputs.version }}_macos-universal.zip.sha256
+          body: |
+            macOS app for tag `${{ github.ref_name }}` — universal (Apple silicon + Intel), ad-hoc signed, **not notarized**.
+
+            | Asset | What it is |
+            | --- | --- |
+            | `session-recall_${{ steps.package.outputs.version }}_macos-universal.zip` | the `.app` bundle: unzip it and move the app to `/Applications` |
+            | `session-recall_${{ steps.package.outputs.version }}_macos-universal.zip.sha256` | SHA-256 checksum |
+
+            SHA-256: `${{ steps.package.outputs.checksum }}`
+
+            The build is ad-hoc signed rather than notarized, so macOS quarantines it on the first launch. Clear that flag once:
+
+            ```bash
+            unzip session-recall_${{ steps.package.outputs.version }}_macos-universal.zip
+            xattr -dr com.apple.quarantine "Session Recall.app"
+            open "Session Recall.app"
+            ```
+
+            Requires macOS 11 or later. Running from source is also supported — see the README.

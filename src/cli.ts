@@ -1,5 +1,6 @@
 import { DB_PATH } from "./config.ts";
 import {
+  briefFilesMentioning,
   generateBrief,
   generateWeekReport,
   isoWeekKey,
@@ -8,7 +9,7 @@ import {
 } from "./brief.ts";
 import type { BriefFormat } from "./brief.ts";
 import { runSearchCli } from "./cli-search.ts";
-import { openDb } from "./db.ts";
+import { forgetSession, openDb, splitSessionId, unforgetSession } from "./db.ts";
 import { runMcpServer } from "./mcp.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
@@ -146,7 +147,54 @@ if (command === "scan") {
   process.exitCode = runSearchCli(process.argv.slice(3));
 } else if (command === "mcp") {
   await runMcpServer();
+} else if (command === "forget" || command === "unforget") {
+  const target = (process.argv[3] ?? "").trim();
+  const parsed = splitSessionId(target);
+  if (!parsed) {
+    console.error(`invalid session id "${target}": expected <agent>:<external-id>`);
+    console.error("example: bun run src/cli.ts forget omp:2026-11-10T01-13-16-427Z_01a1c304");
+    process.exit(2);
+  }
+  try {
+    // The app and the MCP server scan on their own timers; hold the lock a scan
+    // takes so neither can re-index the session while it is being removed.
+    const lock = await acquireScanLock(scanLockPath(DB_PATH), { timeoutMs: 60_000 });
+    if (!lock) throw new Error("another scan is running; try again when it finishes");
+    const db = openDb(DB_PATH);
+    try {
+      if (command === "forget") {
+        const outcome = forgetSession(db, parsed.agent, parsed.externalId);
+        console.log(
+          outcome.removed
+            ? `已忘记会话 ${outcome.id}：索引中的记录已移除，后续扫描不会再索引它。`
+            : `已忘记会话 ${outcome.id}：索引中没有它的记录，后续扫描会继续跳过它。`,
+        );
+        // Briefs are plain Markdown copies; forgetting cannot rewrite them, so
+        // report the files that still quote the session instead.
+        const stale = briefFilesMentioning(outcome.id);
+        if (stale.length > 0) {
+          console.log("注意：以下已生成的简报文件仍引用该会话，需要时请重新生成或删除：");
+          for (const path of stale) console.log(`  ${path}`);
+        }
+      } else {
+        const wasForgotten = unforgetSession(db, parsed.agent, parsed.externalId);
+        console.log(
+          wasForgotten
+            ? `已取消忘记 ${parsed.agent}:${parsed.externalId}：下次扫描会重新索引它。`
+            : `${parsed.agent}:${parsed.externalId} 不在忘记名单中，无需取消。`,
+        );
+      }
+    } finally {
+      db.close();
+      lock.release();
+    }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 } else {
-  console.error("usage: bun run src/cli.ts [scan|serve|brief|search|mcp]");
+  console.error(
+    "usage: bun run src/cli.ts [scan|serve|brief|search|mcp|forget <agent>:<id>|unforget <agent>:<id>]",
+  );
   process.exit(1);
 }

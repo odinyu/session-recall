@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Local, read-only full-text recall across coding-agent sessions.",
+  "license": "MIT",
   "scripts": {
     "build": "bun run scripts/build.ts",
     "scan": "bun run src/cli.ts scan",

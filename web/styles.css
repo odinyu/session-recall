@@ -636,6 +636,21 @@ button {
   white-space: nowrap;
 }
 
+/* Undo affordance for a just-forgotten session, shown in the status line. */
+.status-undo {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.status-undo:hover { color: var(--ink); }
+.status-undo:disabled { color: var(--muted); cursor: default; }
+.status-undo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .filters-toggle {
   display: none;
 }
@@ -1012,6 +1027,31 @@ mark {
 }
 
 .handoff-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.forget-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.forget-button:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.forget-button:disabled {
   opacity: 0.7;
   cursor: default;
 }
@@ -1607,6 +1647,11 @@ mark {
 
   .project {
     max-width: 180px;
+  }
+
+  /* Two buttons next to the resume block need a second line on a phone. */
+  .session-actionbar {
+    flex-wrap: wrap;
   }
 
   .to-top {

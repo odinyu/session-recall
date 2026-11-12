@@ -1,0 +1,48 @@
+name: CI
+
+# Runs on every push to main and on every pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The workflow only reads the repository; no write scope is needed.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # macOS-only project: the adapters read macOS agent stores and the packaged
+    # app is a Tauri bundle for macOS 11+, so CI runs on the same platform.
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.x
+
+      # No dependency install step: the project has zero runtime and dev
+      # dependencies and no lockfile, so `bun install` would only add noise.
+      - name: Test
+        run: bun test
+
+      - name: Build web UI
+        run: bun run build
+
+      # `tsc --noEmit` is deliberately not gated: the sources are typed through
+      # Bun's own types and it currently fails on a missing @types/node / @types/bun
+      # declaration. Rust/Tauri packaging lives in release.yml instead.
+      - name: Check build output
+        run: |
+          set -euo pipefail
+          for f in web/dist/app.js web/dist/index.html web/dist/styles.css; do
+            test -s "$f" || { echo "missing build output: $f" >&2; exit 1; }
+          done
+          ls -lh web/dist

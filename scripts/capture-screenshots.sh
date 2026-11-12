@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+#
+# Regenerate the README screenshots in docs/screenshots/.
+#
+# Every shot is taken from a throwaway index built out of synthetic sessions
+# (test/fixtures/screenshot-data.ts). The real index — a large private history
+# under ~/Library/Application Support/session-recall/index.db — is never opened:
+# HOME, every SESSION_RECALL_* path and every adapter root point into a
+# temporary directory, so even the scan the server runs on boot can only find
+# nothing. The script verifies that before and after it takes the shots.
+#
+# Usage:
+#   bash scripts/capture-screenshots.sh
+#
+# Env overrides:
+#   SR_CHROME    path to a Chrome/Chromium binary (auto-detected by default)
+#   SR_PORT      first port to try for the UI (default 4399)
+#   SR_WIDTH     viewport width, default 1440
+#   SR_HEIGHT    viewport height, default 900
+#   SR_KEEP_TMP  1 keeps the temp dir (fixture index, server log) for inspection
+#
+# Requires macOS, Bun 1.3+ and a Chrome/Chromium build. Re-runnable: each run
+# seeds a fresh index in a new temp dir and stops every process it started.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BUN="${BUN:-bun}"
+WIDTH="${SR_WIDTH:-1440}"
+HEIGHT="${SR_HEIGHT:-900}"
+OUT="$ROOT/docs/screenshots"
+FIXTURE="$ROOT/test/fixtures/screenshot-data.ts"
+
+echo "本脚本使用合成数据，不会读取真实 index.db"
+echo "capture-screenshots: synthetic sessions only; the real index.db is never opened"
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || { echo "missing required command: $1" >&2; exit 1; }
+}
+need "$BUN"
+need curl
+need lsof
+need mktemp
+
+find_chrome() {
+  if [[ -n "${SR_CHROME:-}" ]]; then printf "%s\n" "$SR_CHROME"; return; fi
+  local candidate
+  for candidate in \
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"; do
+    if [[ -x "$candidate" ]]; then printf "%s\n" "$candidate"; return; fi
+  done
+  command -v google-chrome || command -v chromium || true
+}
+CHROME="$(find_chrome)"
+if [[ -z "$CHROME" || ! -x "$CHROME" ]]; then
+  echo "no Chrome/Chromium found; set SR_CHROME=/path/to/binary" >&2
+  exit 1
+fi
+
+port_in_use() {
+  lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+}
+first_free_port() { # first_free_port <start>
+  local port="$1"
+  for _ in $(seq 1 30); do
+    if ! port_in_use "$port"; then printf "%s\n" "$port"; return 0; fi
+    port=$((port + 1))
+  done
+  return 1
+}
+PORT="$(first_free_port "${SR_PORT:-4399}")" || { echo "no free port near ${SR_PORT:-4399}; set SR_PORT" >&2; exit 1; }
+CDP_PORT="$(first_free_port "$((PORT + 1))")" || { echo "no free DevTools port near $((PORT + 1))" >&2; exit 1; }
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/session-recall-screenshots.XXXXXX")"
+SERVER_PID=""
+CHROME_PID=""
+
+cleanup() {
+  if [[ -n "$CHROME_PID" ]] && kill -0 "$CHROME_PID" 2>/dev/null; then
+    kill "$CHROME_PID" 2>/dev/null || true
+    wait "$CHROME_PID" 2>/dev/null || true
+  fi
+  if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  if [[ "${SR_KEEP_TMP:-0}" == "1" ]]; then
+    echo "kept temp dir: $TMP"
+  else
+    case "$TMP" in */session-recall-screenshots.*) rm -rf -- "$TMP" ;; esac
+  fi
+}
+trap cleanup EXIT INT TERM
+
+# --- isolation: nothing below can reach the real index or a real agent dir ---
+export HOME="$TMP/home"
+mkdir -p "$HOME"
+export SESSION_RECALL_HOME="$TMP/app"
+export SESSION_RECALL_DB="$TMP/app/index.db"
+export SESSION_RECALL_BRIEF_DIR="$TMP/app/brief"
+export SESSION_RECALL_WEB_DIST="$ROOT/web/dist"
+export SESSION_RECALL_PORT="$PORT"
+# Every adapter root explicitly redirected, on top of the empty HOME:
+export SESSION_RECALL_ALMA_DB="$HOME/Library/Application Support/alma/chat_threads.db"
+export SESSION_RECALL_CINDY_DIR="$HOME/Library/Application Support/CindyGlobal"
+export SESSION_RECALL_CLAUDE_DIR="$HOME/.claude"
+export SESSION_RECALL_CODEX_DIR="$HOME/.codex"
+export CURSOR_CONFIG_DIR="$HOME/.cursor"
+export XDG_DATA_HOME="$HOME/.local/share"
+
+echo "temp dir:      $TMP"
+echo "fixture index: $SESSION_RECALL_DB"
+echo "chrome:        $CHROME"
+
+if [[ ! -f "$SESSION_RECALL_WEB_DIST/index.html" ]]; then
+  echo "web/dist is missing; building the UI"
+  ( cd "$ROOT" && "$BUN" run scripts/build.ts )
+fi
+
+echo "seeding synthetic sessions"
+"$BUN" run "$FIXTURE" "$SESSION_RECALL_DB"
+"$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB"
+
+echo "starting the UI on http://127.0.0.1:$PORT with isolated adapters"
+( cd "$ROOT" && exec "$BUN" run src/cli.ts serve ) > "$TMP/serve.log" 2>&1 &
+SERVER_PID=$!
+
+ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/api/status" 2>/dev/null; then ready=1; break; fi
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then break; fi
+  sleep 0.25
+done
+if [[ "$ready" != "1" ]]; then
+  echo "the server did not come up; log follows:" >&2
+  cat "$TMP/serve.log" >&2
+  exit 1
+fi
+
+# The server scans every agent root on boot. Let that settle, then prove it
+# found nothing: the index may only still hold the sessions this script seeded.
+sleep 1
+"$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB"
+
+mkdir -p "$OUT"
+
+set_theme() {
+  curl -fsS -X PATCH -H "content-type: application/json" \
+    -d "{\"theme\":\"$1\"}" "http://127.0.0.1:$PORT/api/prefs" >/dev/null
+}
+
+# Shots are taken over the DevTools protocol from a helper written to the temp
+# dir. Chrome's own --screenshot flag cannot be used for the session view: when
+# a ?turn= deep link points below the fold the page scrolls itself, and the flag
+# writes an empty frame instead of the scrolled content. A live tab also lets
+# each shot wait for the view it expects (results rendered, turn highlighted)
+# and pins the viewport to an exact size.
+cat > "$TMP/screenshot.ts" <<'SCREENSHOT_TS_EOF'
+/**
+ * Screenshot helper for scripts/capture-screenshots.sh, written into the temp
+ * dir at run time and run with Bun.
+ *
+ * usage: bun run screenshot.ts <cdp-port> <url> <out.png> [width] [height] [ready-js]
+ *
+ * It opens a blank tab, waits for the load event, for the readiness expression
+ * and for one animation frame, then captures the viewport.
+ */
+const [portArg, url, outFile, widthArg, heightArg, readyArg] = process.argv.slice(2);
+if (!portArg || !url || !outFile) {
+  console.error("usage: screenshot.ts <cdp-port> <url> <out.png> [width] [height] [ready-js]");
+  process.exit(2);
+}
+const port = Number(portArg);
+const width = Number(widthArg || 1440);
+const height = Number(heightArg || 900);
+const ready = readyArg || "document.getElementById('content') !== null";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+setTimeout(() => {
+  console.error("screenshot helper timed out: " + url);
+  process.exit(3);
+}, 20_000);
+
+// A blank tab first: a tab Chrome already started loading can leave
+// Page.navigate without a reply.
+const opened = await fetch("http://127.0.0.1:" + port + "/json/new?about:blank", { method: "PUT" });
+if (!opened.ok) {
+  console.error("could not open a tab: HTTP " + opened.status);
+  process.exit(1);
+}
+const target = (await opened.json()) as { id: string; webSocketDebuggerUrl: string };
+
+const socket = new WebSocket(target.webSocketDebuggerUrl);
+const waiting = new Map<number, (message: any) => void>();
+let nextId = 1;
+let loaded = false;
+
+socket.addEventListener("message", (event: MessageEvent) => {
+  const message = JSON.parse(String(event.data));
+  if (message.method === "Page.loadEventFired") loaded = true;
+  const resolve = message.id ? waiting.get(message.id) : undefined;
+  if (resolve) {
+    waiting.delete(message.id);
+    resolve(message);
+  }
+});
+await new Promise<void>((resolve) => socket.addEventListener("open", () => resolve(), { once: true }));
+
+function call(method: string, params: Record<string, unknown> = {}) {
+  const id = nextId++;
+  return new Promise<any>((resolve) => {
+    waiting.set(id, resolve);
+    socket.send(JSON.stringify({ id, method, params }));
+  });
+}
+
+async function evaluate(expression: string) {
+  const answer = await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  return answer.result?.result?.value;
+}
+
+await call("Page.enable");
+await call("Runtime.enable");
+await call("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+await call("Page.navigate", { url });
+
+for (let i = 0; i < 200 && !loaded; i += 1) await sleep(50);
+
+let matched = false;
+for (let i = 0; i < 100; i += 1) {
+  if ((await evaluate(ready)) === true) {
+    matched = true;
+    break;
+  }
+  await sleep(100);
+}
+if (!matched) {
+  console.error("the view never matched: " + ready);
+  process.exit(1);
+}
+
+// One animation frame, so the scroll a deep link performs has been painted;
+// the sleep stands in if the frame callback never runs.
+await Promise.race([
+  evaluate("new Promise((resolve) => requestAnimationFrame(() => resolve(1)))"),
+  sleep(1000),
+]);
+await sleep(200);
+
+const shot = await call("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+const data = shot.result?.data as string | undefined;
+if (!data) {
+  console.error("captureScreenshot returned no data");
+  process.exit(1);
+}
+await Bun.write(outFile, Buffer.from(data, "base64"));
+await fetch("http://127.0.0.1:" + port + "/json/close/" + target.id).catch(() => {});
+socket.close();
+console.log("  captured " + outFile);
+process.exit(0);
+SCREENSHOT_TS_EOF
+
+echo "starting headless Chrome (DevTools on port $CDP_PORT)"
+# The mock keychain and the disabled updater keep a fresh profile from blocking
+# on macOS dialogs or background work before a shot is written.
+"$CHROME" --headless=new --disable-gpu --no-first-run --no-default-browser-check \
+  --disable-extensions --disable-component-update --disable-background-networking \
+  --use-mock-keychain --password-store=basic --hide-scrollbars \
+  --user-data-dir="$TMP/chrome" --window-size="$WIDTH,$HEIGHT" \
+  --remote-debugging-port="$CDP_PORT" about:blank > "$TMP/chrome.log" 2>&1 &
+CHROME_PID=$!
+
+cdp_ready=0
+for _ in $(seq 1 60); do
+  if curl -fsS -o /dev/null "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then cdp_ready=1; break; fi
+  if ! kill -0 "$CHROME_PID" 2>/dev/null; then break; fi
+  sleep 0.25
+done
+if [[ "$cdp_ready" != "1" ]]; then
+  echo "headless Chrome did not report a DevTools endpoint; log follows:" >&2
+  cat "$TMP/chrome.log" >&2
+  exit 1
+fi
+
+shoot() { # shoot <file-name> <url> <ready-js>
+  local name="$1" url="$2" ready="$3" file="$OUT/$1"
+  local attempt bytes
+  for attempt in 1 2 3; do
+    rm -f -- "$file"
+    if "$BUN" run "$TMP/screenshot.ts" "$CDP_PORT" "$url" "$file" "$WIDTH" "$HEIGHT" "$ready"; then
+      bytes=0
+      if [[ -f "$file" ]]; then bytes="$(wc -c < "$file")"; fi
+      # A blank or browser-error page is a few kB; anything this small is a miss.
+      if (( bytes >= 10000 )); then
+        echo "  $name — $bytes bytes"
+        return 0
+      fi
+    fi
+    echo "  attempt $attempt failed; retrying $name" >&2
+  done
+  echo "screenshot failed: $file" >&2
+  return 1
+}
+
+BASE="http://127.0.0.1:$PORT"
+# 1. Search results for a mixed Chinese/English query (重连 backoff), light theme.
+set_theme light
+shoot search-results.png "$BASE/#/search?q=%E9%87%8D%E8%BF%9E%20backoff" \
+  'document.querySelectorAll(".session-block").length > 0'
+# 2. One session, deep-linked to a question that sits below the fold, so the shot
+#    shows the ?turn= jump itself with its question and answer side by side.
+#    Dark theme.
+set_theme dark
+shoot session-detail.png "$BASE/#/session/claude-code%3Ademo-ws-reconnect?turn=1&hit=user" \
+  'document.querySelectorAll(".turn.is-target .is-hit").length > 0'
+# 3. Process scope: the tool calls and the errors behind the answers.
+shoot process-search.png "$BASE/#/search?q=timeout&scope=process" \
+  'document.querySelectorAll(".session-block").length > 0'
+
+# Nothing the server or the browser did may have added a non-fixture session.
+"$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB"
+
+echo "done — screenshots written:"
+ls -1 "$OUT"
