@@ -6,7 +6,12 @@ export type AgentId =
   | "alma"
   | "cindy"
   | "claude-code"
-  | "codex";
+  | "codex"
+  | "gemini-cli"
+  | "qwen-code"
+  | "kimi-code"
+  | "copilot-cli"
+  | "goose";
 
 /** Every id in the `AgentId` union, for validation and help text. */
 export const AGENT_IDS = [
@@ -18,6 +23,11 @@ export const AGENT_IDS = [
   "cindy",
   "claude-code",
   "codex",
+  "gemini-cli",
+  "qwen-code",
+  "kimi-code",
+  "copilot-cli",
+  "goose",
 ] as const;
 
 /** Human-facing names, shared by the brief, handoff card and MCP tools. */
@@ -30,6 +40,11 @@ export const AGENT_LABELS: Record<AgentId, string> = {
   cindy: "Cindy",
   "claude-code": "Claude Code",
   codex: "Codex",
+  "gemini-cli": "Gemini CLI",
+  "qwen-code": "Qwen Code",
+  "kimi-code": "Kimi Code",
+  "copilot-cli": "Copilot CLI",
+  goose: "Goose",
 };
 
 export function isAgentId(value: unknown): value is AgentId {

@@ -6,6 +6,11 @@ import { almaAdapter } from "./adapters/alma.ts";
 import { cindyAdapter } from "./adapters/cindy.ts";
 import { claudeCodeAdapter } from "./adapters/claude-code.ts";
 import { codexAdapter } from "./adapters/codex.ts";
+import { geminiCliAdapter } from "./adapters/gemini-cli.ts";
+import { qwenCodeAdapter } from "./adapters/qwen-code.ts";
+import { kimiCodeAdapter } from "./adapters/kimi-code.ts";
+import { copilotCliAdapter } from "./adapters/copilot-cli.ts";
+import { gooseAdapter } from "./adapters/goose.ts";
 import type { Adapter, SessionRef } from "./adapters/types.ts";
 import {
   clearScanError,
@@ -62,6 +67,11 @@ export async function scan(
     cindyAdapter(),
     claudeCodeAdapter(),
     codexAdapter(),
+    geminiCliAdapter(),
+    qwenCodeAdapter(),
+    kimiCodeAdapter(),
+    copilotCliAdapter(),
+    gooseAdapter(),
   ],
   options: ScanOptions = {},
 ): Promise<ScanReport> {

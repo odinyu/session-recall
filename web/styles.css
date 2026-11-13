@@ -23,6 +23,11 @@
   --agent-cindy: #a8446b;
   --agent-claude-code: #b3552b;
   --agent-codex: #2f6f5e;
+  --agent-gemini-cli: #0f6f7a;
+  --agent-qwen-code: #7a4bb5;
+  --agent-kimi-code: #a03a5a;
+  --agent-copilot-cli: #4a5568;
+  --agent-goose: #7a6a12;
   --shadow-drawer: 0 18px 50px rgba(20, 30, 24, 0.18);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -54,6 +59,11 @@
   --agent-cindy: #e79ab3;
   --agent-claude-code: #e8a184;
   --agent-codex: #7fc7b3;
+  --agent-gemini-cli: #6fc7d6;
+  --agent-qwen-code: #b9a0f0;
+  --agent-kimi-code: #e58aa6;
+  --agent-copilot-cli: #a9b4c6;
+  --agent-goose: #d6c46a;
   --shadow-drawer: 0 18px 50px rgba(0, 0, 0, 0.5);
 }
 
@@ -275,6 +285,26 @@ button {
 
 .agent-dot.agent-codex {
   background: var(--agent-codex);
+}
+
+.agent-dot.agent-gemini-cli {
+  background: var(--agent-gemini-cli);
+}
+
+.agent-dot.agent-qwen-code {
+  background: var(--agent-qwen-code);
+}
+
+.agent-dot.agent-kimi-code {
+  background: var(--agent-kimi-code);
+}
+
+.agent-dot.agent-copilot-cli {
+  background: var(--agent-copilot-cli);
+}
+
+.agent-dot.agent-goose {
+  background: var(--agent-goose);
 }
 
 /* custom combobox: the native <select> popup cannot be styled at all */
@@ -966,6 +996,26 @@ button {
 
 .agent-codex {
   color: var(--agent-codex);
+}
+
+.agent-gemini-cli {
+  color: var(--agent-gemini-cli);
+}
+
+.agent-qwen-code {
+  color: var(--agent-qwen-code);
+}
+
+.agent-kimi-code {
+  color: var(--agent-kimi-code);
+}
+
+.agent-copilot-cli {
+  color: var(--agent-copilot-cli);
+}
+
+.agent-goose {
+  color: var(--agent-goose);
 }
 
 .agent-alma {

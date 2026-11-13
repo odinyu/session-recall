@@ -36,7 +36,7 @@
 | # | 方向 | 内容 | 价值 | 工作量 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | **A** | Agent 可访问的回忆（CLI / MCP） | `sr "query"` CLI 和 MCP server，让 Claude Code / omp / Codex 自己搜过去会话 | ★★★★★ | M | **已发布**——`sr` CLI（USAGE.md）和 stdio MCP server（MCP.md） |
-| **B** | 适配器：Claude Code、Codex | 开源最大的覆盖面缺口 | ★★★★★ | M | **已发布**——八个适配器，见 README 的“索引哪些内容” |
+| **B** | 适配器：Claude Code、Codex | 开源最大的覆盖面缺口 | ★★★★★ | M | **已发布**——十三个适配器，见 README 的“索引哪些内容” |
 | **C** | 语义 / 混合搜索 | 可选本地 embedding，让模糊说法（“那个 websocket 重连修复”）也能匹配 | ★★★★ | H | 未开始 |
 | **D** | 跨 agent 交接 | 把会话打包成可移植卡片，在另一个 agent 继续 | ★★★★ | M | **已发布**——交接卡加 `sessionrecall://` 恢复链接 |
 | **E** | 全局启动器 | 打包应用之上的 Cmd+K 面板 / 菜单栏快速搜索 | ★★★ | L | 未开始（Cmd+K 只聚焦应用内搜索） |
@@ -51,7 +51,7 @@
 状态截至 2026-11-13。已完成：
 
 - **LICENSE**——MIT。
-- **分发**——带 tag 的 release workflow 构建两个单架构 macOS `.app`（一个 Apple silicon，一个 Intel），各自打 zip 并附 SHA-256 checksum，四个文件都挂到 GitHub Release。ad-hoc 签名，未公证（release notes 里已说明）。
+- **分发**——带 tag 的 release workflow 构建两个单架构 macOS `.app`（一个 Apple silicon，一个 Intel），各自打 zip 并附 SHA-256 checksum，再为落地页生成不带版本号的别名和对应 checksum，八个文件都挂到 GitHub Release。ad-hoc 签名，未公证（release notes 里已说明）。
 - **CI**——每次 push 和 pull request 跑 `bun test` 和 `bun run build`。
 - **README**——截图由合成会话生成，并且有支持 agent 的“索引哪些内容”表。
 

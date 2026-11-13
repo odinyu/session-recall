@@ -10,8 +10,9 @@ Search a half-remembered Chinese phrase or a code identifier and get back the
 question, the answer, the agent, the project, and the date.
 
 Built for the sessions that pile up across **omp**, **pi**, **OpenCode**,
-**Cursor**, **Alma**, **Cindy**, **Claude Code**, and **Codex**. It never writes
-to an agent's own storage.
+**Cursor**, **Alma**, **Cindy**, **Claude Code**, **Codex**, **Gemini CLI**,
+**Qwen Code**, **Kimi Code**, **Copilot CLI**, and **Goose**. It never writes to
+an agent's own storage.
 
 ## Quick start
 
@@ -135,17 +136,26 @@ which is how a failing run behind a conversation gets found.
 | Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` (newest match wins) | `sessions` + `messages`: user rows are JSON `{text}` or an Orca task `{orcaSource, content}`, assistant rows plain text, `thinking`/`tool_use`/`ask_user` rows become process events; project path from `working_dir`; `rewind_at` and messages before `cleared_at` are excluded |
 | Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | `user`/`assistant` records with Anthropic content blocks: text, `thinking` and `tool_use` become turns + process events, `tool_result` user records attach to their call; title from `ai-title`; project path from `cwd`; `isSidechain` subagent records are skipped |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, plus Cindy's `CindyGlobal/codex-home/sessions` and `.../archived_sessions` | `session_meta` + `turn_context` for cwd/model; `response_item` messages, `function_call`/`*_output` and `reasoning` become turns + process events; `event_msg` message echoes are ignored unless a rollout has no `response_item` messages |
+| Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` (`$GEMINI_DATA_DIR` overrides the root; older builds write the same conversation as one `.json` document) | `user` messages start turns, `gemini` messages supply the text, `model`, `thoughts` and `toolCalls` (name, `args`, `result`, `status`) become turns + process events; `info`/`error` notices and `$patch`/`$set`/`$rewindTo` edit records are skipped; title is the first prompt; project path from the `.project_root` marker (`projects.json` registry as fallback); subagent chats under `chats/<parentSessionId>/` are skipped |
+| Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` (`$QWEN_DATA_DIR` overrides the root) | Gemini-CLI lineage records with `type` `user`/`assistant`/`tool_result`/`system`: `message.parts` text, `thought` parts and `functionCall` calls become turns + process events, `functionResponse` fills the matching call's output; title from a `custom_title` system record; project path from each record's `cwd`; user records with `system`/`external_agent` provenance or `agent_*` subtypes are skipped |
+| Kimi Code | `~/.kimi/sessions/<workdir-digest>/<sessionId>/wire.jsonl`, plus `~/.kimi-code` (`$KIMI_DATA_DIR` overrides both) | wire envelopes `{timestamp, message: {type, payload}}`: `TurnBegin`/`SteerInput` prompts, `ContentPart` text and `think` chunks, `ToolCall`/`ToolResult` pairs become turns + process events; control and UI events (`Step*`, `TurnEnd`, `StatusUpdate`, `Notification`, `Approval*`, `Question*`) are skipped; title from `state.json` `custom_title`; project path by matching the md5 digest of `kimi.json` `work_dirs`; subagent transcripts under `agents/*/wire.jsonl` are skipped |
+| Copilot CLI | `~/.copilot/session-state/<session-id>/events.jsonl` (`$COPILOT_HOME` overrides the root; pre-1.0.11 flat `<session-id>.jsonl`, plus `history-session-state`) | `user.message` starts a turn, `assistant.message` supplies text, `model` and `toolRequests`, `tool.execution_complete` fills the call output; `session.*`, `assistant.turn_*`/`assistant.reasoning`, `hook.*`, `subagent.*` and encrypted payloads are skipped; title from `workspace.yaml` `name`; project path from `session.start` `cwd` or `workspace.yaml` |
+| Goose | `~/Library/Application Support/goose/sessions/sessions.db` (`$GOOSE_PATH_ROOT/data/sessions/sessions.db`, Linux `~/.local/share/goose/sessions` or `~/.local/share/Block/goose/sessions`, opened readonly) | `sessions` + `messages`: `content_json` text and `thinking` blocks become turns + process events, `toolRequest`/`toolResponse` blocks pair by id; rows with `metadata_json.userVisible: false` are skipped; title from `sessions.name` then `description`; project path from `working_dir`; columns are probed with `PRAGMA table_info` |
 
 The index unit is a **turn**: one user prompt plus the assistant text that
 followed it before the next prompt. Tool calls and reasoning traces are stored
 separately as process events (see below); their inputs, outputs, and errors are
 searchable in the **Process** scope, while reasoning text stays out of search.
 Each turn also stores the model that produced its answer when the agent
-records one. omp, pi, OpenCode, Alma, Cindy, Claude Code and Codex record it per turn; Cursor
-records only a session-level selection (`composerData.modelConfig.modelName`),
-which is stamped on every turn of that session — transcripts and KV bubbles carry no
-per-turn model, and Cursor's placeholder `default` stays blank. The session
-page shows the model next to the agent badge.
+records one. omp, pi, OpenCode, Alma, Cindy, Claude Code, Codex, Gemini CLI,
+Qwen Code and Copilot CLI record it per turn; Gemini CLI and Qwen Code take the
+model stamped on each assistant message, and Copilot CLI the one on each
+`assistant.message` (its `session.model_change` value is the fallback). Cursor
+and Goose record only a session-level selection (`composerData.modelConfig.modelName`
+and `model_config_json.model_name`), which is stamped on every turn of that
+session — Cursor transcripts and KV bubbles carry no per-turn model, and
+Cursor's placeholder `default` stays blank. Kimi Code records no model. The
+session page shows the model next to the agent badge.
 
 ## Process
 
@@ -482,7 +492,8 @@ forget tool.
 
 ```text
 src/
-  adapters/       omp/pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex parsers
+  adapters/       omp/pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex,
+                  Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose parsers
   brief.ts        daily standup / archive / weekly report generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
@@ -511,7 +522,7 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     package the macOS .app
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
-test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, web app, Alma, Cindy, Claude Code, Codex tests
+test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose tests
 brief/            generated daily briefs (git-ignored)
 doc/              long-form docs, each in English and zh-CN
 ```
@@ -519,7 +530,7 @@ doc/              long-form docs, each in English and zh-CN
 ## Development
 
 ```bash
-bun test          # 152 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex
+bun test          # 186 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

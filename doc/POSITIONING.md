@@ -46,7 +46,7 @@ Ordered by leverage. Effort is a rough relative estimate.
 | # | Direction | What | Value | Effort | Status |
 | --- | --- | --- | --- | --- | --- |
 | **A** | Agent-accessible recall (CLI / MCP) | `sr "query"` CLI and an MCP server so Claude Code / omp / Codex can search past sessions themselves | ★★★★★ | M | **shipped** — `sr` CLI (USAGE.md) and a stdio MCP server (MCP.md) |
-| **B** | Adapters: Claude Code, Codex | Biggest reach gap for open source | ★★★★★ | M | **shipped** — eight adapters, see "What gets indexed" in the README |
+| **B** | Adapters: Claude Code, Codex | Biggest reach gap for open source | ★★★★★ | M | **shipped** — thirteen adapters, see "What gets indexed" in the README |
 | **C** | Semantic / hybrid search | Optional local embeddings so fuzzy phrasing ("that websocket reconnect fix") matches | ★★★★ | H | not started |
 | **D** | Cross-agent handoff | Package a session into a portable card and continue it in another agent | ★★★★ | M | **shipped** — handoff card plus `sessionrecall://` resume links |
 | **E** | Global launcher | Cmd+K palette / menu-bar quick search on top of the packaged app | ★★★ | L | not started (Cmd+K only focuses the in-app search) |
@@ -67,8 +67,9 @@ State as of 2026-11-13. Done:
 - **LICENSE** — MIT.
 - **Distribution** — a tagged release workflow builds two single-architecture
   macOS `.app`s (one Apple silicon, one Intel), zips each with a SHA-256
-  checksum and attaches all four files to the GitHub Release. Ad-hoc signed, not
-  notarized (documented in the release notes).
+  checksum, also publishes version-less aliases and their checksums for the
+  landing page, and attaches all eight files to the GitHub Release. Ad-hoc
+  signed, not notarized (documented in the release notes).
 - **CI** — `bun test` and `bun run build` on every push and pull request.
 - **README** — screenshots generated from synthetic sessions, plus the
   "What gets indexed" table of supported agents.

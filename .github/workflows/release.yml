@@ -106,6 +106,22 @@ jobs:
             echo "intel_checksum=$(cut -d' ' -f1 < "$zip_intel.sha256")"
           } >> "$GITHUB_OUTPUT"
 
+      # The landing page links to /releases/latest/download/session-recall_macos-*.zip,
+      # a path that only resolves when the newest release carries exactly those
+      # names. Copy each versioned asset (kept as the record) to a stable alias
+      # and checksum the copy; shasum writes the same `<hash>  <name>` format.
+      - name: Create version-less download aliases
+        run: |
+          set -euo pipefail
+          cp "${{ steps.package.outputs.arm_zip }}" session-recall_macos-arm64.zip
+          cp "${{ steps.package.outputs.intel_zip }}" session-recall_macos-intel.zip
+          shasum -a 256 session-recall_macos-arm64.zip > session-recall_macos-arm64.zip.sha256
+          shasum -a 256 session-recall_macos-intel.zip > session-recall_macos-intel.zip.sha256
+          cat session-recall_macos-arm64.zip.sha256 session-recall_macos-intel.zip.sha256
+          # The alias must stay byte-identical to the asset it stands in for.
+          cmp "${{ steps.package.outputs.arm_zip }}" session-recall_macos-arm64.zip
+          cmp "${{ steps.package.outputs.intel_zip }}" session-recall_macos-intel.zip
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -116,6 +132,10 @@ jobs:
             ${{ steps.package.outputs.arm_zip }}.sha256
             ${{ steps.package.outputs.intel_zip }}
             ${{ steps.package.outputs.intel_zip }}.sha256
+            session-recall_macos-arm64.zip
+            session-recall_macos-arm64.zip.sha256
+            session-recall_macos-intel.zip
+            session-recall_macos-intel.zip.sha256
           body: |
             macOS app for tag `${{ github.ref_name }}` — one single-architecture bundle per slice, ad-hoc signed, **not notarized**.
 

@@ -14,7 +14,7 @@ Bun + TypeScript，零运行时依赖：`Bun.serve` 提供 HTTP，`bun:sqlite` �
 
 ## 用户
 
-The owner：一个 macOS 开发者，跨多个项目运行多个 coding agent（omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex），经常中英文混用。任务是找回过去的一件事——“我在哪里解决过这个？”——当唯一线索只剩提问或回答里的半句话时。
+The owner：一个 macOS 开发者，跨多个项目运行多个 coding agent（omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose），经常中英文混用。任务是找回过去的一件事——“我在哪里解决过这个？”——当唯一线索只剩提问或回答里的半句话时。
 
 ## 产品目的
 
@@ -33,7 +33,7 @@ The owner：一个 macOS 开发者，跨多个项目运行多个 coding agent（
 
 ## 能力与约束
 
-- 适配器：omp、pi、OpenCode（v1 和 v2 表）、Cursor（transcripts + composer/bubble KV）、Alma、Cindy、Claude Code、Codex。
+- 适配器：omp、pi、OpenCode（v1 和 v2 表）、Cursor（transcripts + composer/bubble KV）、Alma、Cindy、Claude Code、Codex、Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose。
 - 跨提问、回答和过程事件（工具调用、命令、错误）搜索，支持 agent、项目、日期、范围和角色过滤。
 - 会话视图把每个提问和紧随其后的回答配对；`过程` 折叠区打开工具/推理轨迹。
 - 只读：agent 数据库以只读方式打开；索引在 `~/Library/Application Support/session-recall` 下。

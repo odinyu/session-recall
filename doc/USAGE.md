@@ -39,7 +39,7 @@ the packaged app, the same logic is available through the sidecar binary as
 | --- | --- |
 | `<query>` | One or more bare terms (ANDed), or `"an exact phrase"`. Omit → exit 2. |
 | `--limit <n>` | Max **sessions** returned (not turns). 1–5000, default 10. |
-| `--agent <id>` | Restrict to agents: `omp`, `pi`, `opencode`, `cursor`, `alma`, `cindy`, `claude-code`, `codex`. Repeatable or comma-separated (`--agent omp,pi`). |
+| `--agent <id>` | Restrict to agents: `omp`, `pi`, `opencode`, `cursor`, `alma`, `cindy`, `claude-code`, `codex`, `gemini-cli`, `qwen-code`, `kimi-code`, `copilot-cli`, `goose`. Repeatable or comma-separated (`--agent omp,pi`). |
 | `--scope qa\|process` | `qa` (default) searches prompts and answers; `process` searches tool inputs, tool outputs, and extracted error lines. |
 | `--json` | Machine-readable output (see below). |
 | `-h`, `--help` | Print usage and exit 0. |

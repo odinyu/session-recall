@@ -7,8 +7,8 @@
 #   2. every local href/src/srcset referenced by the pages resolves with 200
 #   3. no external subresources (fonts, images, scripts, stylesheets) are referenced
 #   4. in-page anchors point at ids that exist
-#   5. the only "TODO" markers left are the documented ones (placeholder domain,
-#      the version string on the download URLs)
+#   5. the only "TODO" markers left are the documented ones (the placeholder
+#      domain, and a version number where one still has to be typed by hand)
 #
 # Usage:  bash scripts/check-site.sh
 # Exit code 0 = pass, non-zero = fail.
@@ -216,7 +216,7 @@ if os.path.isfile(css_path):
 
 # --- 5. remaining TODO markers ----------------------------------------------
 
-ALLOWED_TODO = re.compile(r"session-recall\.pages\.dev|1\.3\.0")
+ALLOWED_TODO = re.compile(r"session-recall\.pages\.dev|\d+\.\d+\.\d+")
 # Shipped pages and assets only. README.md is a maintainer doc and refers to the
 # TODO convention in prose, so it is deliberately not scanned.
 SCAN_EXT = (".html", ".css", ".js", ".txt", ".xml")

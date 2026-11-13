@@ -7,7 +7,7 @@
 
 一个面向本机 coding agent 会话的本地、只读全文索引。想起半句中文或一个代码标识符，就能找回当时的提问、回答、agent、项目和日期。
 
-为 **omp**、**pi**、**OpenCode**、**Cursor**、**Alma**、**Cindy**、**Claude Code** 和 **Codex** 这些工具积累下来的会话而做。它从不写入 agent 自己的存储。
+为 **omp**、**pi**、**OpenCode**、**Cursor**、**Alma**、**Cindy**、**Claude Code**、**Codex**、**Gemini CLI**、**Qwen Code**、**Kimi Code**、**Copilot CLI** 和 **Goose** 这些工具积累下来的会话而做。它从不写入 agent 自己的存储。
 
 ## 快速开始
 
@@ -88,8 +88,13 @@ UI 由 Bun 以和 `bun run serve` 完全相同的方式提供，所以应用和 
 | Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db`（取最新的匹配文件） | `sessions` + `messages`：用户行是 JSON `{text}` 或 Orca 任务 `{orcaSource, content}`，助手行是纯文本，`thinking`/`tool_use`/`ask_user` 行变成过程事件；项目路径来自 `working_dir`；`rewind_at` 和 `cleared_at` 之前的消息排除 |
 | Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | `user`/`assistant` 记录带 Anthropic content block：text、`thinking`、`tool_use` 变成 turn + 过程事件，`tool_result` 用户记录挂到对应调用；标题来自 `ai-title`；项目路径来自 `cwd`；跳过 `isSidechain` 子代理记录 |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`，以及 Cindy 的 `CindyGlobal/codex-home/sessions` 和 `.../archived_sessions` | `session_meta` + `turn_context` 提供 cwd/model；`response_item` 消息、`function_call`/`*_output`、`reasoning` 变成 turn + 过程事件；没有 `response_item` 消息时才回退到 `event_msg` 回显 |
+| Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl`（`$GEMINI_DATA_DIR` 可改根目录；旧版本把同一段对话写成一个 `.json` 文件） | `user` 消息开启 turn，`gemini` 消息提供正文、`model`、`thoughts` 和 `toolCalls`（名称、`args`、`result`、`status`），变成 turn + 过程事件；跳过 `info`/`error` 提示和 `$patch`/`$set`/`$rewindTo` 编辑记录；标题取首个提问；项目路径取 `.project_root` 标记文件（回退到 `projects.json` 注册表）；`chats/<parentSessionId>/` 下的子代理对话跳过 |
+| Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl`（`$QWEN_DATA_DIR` 可改根目录） | Gemini CLI 一脉的记录，`type` 为 `user`/`assistant`/`tool_result`/`system`：`message.parts` 里的文本、`thought` 块和 `functionCall` 调用变成 turn + 过程事件，`functionResponse` 回填对应调用的输出；标题取 `custom_title` 系统记录；项目路径取每条记录的 `cwd`；`system`/`external_agent` 来源或 `agent_*` 子类型的用户记录跳过 |
+| Kimi Code | `~/.kimi/sessions/<workdir-digest>/<sessionId>/wire.jsonl`，以及 `~/.kimi-code`（`$KIMI_DATA_DIR` 可同时改这两处） | wire 信封 `{timestamp, message: {type, payload}}`：`TurnBegin`/`SteerInput` 提问、`ContentPart` 的文本与 `think` 块、`ToolCall`/`ToolResult` 配对，变成 turn + 过程事件；`Step*`、`TurnEnd`、`StatusUpdate`、`Notification`、`Approval*`、`Question*` 等控制与 UI 事件跳过；标题取 `state.json` 的 `custom_title`；项目路径用 `kimi.json` 里 `work_dirs` 的 md5 摘要匹配；`agents/*/wire.jsonl` 下的子代理记录跳过 |
+| Copilot CLI | `~/.copilot/session-state/<session-id>/events.jsonl`（`$COPILOT_HOME` 可改根目录；1.0.11 之前是扁平的 `<session-id>.jsonl`，另加 `history-session-state`） | `user.message` 开启 turn，`assistant.message` 提供正文、`model` 和 `toolRequests`，`tool.execution_complete` 回填调用输出；`session.*`、`assistant.turn_*`/`assistant.reasoning`、`hook.*`、`subagent.*` 和加密载荷跳过；标题取 `workspace.yaml` 的 `name`；项目路径取 `session.start` 的 `cwd` 或 `workspace.yaml` |
+| Goose | `~/Library/Application Support/goose/sessions/sessions.db`（`$GOOSE_PATH_ROOT/data/sessions/sessions.db`，Linux 为 `~/.local/share/goose/sessions` 或 `~/.local/share/Block/goose/sessions`，只读打开） | `sessions` + `messages`：`content_json` 的文本和 `thinking` 块变成 turn + 过程事件，`toolRequest`/`toolResponse` 块按 id 配对；`metadata_json.userVisible` 为 `false` 的行跳过；标题取 `sessions.name`，其次 `description`；项目路径取 `working_dir`；列用 `PRAGMA table_info` 探测 |
 
-索引单位是 **turn**：一次用户提问，加上下一个提问之前紧跟的助手文本。工具调用和推理轨迹作为过程事件单独存储（见下）；它们的输入、输出和错误可以在 **过程** 范围搜索，推理文本不进入搜索。每个 turn 还会在 agent 记录时保存产生回答的模型。omp、pi、OpenCode、Alma、Cindy、Claude Code 和 Codex 按 turn 记录；Cursor 只记录会话级选择（`composerData.modelConfig.modelName`），并盖到该会话每个 turn 上——transcript 和 KV bubble 没有逐 turn 模型，Cursor 的占位值 `default` 保持空白。会话页在 agent 徽标旁显示模型。
+索引单位是 **turn**：一次用户提问，加上下一个提问之前紧跟的助手文本。工具调用和推理轨迹作为过程事件单独存储（见下）；它们的输入、输出和错误可以在 **过程** 范围搜索，推理文本不进入搜索。每个 turn 还会在 agent 记录时保存产生回答的模型。omp、pi、OpenCode、Alma、Cindy、Claude Code、Codex、Gemini CLI、Qwen Code 和 Copilot CLI 按 turn 记录；Gemini CLI 和 Qwen Code 取每条助手消息上标注的模型，Copilot CLI 取每条 `assistant.message` 上的模型（`session.model_change` 作为回退）。Cursor 和 Goose 只记录会话级选择（`composerData.modelConfig.modelName` 和 `model_config_json.model_name`），并盖到该会话每个 turn 上——Cursor 的 transcript 和 KV bubble 没有逐 turn 模型，Cursor 的占位值 `default` 保持空白。Kimi Code 不记录模型。会话页在 agent 徽标旁显示模型。
 
 ## 过程
 
@@ -279,7 +284,8 @@ bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304 # undo
 
 ```text
 src/
-  adapters/       omp/pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex 解析器
+  adapters/       omp/pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、
+                  Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 解析器
   brief.ts        日报 standup / archive / 周报生成
   cli-search.ts   search 子命令：参数解析、文本/JSON 输出
   config.ts       路径和端口（APP_DIR 遵循 SESSION_RECALL_HOME）
@@ -308,7 +314,7 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     打包 macOS .app
   make-icon.py    渲染 app-icon.png（PIL，镜像 web/favicon.svg）
-test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、web app、Alma、Cindy、Claude Code、Codex 测试
+test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、web app、Alma、Cindy、Claude Code、Codex、Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 测试
 brief/            生成的日报（git-ignored）
 doc/              长篇文档，每篇都有英文和中文版
 ```
@@ -316,7 +322,7 @@ doc/              长篇文档，每篇都有英文和中文版
 ## 开发
 
 ```bash
-bun test          # 152 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, pi
+bun test          # 186 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose, pi
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

@@ -32,7 +32,7 @@ bun run sr "ENOENT" --scope process
 | --- | --- |
 | `<query>` | 一个或多个裸词（AND），或 `"精确短语"`。省略 → 退出 2。 |
 | `--limit <n>` | 最多返回的**会话**数（不是 turn）。1–5000，默认 10。 |
-| `--agent <id>` | 限定 agent：`omp`、`pi`、`opencode`、`cursor`、`alma`、`cindy`、`claude-code`、`codex`。可重复或用逗号分隔（`--agent omp,pi`）。 |
+| `--agent <id>` | 限定 agent：`omp`、`pi`、`opencode`、`cursor`、`alma`、`cindy`、`claude-code`、`codex`、`gemini-cli`、`qwen-code`、`kimi-code`、`copilot-cli`、`goose`。可重复或用逗号分隔（`--agent omp,pi`）。 |
 | `--scope qa\|process` | `qa`（默认）搜索提问和回答；`process` 搜索工具输入、工具输出和提取出的错误行。 |
 | `--json` | 机器可读输出（见下）。 |
 | `-h`, `--help` | 打印用法并退出 0。 |
