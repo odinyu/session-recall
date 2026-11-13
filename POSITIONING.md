@@ -44,7 +44,7 @@ Ordered by leverage. Effort is a rough relative estimate.
 | # | Direction | What | Value | Effort | Status |
 | --- | --- | --- | --- | --- | --- |
 | **A** | Agent-accessible recall (CLI / MCP) | `sr "query"` CLI and an MCP server so Claude Code / omp / Codex can search past sessions themselves | ★★★★★ | M | **shipped** — `sr` CLI (USAGE.md) and a stdio MCP server (MCP.md) |
-| **B** | Adapters: Claude Code, Codex | Biggest reach gap for open source | ★★★★★ | M | **shipped** — seven adapters, see "What gets indexed" in the README |
+| **B** | Adapters: Claude Code, Codex | Biggest reach gap for open source | ★★★★★ | M | **shipped** — eight adapters, see "What gets indexed" in the README |
 | **C** | Semantic / hybrid search | Optional local embeddings so fuzzy phrasing ("that websocket reconnect fix") matches | ★★★★ | H | not started |
 | **D** | Cross-agent handoff | Package a session into a portable card and continue it in another agent | ★★★★ | M | **shipped** — handoff card plus `sessionrecall://` resume links |
 | **E** | Global launcher | Cmd+K palette / menu-bar quick search on top of the packaged app | ★★★ | L | not started (Cmd+K only focuses the in-app search) |
@@ -60,7 +60,7 @@ the index or the adapters.
 
 ## Open-source readiness
 
-State as of 2026-11-12. Done:
+State as of 2026-11-13. Done:
 
 - **LICENSE** — MIT.
 - **Distribution** — a tagged release workflow builds two single-architecture
