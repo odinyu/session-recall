@@ -11,12 +11,32 @@ Static, framework-free product page for [Session Recall](https://github.com/odin
 - `assets/og.png` — 1200×630 social card
 - `_headers`, `_redirects`, `robots.txt`, `sitemap.xml` — Cloudflare Pages config and SEO
 
-There is no build step. The deployment output directory is `site/`.
-The production site is **https://070801.top**, served by Cloudflare Pages.
+There is no build step. The deployment output directory is `site/`, published as
+Cloudflare Workers static assets through `wrangler.jsonc` at the repository root.
+The production site is **https://070801.top**.
 
 ---
 
-## Deploy on Cloudflare Pages (Git integration)
+## Deploy on Cloudflare Workers (current)
+
+1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Workers** → **Connect to Git**.
+2. Pick **`odinyu/session-recall`** and the **`main`** branch.
+3. **Project name:** `session-recall` (must match `name` in `wrangler.jsonc`).
+4. **Build command:** leave **empty**. The site has no build step.
+5. **Deploy command:** `npx wrangler deploy`.
+6. **Preview command:** either set `npx wrangler versions upload`, or turn off
+   **Enable preview builds**; the production deploy does not need it.
+7. Deploy. `wrangler.jsonc` serves `./site` as static assets; `_headers` and
+   `_redirects` inside `site/` are honoured by Workers.
+
+The first deployment gets a `session-recall.<account>.workers.dev` URL. Add the
+custom domain under **Settings → Domains & Routes → Add custom domain**:
+`070801.top` and, if wanted, `www.070801.top`. Workers creates the DNS record
+and certificate automatically when the zone is on Cloudflare.
+
+---
+
+## Deploy on Cloudflare Pages (alternative)
 
 1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
 2. Authorize GitHub and pick **`odinyu/session-recall`**.
@@ -134,11 +154,11 @@ On this machine `sips` cannot write WebP and `ffmpeg` has no libwebp, so Chrome 
 
 ## Cloudflare Pages limits, and why the zips are not in here
 
-| Limit | Value |
+| Limit (Workers static assets / Pages free) | Value |
 | --- | --- |
 | Max file size | **25 MiB** |
 | Max files per deployment | 20,000 |
-| Builds per month (Free) | 500 |
+| Builds per month (Pages Free) | 500 |
 
 The release zips are **26.7 MB** (Apple silicon) and **29.5 MB** (Intel) — both above the
 25 MiB per-file ceiling, so a deployment containing them would be rejected. They stay on
