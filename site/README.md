@@ -34,6 +34,26 @@ custom domain under **Settings → Domains & Routes → Add custom domain**:
 `070801.top` and, if wanted, `www.070801.top`. Workers creates the DNS record
 and certificate automatically when the zone is on Cloudflare.
 
+### Deploy from your machine
+
+You do not have to click through the dashboard. After a one-time `npx wrangler login`:
+
+```sh
+bash scripts/deploy-site.sh
+```
+
+The script bumps the `?v=` asset version in both pages, runs
+`scripts/check-site.sh`, and then runs `npx wrangler@4 deploy`. If the check or
+deploy fails, it restores the HTML it changed. Flags:
+
+```sh
+bash scripts/deploy-site.sh --dry-run   # check + wrangler dry-run; no changes
+bash scripts/deploy-site.sh --no-bump   # deploy without touching ?v=
+```
+
+After a successful local deploy, commit and push the bumped HTML. Otherwise the
+next GitHub build will deploy the old `?v=` value and may serve cached assets.
+
 ---
 
 ## Deploy on Cloudflare Pages (alternative)
