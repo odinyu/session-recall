@@ -488,6 +488,7 @@ src/
   util/redact.ts  write-time redaction of secrets and PII
 web/
   app.ts          hash-routed UI
+  handoff.ts      handoff card cache key, bounded cache and bounded wait
   markdown.ts     safe Markdown renderer
   links.ts        in-app link (deep link, loopback) -> hash route mapping
   styles.css      design tokens and components
@@ -498,7 +499,7 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     package the macOS .app
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
-test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, Alma, Cindy, Claude Code, Codex tests
+test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, web app, Alma, Cindy, Claude Code, Codex tests
 brief/            generated daily briefs (git-ignored)
 doc/              long-form docs, each in English and zh-CN
 ```
@@ -506,7 +507,7 @@ doc/              long-form docs, each in English and zh-CN
 ## Development
 
 ```bash
-bun test          # 145 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, Alma, Cindy, Claude Code, Codex
+bun test          # 152 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

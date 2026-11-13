@@ -164,10 +164,12 @@ if (command === "scan") {
     try {
       if (command === "forget") {
         const outcome = forgetSession(db, parsed.agent, parsed.externalId);
+        // Forgetting is index-only: say so, or the message reads like the agent's
+        // own transcript was deleted.
         console.log(
           outcome.removed
-            ? `已忘记会话 ${outcome.id}：索引中的记录已移除，后续扫描不会再索引它。`
-            : `已忘记会话 ${outcome.id}：索引中没有它的记录，后续扫描会继续跳过它。`,
+            ? `已忘记会话 ${outcome.id}：已从本机索引移除，后续扫描不会再索引它；agent 自己存储中的原始会话文件不会被删除。`
+            : `已忘记会话 ${outcome.id}：本机索引中没有它的记录，后续扫描会继续跳过它；agent 自己存储中的原始会话文件不会被删除。`,
         );
         // Briefs are plain Markdown copies; forgetting cannot rewrite them, so
         // report the files that still quote the session instead.

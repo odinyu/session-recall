@@ -1,4 +1,11 @@
 import {
+  HANDOFF_WAIT_MS,
+  handoffKey,
+  rememberHandoff,
+  waitForHandoff,
+  type HandoffWait,
+} from "./handoff.ts";
+import {
   DATE_LOCALE,
   DOC_LANG,
   LANG_LABELS,
@@ -1052,54 +1059,200 @@ async function copyCommand(button: HTMLButtonElement): Promise<void> {
   }, 1400);
 }
 
+/** The resume target the action bar currently shows; `null` when it has none. */
+function handoffTargetFor(scope: Element | null): string | null {
+  return scope?.querySelector<HTMLSelectElement>(".resume-target")?.value ?? null;
+}
+
+/**
+ * Show the outcome on the button, then restore its idle label. The restore is
+ * token-guarded: a page or target change during the 1.6s confirmation owns the
+ * button by then and must not be overwritten.
+ */
+function paintHandoffResult(button: HTMLButtonElement, copied: boolean, token: number): void {
+  if (token !== handoffWarmToken) return;
+  button.textContent = copied ? t.copied : t.copyFailed;
+  button.classList.toggle("is-copied", copied);
+  window.setTimeout(() => {
+    if (token !== handoffWarmToken) return;
+    button.textContent = t.handoffCopy;
+    button.disabled = false;
+    button.classList.remove("is-copied");
+    button.title = t.handoffButtonTitle;
+  }, 1600);
+}
+
+/** Show a short notice (e.g. "ready — click again"), then restore the idle label. */
+function paintHandoffNotice(button: HTMLButtonElement, message: string, token: number): void {
+  if (token !== handoffWarmToken) return;
+  // The notice asks for another click; do not leave the button inert for 1.6s.
+  button.disabled = false;
+  button.textContent = message;
+  button.classList.remove("is-copied");
+  window.setTimeout(() => {
+    if (token !== handoffWarmToken) return;
+    button.textContent = t.handoffCopy;
+    button.disabled = false;
+    button.classList.remove("is-copied");
+    button.title = t.handoffButtonTitle;
+  }, 1600);
+}
+
 async function copyHandoff(button: HTMLButtonElement): Promise<void> {
   const id = button.dataset.handoff;
   if (!id) return;
-  const target =
-    button
-      .closest(".session-actionbar")
-      ?.querySelector<HTMLSelectElement>(".resume-target")?.value ?? null;
+  const target = handoffTargetFor(button.closest(".session-actionbar"));
+  const key = handoffKey(id, target);
+  // A prefetch that settles from here on describes an older page state; it must
+  // not repaint the button under this click (or a later target switch).
+  const token = ++handoffWarmToken;
+  const cached = handoffCache.get(key);
+  if (cached !== undefined) {
+    // The card was prefetched with the session, so the clipboard write can start
+    // inside the click handler itself. Awaiting a fetch first would lose the
+    // browser's user activation and the first click would always fail.
+    paintHandoffResult(button, await copyText(cached), token);
+    return;
+  }
+  // No card in hand: a copy after an await cannot keep user activation, so wait
+  // (bounded) for the card and ask for one more click on the now-warm cache.
   button.disabled = true;
   button.textContent = t.handoffPreparing;
-  try {
-    const handoff = await loadHandoff(id, target);
-    const copied = await copyText(handoff);
-    button.textContent = copied ? t.copied : t.copyFailed;
-    button.classList.toggle("is-copied", copied);
-  } catch {
-    button.textContent = t.handoffUnavailable;
-    button.title = t.handoffBuildFailed;
-  } finally {
-    window.setTimeout(() => {
-      button.textContent = t.handoffCopy;
-      button.disabled = false;
-      button.classList.remove("is-copied");
-    }, 1600);
+  const pending = handoffPending.get(key);
+  let outcome: HandoffWait;
+  if (pending) {
+    outcome = await waitForHandoff(pending.promise, HANDOFF_WAIT_MS);
+  } else {
+    try {
+      await loadHandoff(id, target);
+      outcome = "ready";
+    } catch {
+      outcome = "failed";
+    }
   }
+  // A target switch or a fresh render during the wait owns the button now.
+  if (token !== handoffWarmToken) return;
+  if (outcome === "timeout") {
+    // Nothing conclusive happened; hand the button back rather than guess.
+    button.disabled = false;
+    button.textContent = t.handoffCopy;
+    button.classList.remove("is-copied");
+    return;
+  }
+  // `ready` only helps if the card actually landed: an aborted request (forget,
+  // target switch) can resolve without filling the cache.
+  const warm = outcome === "ready" && handoffCache.has(key);
+  paintHandoffNotice(button, warm ? t.handoffReadyAgain : t.handoffUnavailable, token);
+  if (!warm) button.title = t.handoffBuildFailed;
 }
 
 const handoffCache = new Map<string, string>();
 
+interface PendingHandoff {
+  promise: Promise<string>;
+  abort: AbortController;
+}
+
+/** One in-flight request per (session, target), so prefetch and click share it. */
+const handoffPending = new Map<string, PendingHandoff>();
+
+/** Token of the newest prefetch; older completions must not repaint the button. */
+let handoffWarmToken = 0;
+
 async function loadHandoff(id: string, targetAgent: string | null): Promise<string> {
-  const key = `${id}|${targetAgent ?? ""}`;
+  const key = handoffKey(id, targetAgent);
   const cached = handoffCache.get(key);
   if (cached !== undefined) return cached;
-  const query = targetAgent ? `?targetAgent=${encodeURIComponent(targetAgent)}` : "";
-  const response = await fetch(
-    `/api/session/${encodeURIComponent(id)}/handoff${query}`,
-    { cache: "no-store" },
-  );
-  if (!response.ok) throw new Error(format(t.requestFailed, { status: response.status }));
-  const handoff = await response.text();
-  handoffCache.set(key, handoff);
-  return handoff;
+  const inflight = handoffPending.get(key);
+  if (inflight) return inflight.promise;
+  const abort = new AbortController();
+  const promise = (async () => {
+    const query = targetAgent ? `?targetAgent=${encodeURIComponent(targetAgent)}` : "";
+    const response = await fetch(
+      `/api/session/${encodeURIComponent(id)}/handoff${query}`,
+      { cache: "no-store", signal: abort.signal },
+    );
+    if (!response.ok) throw new Error(format(t.requestFailed, { status: response.status }));
+    const handoff = await response.text();
+    // Forget and target switches abort in-flight requests; a card that finished
+    // just before the abort must not slip back into the cache.
+    if (!abort.signal.aborted) rememberHandoff(handoffCache, key, handoff);
+    return handoff;
+  })();
+  const entry: PendingHandoff = { promise, abort };
+  handoffPending.set(key, entry);
+  // Clear the slot once settled (a failure must be retryable), but only if this
+  // request still owns it: a forget may have dropped it and a new one taken over.
+  void promise
+    .catch(() => {})
+    .finally(() => {
+      if (handoffPending.get(key) === entry) handoffPending.delete(key);
+    });
+  return promise;
 }
 
 /**
- * Forgetting is destructive and permanent: the rows leave the index and a marker
- * keeps every later scan from re-reading the session. The confirm step is the
- * only guard, so it spells out both halves; a successful forget also drops the
- * cached handoff cards and returns to the results.
+ * Warm the card as the session page renders and keep the button disabled until
+ * it is cached (or the wait expires). This is what removes the first-click race:
+ * a click can only happen once `copyText` can start inside the handler.
+ *
+ * A hit restores the button immediately; resolve, reject and the timeout all
+ * hand it back too, so a failure falls through to the slow path instead of
+ * leaving the button stuck. The token makes a stale request (an earlier target,
+ * a page that has since rerendered) unable to touch the current button.
+ */
+function prepareHandoff(id: string, targetAgent: string | null): void {
+  if (!id) return;
+  const token = ++handoffWarmToken;
+  const key = handoffKey(id, targetAgent);
+  const button =
+    byId<HTMLDivElement>("content")?.querySelector<HTMLButtonElement>(".handoff-button") ??
+    null;
+  const idle = (): void => {
+    if (!button || token !== handoffWarmToken) return;
+    button.disabled = false;
+    button.textContent = t.handoffCopy;
+    button.classList.remove("is-copied");
+    button.title = t.handoffButtonTitle;
+  };
+  if (handoffCache.has(key)) {
+    idle();
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = t.handoffPreparing;
+  }
+  const timer = window.setTimeout(idle, HANDOFF_WAIT_MS);
+  loadHandoff(id, targetAgent).then(
+    () => {
+      window.clearTimeout(timer);
+      idle();
+    },
+    () => {
+      window.clearTimeout(timer);
+      idle();
+    },
+  );
+}
+
+/**
+ * Warm-up for a pointerdown/focus that lands before the page's own prefetch
+ * settles (or after its timeout). Best effort: a failure stays silent.
+ */
+function prefetchHandoff(id: string, targetAgent: string | null): void {
+  if (!id) return;
+  const key = handoffKey(id, targetAgent);
+  if (handoffCache.has(key) || handoffPending.has(key)) return;
+  void loadHandoff(id, targetAgent).catch(() => {});
+}
+
+/**
+ * Forgetting is destructive and permanent for this index: the rows leave it and
+ * a marker keeps every later scan from re-reading the session. The agent's own
+ * transcript is never touched — only the copy here. The confirm step is the only
+ * guard, so it spells out both halves; a successful forget also drops the cached
+ * handoff cards and returns to the results.
  */
 async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
   const id = button.dataset.forget ?? "";
@@ -1117,6 +1270,12 @@ async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
     // The cached handoff card is a full copy of the session.
     for (const key of [...handoffCache.keys()]) {
       if (key.startsWith(`${id}|`)) handoffCache.delete(key);
+    }
+    // A prefetch still in flight would put one back; cancel it instead.
+    for (const [key, entry] of [...handoffPending]) {
+      if (!key.startsWith(`${id}|`)) continue;
+      entry.abort.abort();
+      if (handoffPending.get(key) === entry) handoffPending.delete(key);
     }
     ensureSearchView();
     // The page still renders the forgotten turns until the results come back;
@@ -2210,13 +2369,19 @@ function weekSubtitle(week: string, range: string | null | undefined): string {
   return `${week} · ${short(start)}–${short(end)}`;
 }
 
-async function renderBrief(ref: string, format: "day" | "week" = "day"): Promise<void> {
+/**
+ * `kind` is deliberately not called `format`: that name belongs to the
+ * dictionary helper imported from `i18n.ts`, and a parameter of the same name
+ * shadows it inside this function (the bundler then renames the import, and the
+ * shadowed calls break at runtime). `test/web-app.test.ts` guards the name.
+ */
+async function renderBrief(ref: string, kind: "day" | "week" = "day"): Promise<void> {
   const content = byId<HTMLDivElement>("content");
   if (!content) return;
   const status = byId<HTMLDivElement>("search-status");
   if (status) status.textContent = "";
   content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
-  const isWeek = format === "week";
+  const isWeek = kind === "week";
   const endpoint = isWeek
     ? `/api/brief?format=week&week=${encodeURIComponent(ref)}`
     : `/api/brief?date=${encodeURIComponent(ref)}`;
@@ -2314,7 +2479,13 @@ async function renderSession(
       );
       const detail = content.querySelector<HTMLElement>("[data-resume-detail]");
       if (continuation && detail) detail.innerHTML = continuationDetail(continuation);
+      // Each target renders its own card; warm this one and keep the button
+      // preparing until it is cached, so its first click copies.
+      prepareHandoff(session.id, resumeSelect.value);
     });
+    // The card is part of the page's data, not a click-time fetch: loading it now
+    // is what lets `copyHandoff` write to the clipboard synchronously on click.
+    prepareHandoff(session.id, resumeSelect?.value ?? null);
     if (turnIdx !== null) {
       requestAnimationFrame(() => {
         const target = document.getElementById(
@@ -2484,7 +2655,9 @@ function renderError(error: unknown): void {
   </div>`;
   byId<HTMLButtonElement>("retry")?.addEventListener("click", () => {
     if (state.view === "session") void renderSession(state.sessionId);
-    else if (state.view === "brief") void renderBrief(state.briefDate);
+    // Retry the report the page was showing: a weekly view must not fall back
+    // to the daily endpoint of the same key.
+    else if (state.view === "brief") void renderBrief(state.briefDate, state.briefFormat);
     else void runSearch();
   });
 }
@@ -2579,6 +2752,22 @@ async function boot(): Promise<void> {
     },
     true,
   );
+  // Fallback warm-up for the handoff card: the page prefetches when it renders,
+  // but a pointerdown (or keyboard focus) that lands before that request settles
+  // still buys a little extra time before the click reads the cache.
+  const warmHandoff = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest<HTMLButtonElement>(".handoff-button");
+    if (!button) return;
+    prefetchHandoff(
+      button.dataset.handoff ?? "",
+      handoffTargetFor(button.closest(".session-actionbar")),
+    );
+  };
+  document.addEventListener("pointerdown", warmHandoff, true);
+  document.addEventListener("focusin", warmHandoff);
+
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;

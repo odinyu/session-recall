@@ -295,6 +295,7 @@ src/
   util/redact.ts  写入时脱敏密钥和 PII
 web/
   app.ts          hash 路由 UI
+  handoff.ts      交接卡缓存键、有界缓存与有界等待
   markdown.ts     安全的 Markdown 渲染器
   links.ts        应用内链接（深链、loopback）-> hash 路由映射
   styles.css      设计 token 和组件
@@ -305,7 +306,7 @@ scripts/
   build.ts        Bun.build bundle
   make-app.sh     打包 macOS .app
   make-icon.py    渲染 app-icon.png（PIL，镜像 web/favicon.svg）
-test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、Alma、Cindy、Claude Code、Codex 测试
+test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、web app、Alma、Cindy、Claude Code、Codex 测试
 brief/            生成的日报（git-ignored）
 doc/              长篇文档，每篇都有英文和中文版
 ```
@@ -313,7 +314,7 @@ doc/              长篇文档，每篇都有英文和中文版
 ## 开发
 
 ```bash
-bun test          # 145 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, Alma, Cindy, Claude Code, Codex, pi
+bun test          # 152 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, pi
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

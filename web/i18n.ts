@@ -180,15 +180,19 @@ const zh = {
   handoffPreparing: "准备中…",
   handoffUnavailable: "交接不可用",
   handoffBuildFailed: "生成交接卡失败",
+  handoffReadyAgain: "交接卡已就绪，请再点一次",
   handoffButtonTitle: "复制包含问题、文件、命令和 Git 状态的交接卡",
   forgetButton: "忘记此会话",
-  forgetButtonTitle: "从本机索引中永久移除该会话，之后扫描不会再索引它",
+  forgetButtonTitle:
+    "从本机索引中移除该会话，之后扫描不会再索引它；不会删除 agent 自己存储中的原始会话文件",
   forgetConfirm:
-    "忘记此会话？\n\n{title}\n\n它会被永久移出本机索引，之后的扫描也不会再索引它。",
+    "忘记此会话？\n\n{title}\n\n它会被移出本机索引，之后的扫描也不会再索引它。\n\nagent 自己存储中的原始会话文件不会被删除，只是这里不再检索它。",
   forgetting: "正在忘记…",
   forgetFailed: "忘记失败",
-  forgotWithBriefs: "已忘记该会话；{n} 个已生成的简报仍引用它，可重新生成或删除",
-  forgot: "已忘记该会话，后续扫描不会再索引它",
+  forgotWithBriefs:
+    "已忘记该会话：已从本机索引移除，后续扫描不会再索引它（agent 存储中的原始会话文件未删除）；{n} 个已生成的简报仍引用它，可重新生成或删除",
+  forgot:
+    "已忘记该会话：已从本机索引移除，后续扫描不会再索引它；agent 自己存储中的原始会话文件仍然保留",
   undo: "撤销",
   undoTitle: "恢复该会话，之后的扫描会重新索引它",
   undoing: "正在恢复…",
@@ -347,18 +351,20 @@ const en: Messages = {
   handoffPreparing: "Preparing…",
   handoffUnavailable: "Handoff unavailable",
   handoffBuildFailed: "Could not build the handoff card",
+  handoffReadyAgain: "Handoff card ready — click again",
   handoffButtonTitle:
     "Copy a handoff card with the question, files, commands and Git state",
   forgetButton: "Forget this session",
   forgetButtonTitle:
-    "Remove this session from the local index permanently; later scans will not index it again",
+    "Remove this session from the local index; later scans will not index it again. The original session in the agent's own storage is not deleted.",
   forgetConfirm:
-    "Forget this session?\n\n{title}\n\nIt is removed from the local index permanently, and later scans will not index it again.",
+    "Forget this session?\n\n{title}\n\nIt is removed from the local index, and later scans will not index it again.\n\nThe original session in the agent's own storage is not deleted — it is only no longer searchable here.",
   forgetting: "Forgetting…",
   forgetFailed: "Forget failed",
   forgotWithBriefs:
-    "Session forgotten; {n} generated briefs still reference it — regenerate or delete them",
-  forgot: "Session forgotten; later scans will not index it again",
+    "Session forgotten: removed from the local index, and later scans will not index it again (the original session in the agent's own storage is kept). {n} generated briefs still reference it — regenerate or delete them",
+  forgot:
+    "Session forgotten: removed from the local index, and later scans will not index it again. The original session in the agent's own storage is kept.",
   undo: "Undo",
   undoTitle: "Restore this session; the next scan will index it again",
   undoing: "Restoring…",
