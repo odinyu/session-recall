@@ -87,7 +87,7 @@ were moved to Cloudflare on 2026-11-13. Cloudflare currently reports `tricia.ns.
 and `lex.ns.cloudflare.com`. The steps below remain as the record of that migration and for
 any future move.
 
-1. **Leave the registrar's real-name verification (实名认证) alone.** It stays at the registrar
+1. **Leave the registrar's real-name verification alone.** It stays at the registrar
    and must remain complete — the domain can be suspended without it. Moving nameservers does
    not move or waive it.
 2. **Note the current nameservers** at the registrar, so the change can be reverted if needed.
@@ -101,7 +101,7 @@ any future move.
    **`070801.top`** (and `www` if you want it). Because DNS is already on Cloudflare, the record is created
    automatically.
 7. **SSL/TLS mode: Full (strict).** Cloudflare issues the edge certificate on its own.
-8. **Do not enable the Cloudflare China Network.** It requires an ICP filing (备案) and an
+8. **Do not enable the Cloudflare China Network.** It requires an ICP filing and an
    enterprise agreement. Overseas hosting needs no ICP, which is why this site stays on the
    standard global network.
 

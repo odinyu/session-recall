@@ -1,6 +1,6 @@
 # session recall
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [Chinese](README.zh-CN.md)
 
 [![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
 [![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
@@ -27,7 +27,7 @@ bun run start     # build the UI and serve http://127.0.0.1:4319
 
 `bun run start` also scans on boot and refreshes the index every 90 seconds.
 The rail footer switches the theme between Auto (follows macOS), Light, and
-Dark, and the UI language between 中文 and English. Both choices are stored by
+Dark, and the UI language between Chinese and English. Both choices are stored by
 the server in `<app dir>/prefs.json` (see `src/prefs.ts`) rather than in
 `localStorage`, so they survive the app restarting on a different port;
 `localStorage` is only a same-origin cache for the first paint. API:
@@ -139,7 +139,7 @@ which is how a failing run behind a conversation gets found.
 The index unit is a **turn**: one user prompt plus the assistant text that
 followed it before the next prompt. Tool calls and reasoning traces are stored
 separately as process events (see below); their inputs, outputs, and errors are
-searchable in the **过程** scope, while reasoning text stays out of search.
+searchable in the **Process** scope, while reasoning text stays out of search.
 Each turn also stores the model that produced its answer when the agent
 records one. omp, pi, OpenCode, Alma, Cindy, Claude Code and Codex record it per turn; Cursor
 records only a session-level selection (`composerData.modelConfig.modelName`),
@@ -149,7 +149,7 @@ page shows the model next to the agent badge.
 
 ## Process
 
-When a turn has tool calls or reasoning, its transcript row shows a `过程`
+When a turn has tool calls or reasoning, its transcript row shows a `Process`
 disclosure. Opening it lazily loads that turn's events; each reasoning block and
 tool call is its own collapsed row, and tool inputs/outputs are displayed as
 plain text.
@@ -179,7 +179,7 @@ plain text.
 
 ## Handoff card
 
-Every session page has a `复制交接` button in the same sticky action bar. It copies a Markdown card meant to
+Every session page has a `Copy handoff` button in the same sticky action bar. It copies a Markdown card meant to
 be pasted into another agent or a scratchpad: project, agent, time range, resume
 command (or Alma deep link), the last few prompts, the last answer (truncated
 verbatim), files touched by tool calls, commands run, tool errors, and the
@@ -194,7 +194,7 @@ generated on demand from the local index; nothing is sent anywhere.
 
 ## Resume and cross-agent handoff
 
-Every session page has a `继续到` selector in the sticky action bar. It lists
+Every session page has a `Continue in` selector in the sticky action bar. It lists
 every supported agent and shows how to continue *this* session there:
 
 | Target | What the bar shows |
@@ -224,12 +224,13 @@ alma://thread/<thread-id>
 Cross-agent handoff cannot transfer a session id: session ids only mean
 something to their own agent. The bar therefore launches a **new** session in
 the target agent and the copied handoff card becomes its context. Alma and Cindy
-have no shell entry point, so their entries show a plain instruction (“新建会话
-并粘贴交接卡”) instead of a broken command.
+have no shell entry point, so their entries show a plain instruction (“start a new
+session and paste the handoff card”) instead of a broken command.
 
 `GET /api/session/<id>/handoff?targetAgent=<id>` (and the UI button) renders
-the card for the selected target, adding a `## 在 <Agent> 中继续` section with
-that agent's command or instruction. The session API returns the full
+the card for the selected target, adding a `## Continue in <Agent>` section with
+that agent's command or instruction (the generator currently emits this heading
+in Chinese). The session API returns the full
 `continuations` list, so the UI never guesses another agent's CLI.
 
 The app addresses its own pages the same way, with the `sessionrecall://` scheme
@@ -252,8 +253,9 @@ sessionrecall://session/<id>?turn=3&q=websocket
 - `turn` opens the session at that turn index and centres it in the viewport; a
   non-numeric or out-of-range value (or a stale index) opens the top instead.
 - `q` is the search that produced the link. The app highlights those terms in
-  the prompt, the answer and its code blocks, shows a 「来自搜索 “…” · 查看搜索结果」
-  strip above the action bar, and points 「返回搜索」 at those results — so a
+  the prompt, the answer and its code blocks, shows a “From the search … · View
+  search results” strip above the action bar, and points “Back to search” at
+  those results — so a
   cold start from a link does not land in a blank search page. Without `q` the
   link behaves exactly as before.
 
@@ -271,7 +273,7 @@ bun run brief --help                       # flags
 ```
 
 The app's sidebar footer carries the same two reports: pick a day in the
-calendar, choose **日报** or **周报**, then press **生成**. The report opens in
+calendar, choose **Daily** or **Weekly**, then press **Generate**. The report opens in
 the content pane (a weekly one links to `#/brief/2026-W46?format=week`) and is
 also offered as a `.md` download.
 
@@ -289,32 +291,42 @@ brief/
 
 - **standup** (default): YAML front-matter (`kind`, `date`, `projects`,
   `sessions`, `turns`, `agents`, `generated_at`), a one-line summary, then
-  `进展 / 决策 / 待续 / 明天第一件事 / 概览`. Raw prompts stay out of this view.
+  `Progress / Decisions / Open threads / First task tomorrow / Overview`. Raw
+  prompts stay out of this view.
 - **archive**: exactly the previous dump — per-project prompts, tool/reasoning
   counts, resume command and deep link — still written to the legacy
   `<date>.md` path.
 - **week**: front-matter with `kind: weekly`, `week`, `range`, `active_days`,
-  then `亮点 / 按项目 / 主题与决策 / 指标 / 风险 / 下周计划`. It aggregates
+  then `Highlights / By project / Themes and decisions / Metrics / Risks / Next week`.
+  It aggregates
   **from the DB by date range**, not by concatenating daily files, so days
   without a generated brief still count.
 
+Report templates exist in Chinese and English. The app writes the report in
+its interface language (`auto` follows the browser); the CLI's `--lang zh|en`
+overrides the stored preference; and the front matter records the choice as
+`lang:`. When nothing else decides it, the report is Chinese.
+
 Derivation is deterministic — no model calls:
 
-- **决策** only from explicit `<!-- decision: … -->` markers in assistant text.
-- **待续** from each session's last assistant message: unchecked `- [ ]` items
-  plus lines that, after stripping a list prefix, **start with** `待办` /
-  `下一步` / `TODO` — a passing mention mid-sentence is ignored. Code fences,
+- **Decisions** only from explicit `<!-- decision: … -->` markers in assistant text.
+- **Open threads** from each session's last assistant message: unchecked
+  `- [ ]` items plus lines that, after stripping a list prefix, **start with**
+  `TODO` or with the localized to-do / next-step markers the generator
+  recognizes (the exact marker list lives in `src/brief.ts`) — a passing mention
+  mid-sentence is ignored. Code fences,
   table rows and schema-like text (`description:`, `{`, `|`, backticks) are
   dropped so noise does not become a task.
-- **风险** from the same last answers, with the same guard: the cleaned line
-  must start with `风险` / `阻塞` / `未解决` (or the English equivalents), so
-  "…风险项留到最后…" is not counted as a blocker; weekly `完成 / 进行中`
-  classifies sessions by completion markers in the last answer.
+- **Risks** from the same last answers, with the same guard: the cleaned line
+  must start with the localized risk / blocked / unresolved markers (or the
+  English equivalents), so a passing mention of a risk inside a sentence is not
+  counted as a blocker; weekly completion / in-progress markers classify
+  sessions in the last answer.
 - A session spanning several days is counted **once**, on its last active day;
   `active_days` counts days with at least one session.
 - `brief/index.md` lists recent daily and weekly files, newest first.
 
-The rail's `生成简报` button generates the standup view for the chosen date; the
+The rail's `Generate` button creates the standup view for the chosen date; the
 download keeps the YAML front-matter.
 
 API: `POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week` (default
@@ -325,8 +337,8 @@ Invalid dates, weeks and formats are rejected with a 400.
 ## Search
 
 - Two scopes, chosen beside the search box:
-  - **问答** searches prompts and answers.
-  - **过程** searches tool inputs (`path`, `command`, …), tool outputs, and
+  - **Q&A** searches prompts and answers.
+  - **Process** searches tool inputs (`path`, `command`, …), tool outputs, and
     extracted error lines.
 - SQLite FTS5, over both scopes:
   - `trigram` for Chinese phrases and substring/code-identifier matching.
@@ -341,7 +353,7 @@ Invalid dates, weeks and formats are rejected with a 400.
   process disclosure; an answer hit scrolls to the answer rather than the start
   of the turn.
 - The first screen loads 200 matching rows. If that covers only part of the
-  sessions, the list footer offers `显示更多` instead of telling you to narrow
+  sessions, the list footer offers `Show more` instead of telling you to narrow
   the filters; the UI can raise the limit up to 5,000 rows.
 - Query syntax: bare terms, or `"an exact phrase"`; multi-term queries are ANDed.
 - API: `GET /api/search?q=…&scope=qa|process&agent=…&project=…&from=…&to=…&role=…`;
@@ -351,7 +363,7 @@ Invalid dates, weeks and formats are rejected with a 400.
 From a shell or an agent with shell access (no server required):
 
 ```bash
-bun run sr "目录范围" --limit 5
+bun run sr "directory scope" --limit 5
 bun run sr "websocket" --agent omp --json
 bun run sr "ENOENT" --scope process
 ```
@@ -460,10 +472,10 @@ bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304 # undo
 `forget` deletes the session's rows and FTS entries, rebuilds the indexes, and
 records the id in `forgotten_session`, so every later scan keeps skipping it.
 `unforget` clears that mark and the next scan indexes the session again. The
-same action is a 「忘记此会话」 button on the session page, with 「撤销」 in the
-status line. Generated briefs are plain Markdown copies and are never rewritten:
-both the CLI and the UI list the brief files that still mention the session so
-you can regenerate or delete them. The MCP server stays read-only — it has no
+same action is a “Forget this session” button on the session page, with “Undo”
+in the status line. Generated briefs are plain Markdown copies and are never
+rewritten: both the CLI and the UI list the brief files that still mention the
+session so you can regenerate or delete them. The MCP server stays read-only — it has no
 forget tool.
 
 ## Project layout

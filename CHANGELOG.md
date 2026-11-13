@@ -3,16 +3,27 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## Unreleased
+
+- Bilingual report templates: daily, weekly and archive reports follow the interface language, the CLI accepts `--lang zh|en`, the front matter records `lang:`, and to-do extraction also recognises `next step`.
+
 ## 1.3.1 — 2026-11-13
 
-- 修复会话页「复制交接」首次点击失败：会话打开时预取卡片，预取完成前按钮保持「准备中…」；慢路径提示「已就绪，请再点一次」，不再显示「复制失败」。
-- 修复日报/周报在线查看的 `format2 is not a function`：`renderBrief` 的参数不再遮蔽 `format` 辅助函数。
-- 明确「忘记此会话」只移除本地索引，不删除 Agent 原始存储；Web 与 CLI 文案同步。
-- 新增 web app 参数遮蔽与 handoff 状态机测试，测试数 152。
+- Fixed the first click on the session page's “Copy handoff” button failing:
+  the card is now prefetched when the session opens, the button stays at
+  “Preparing…” until the prefetch finishes, and the slow path says “Handoff
+  card ready — click again” instead of “Copy failed”.
+- Fixed `format2 is not a function` when viewing a daily or weekly report in
+  the app: `renderBrief`'s parameter no longer shadows the `format` helper.
+- Made it explicit that “Forget this session” only removes the local index
+  entry and does not delete the agent's original storage; the web and CLI copy
+  now match.
+- Added tests for web app parameter shadowing and the handoff state machine;
+  the suite is now 152 tests.
 
 ## 1.3.0 — 2026-11-13
 
-- UI language switch: 中文 / English, persisted in `prefs.json` alongside the theme; `auto` follows the browser language. All interface chrome is localized while session content stays verbatim.
+- UI language switch: Chinese / English, persisted in `prefs.json` alongside the theme; `auto` follows the browser language. All interface chrome is localized while session content stays verbatim.
 - Bilingual documentation: README plus USAGE, MCP, DESIGN, POSITIONING, PRODUCT and REPORTS, each with an English original and a `.zh-CN.md` counterpart and a language switch at the top.
 - The long-form docs moved to `doc/`; the repository root now keeps only the README pair, `CHANGELOG.md` and `LICENSE`.
 - Screenshots are generated in matching languages under `docs/screenshots/en/` and `docs/screenshots/zh/` from synthetic English and Chinese sessions; the README links each language to its own set.
@@ -20,7 +31,10 @@ release workflow builds the macOS app from the tag.
 
 ## 1.2.2 — 2026-11-13
 
-- 修复筛选栏的「清除筛选」按钮：选中 Agent、项目或时长后，按钮不再被滚动区域和滚动条裁切，改为固定在筛选列表下方并显示当前筛选数量。
+- Fixed the “Clear filters” button in the filter rail: after selecting an
+  agent, project or time range it is no longer clipped by the scroll area and
+  scrollbar; it is pinned below the filter list and shows the current filter
+  count.
 
 ## 1.2.1 — 2026-11-13
 
@@ -45,7 +59,7 @@ release workflow builds the macOS app from the tag.
   `[REDACTED:<kind>]` placeholders, so the index, FTS tables, MCP results and
   generated briefs all agree. Raising `REDACTION_VERSION` makes the next scan
   rewrite existing rows.
-- 「忘记会话」: `forget` / `unforget` via the CLI, `POST /api/session/:id/forget`
+- “Forget session”: `forget` / `unforget` via the CLI, `POST /api/session/:id/forget`
   and a button on the session page (with an undo in the status line). A
   forgotten id is dropped from the index and its FTS rows, then skipped by later
   scans; the command lists generated briefs that still mention it, because plain
@@ -54,16 +68,16 @@ release workflow builds the macOS app from the tag.
   theme re-renders, drawer `aria-expanded` with a focus trap, highlighted
   matches escaped after matching (searching `amp` no longer breaks entities),
   `resultLimit` reset when the query changes, agent dots coloured per agent.
-- Reports: a 日报 / 周报 switch in the sidebar footer with a self-drawn,
+- Reports: a Daily / Weekly switch in the sidebar footer with a self-drawn,
   theme-aware calendar; weekly reports open in-app at
   `#/brief/<week>?format=week`.
 - Deep links carry their search: `sessionrecall://session/<id>?turn=3&q=…` now
-  highlights the terms in prompts, answers and code blocks, adds a 「来自搜索」
-  strip, points 「返回搜索」 at those results, and centres the target turn. Links
-  without `q` behave as before.
+  highlights the terms in prompts, answers and code blocks, adds a “From the
+  search” strip, points “Back to search” at those results, and centres the
+  target turn. Links without `q` behave as before.
 - First paint and failed searches: the content pane shows a skeleton on the
   first search instead of staying blank, and a failed request keeps the results
-  on screen with a `role="alert"` error bar and a 重试 button.
+  on screen with a `role="alert"` error bar and a Retry button.
 - Type scale consolidated onto the seven sizes DESIGN.md defines, and `--faint`
   adjusted so 10.5px labels pass WCAG AA in both themes.
 

@@ -1,6 +1,6 @@
 # CLI usage
 
-[English](USAGE.md) | [简体中文](USAGE.zh-CN.md)
+[English](USAGE.md) | [Chinese](USAGE.zh-CN.md)
 
 Search the local session index from a shell, a script, or an agent with shell
 access. No server is required — the CLI opens the same `index.db` the UI uses.
@@ -54,8 +54,8 @@ query "websocket" · 50 hit(s) in 3 session(s) · 14.6 ms · scope: qa · mode: 
 
 1. cindy:a3764542-066a-4e16-9a64-ce173d1b9325  [cindy]  2026-11-11
    ~/projects/example
-   · Q  看一下 websocket 重连的实现
-     A  读完了 `/Users/you/projects/example/README.md`，重连逻辑在 `src/socket.ts`…
+   · Q  Where is the websocket reconnect implemented?
+     A  Read `/Users/you/projects/example/README.md`; the reconnect logic is in `src/socket.ts`…
 ```
 
 - One block per session; sessions sort by last activity (newest first), matching
@@ -91,9 +91,9 @@ query "websocket" · 50 hit(s) in 3 session(s) · 14.6 ms · scope: qa · mode: 
           "ts": 1794383882500,
           "date": "2026-11-11",
           "matchField": "assistant",
-          "snippet": "已加上。编辑器现在把文档开头的 `---…---` 收成一个独立的 `FrontMatter` 块…",
-          "question": "Re \"要不要给编辑器加 front-matter 解析支持…\": 加",
-          "answer": "已加上。编辑器现在把文档开头的 `---…---` …",
+          "snippet": "Done. The editor now collapses the document's leading `---…---` into a separate `FrontMatter` block…",
+          "question": "Re \"should we add front-matter parsing support to the editor…\": yes",
+          "answer": "Done. The editor now collapses the document's leading `---…---` …",
           "tool": "",
           "status": ""
         }
@@ -123,8 +123,8 @@ Per result: `sessionId`, `agent`, `project`, `date`, `updatedAt` (epoch ms),
 ## Recipes
 
 ```bash
-# newest places a Chinese phrase shows up
-bun run sr "目录范围" --limit 5
+# newest places a phrase shows up
+bun run sr "directory scope" --limit 5
 
 # only search one agent, as JSON, then keep just session ids
 bun run sr "websocket" --agent omp --json | jq -r '.results[].sessionId'
@@ -155,6 +155,18 @@ it never scans, mutates the index, or touches an agent's own store. (`forget` /
 `unforget`, below, are the only commands that write, so do not hand those to an
 agent you would not trust with the index.)
 
+## Reports
+
+`brief` writes the daily standup, the legacy archive dump or a weekly rollup:
+
+```bash
+bun run src/cli.ts brief [YYYY-MM-DD] [--format standup|archive|week] [--week YYYY-Www] [--lang zh|en]
+```
+
+`--lang` picks the Chinese or English template, and the front matter records it
+as `lang:`. Without it the CLI uses the stored language preference; `auto` means
+Chinese.
+
 ## Forgetting a session
 
 Removing a session from the index does not touch the original transcript:
@@ -173,13 +185,16 @@ progress.
 
 Generated briefs are plain Markdown and are never rewritten, so `forget` lists
 the files that still mention the session — regenerate or delete them yourself.
-In the app the same action is a 「忘记此会话」 button on the session page, with
-「撤销」 offered in the status line.
+In the app the same action is a “Forget this session” button on the session
+page, with “Undo” offered in the status line.
 
 ## Notes and limits
 
 - **Read-only search.** `search` only calls `searchTurns` from `src/search.ts`;
   it never scans, writes the index, or opens an agent's store for writing.
+- **Chinese content.** Chinese prompts, answers and queries are indexed and
+  searchable like any other text; the examples in this doc are English for
+  readability.
 - **Short / CJK queries.** A query under three characters (e.g. a two-character
   Chinese word) falls back to indexed `LIKE` with the same filters; `mode`
   reports `like`.

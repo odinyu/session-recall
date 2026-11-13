@@ -27,11 +27,14 @@
 
 应用达到同样的视图：左侧栏 footer 的 日报 / 周报 开关加日历，选择一天并就地生成。周报在 `#/brief/<week>?format=week` 打开，下载链接是 `/api/brief/file?format=week&week=<week>`。
 
+报告模板有中文和英文两套，按界面语言生成，front matter 的 `lang:` 记录实际使用的语言；`brief --lang zh|en` 可以覆盖，都没有指定时用中文。`brief/index.md` 的分组标题固定为 `Daily` 和 `Weekly`。
+
 ## 日报（`--format standup`）
 
 ```markdown
 ---
 kind: daily
+lang: zh
 date: 2026-03-12
 projects: 3
 sessions: 5
@@ -40,7 +43,7 @@ agents: [cursor, omp, pi, claude-code]
 generated_at: 2026-03-12T19:30:00+08:00
 ---
 
-# 日报 · 2026-03-12 周四
+# 日报 · 2026年3月12日 周四
 
 **一句话**：给 demo-app 加上离线缓存，修好 api-service 的分页边界。
 
@@ -80,6 +83,7 @@ generated_at: 2026-03-12T19:30:00+08:00
 ```markdown
 ---
 kind: weekly
+lang: zh
 week: 2026-W11
 range: 2026-03-09..2026-03-15
 active_days: 4

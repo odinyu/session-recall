@@ -1,6 +1,6 @@
 # Design
 
-[English](DESIGN.md) | [简体中文](DESIGN.zh-CN.md)
+[English](DESIGN.md) | [Chinese](DESIGN.zh-CN.md)
 
 ## Direction
 
@@ -57,10 +57,11 @@ instead of adding another.
 ## Components
 
 - Agent badge: 8px dot + mono name, colored by agent.
-- Report controls: a 日报 / 周报 segmented control above the date row in the rail
-  footer. In 周报 the date button shows the ISO week range the chosen day falls
-  in (`11/09–11/15`) and 生成 writes `<app dir>/brief/weekly/<week>.md`; the
-  generated report opens in-app at `#/brief/<week>?format=week`.
+- Report controls: a Daily / Weekly segmented control above the date row in the
+  rail footer. In Weekly the date button shows the ISO week range the chosen day
+  falls in (`11/09–11/15`) and Generate writes
+  `<app dir>/brief/weekly/<week>.md`; the generated report is written in the
+  interface language and opens in-app at `#/brief/<week>?format=week`.
 - Date picker: a self-drawn calendar popover rather than `<input type="date">`,
   whose popup belongs to the OS/browser and cannot follow the theme. Monday-first
   (matching ISO weeks), 42 cells, today outlined, selection filled with the
@@ -68,18 +69,18 @@ instead of adding another.
   week's ends, Enter picks, Escape closes and returns focus to the button.
 - Theme switch: a three-state segmented control (Auto / Light / Dark) in the
   rail footer.
-- Language switch: a two-state segmented control (中文 / EN) next to the theme
+- Language switch: a two-state segmented control (Chinese / EN) next to the theme
   switch; Auto follows the browser language, and the choice persists server-side
   in `<app dir>/prefs.json`. Auto follows the system; the choice persists server-side in
   `<app dir>/prefs.json`, so it survives the port changing between launches
   (`localStorage` is only a first-paint cache for the current origin).
 - Segmented control: 1px border, 2px inner padding, active fill `--surface-3`.
-- Search scope: a two-state segmented control next to the query (`问答` / `过程`);
+- Search scope: a two-state segmented control next to the query (`Q&A` / `Process`);
   process mode hides the role filter and relabels each hit with its match field,
   tool name, and status (`bash · error`).
 - Results sort by session last activity, newest first; within a session, newest
   matching turn first. When the loaded row window covers only part of the
-  sessions, the footer offers `显示更多` rather than hiding the remainder.
+  sessions, the footer offers `Show more` rather than hiding the remainder.
 - A result hit that matched an answer scrolls to the answer block, not merely
   the top of its turn; the matched block gets an accent label.
 - Project filter: a custom combobox — a `role="combobox"` trigger button plus a
@@ -89,10 +90,10 @@ instead of adding another.
 - Back to top: a floating button pinned to the bottom-right of the content
   column, shown once the page is scrolled past ~400px. Sessions open on a
   matched turn, so this is the way back up.
-- Hit: 12px radius hover surface; mono `提问` / `回答` labels; 2-line answer
-  clamp. The `回答` label carries the agent name and, when the index recorded
-  one, the model that produced the answer in faint small text.
-- Process disclosure: one hairline `过程 N 项` toggle per turn, opened lazily;
+- Hit: 12px radius hover surface; mono `Question` / `Answer` labels; 2-line
+  answer clamp. The `Answer` label carries the agent name and, when the index
+  recorded one, the model that produced the answer in faint small text.
+- Process disclosure: one hairline `Process N items` toggle per turn, opened lazily;
   inside, one full-width hairline card per reasoning block or tool call.
   Reasoning and tool rows start collapsed; inputs and outputs use mono `pre`.
   A process-search hit deep-links to its event sequence, opens that row, outlines
@@ -105,8 +106,8 @@ instead of adding another.
   shown only when the agent has a local resume command (omp, pi, OpenCode, Claude Code, Codex).
 - Handoff button: a small mono button beside the resume row; it is disabled
   while the card is prefetched, then copies the Markdown card on click.
-- Daily brief: a date input plus `生成简报` in the rail footer; success becomes
-  `在线查看` (rendered in the content column) and `下载 .md`.
+- Daily brief: a date input plus `Generate` in the rail footer; success becomes
+  `View online` (rendered in the content column) and `Download .md`.
 - Empty state: dashed hairline box, direct recovery copy.
 - Focus: 2px accent outline, offset 2px.
 - Scrollbars: thin, palette-tinted, 2px transparent border.
@@ -120,6 +121,6 @@ breathe while a query runs. All transitions respect `prefers-reduced-motion`.
 
 - Empty index: tells the owner to run `bun run scan`.
 - No results: suggests shorter terms, the role toggle, and clearing filters.
-- Loading: skeleton lines; the query status reads `搜索中…`.
+- Loading: skeleton lines; the query status reads `Searching…`.
 - Error: names the failure and offers retry.
 - Truncated transcript: says the index cut the text.

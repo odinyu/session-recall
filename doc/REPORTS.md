@@ -1,6 +1,6 @@
 # Reports: daily and weekly
 
-[English](REPORTS.md) | [简体中文](REPORTS.zh-CN.md)
+[English](REPORTS.md) | [Chinese](REPORTS.zh-CN.md)
 
 How `brief` should turn a day or week of agent sessions into something a person
 can read in 30 seconds (daily) or one page (weekly).
@@ -33,16 +33,22 @@ One dataset, three views, selected with `--format`:
 | `archive` | the current full dump; forensics | unbounded |
 | `week` | weekly rollup | one page |
 
-The app reaches the same views: the rail footer's 日报 / 周报 switch plus the
-calendar pick a day and generate it in place. A weekly report opens at
+The app reaches the same views: the rail footer's Daily / Weekly switch plus
+the calendar pick a day and generate it in place. A weekly report opens at
 `#/brief/<week>?format=week`, and its download link is
 `/api/brief/file?format=week&week=<week>`.
+
+The template language follows the interface (Chinese or English), and the
+front matter records it as `lang:`; `brief --lang zh|en` overrides the stored
+preference, and when nothing decides it the report is Chinese. `brief/index.md` uses
+language-neutral `## Daily` and `## Weekly` group headings.
 
 ## Daily (`--format standup`)
 
 ```markdown
 ---
 kind: daily
+lang: en
 date: 2026-03-12
 projects: 3
 sessions: 5
@@ -51,47 +57,48 @@ agents: [cursor, omp, pi, claude-code]
 generated_at: 2026-03-12T19:30:00+08:00
 ---
 
-# 日报 · 2026-03-12 周四
+# Daily · Thu, Mar 12, 2026
 
-**一句话**：给 demo-app 加上离线缓存，修好 api-service 的分页边界。
+**One line**: add offline caching to demo-app and fix the paging boundary in api-service.
 
-## 进展
+## Progress
 **demo-app**
-- 离线缓存接入 IndexedDB，断网回放通过
-- 缓存失效策略补了单元测试
+- Offline cache wired into IndexedDB; offline replay passes
+- Added unit tests for the cache invalidation strategy
 
 **api-service**
-- 修复 `page=0` 被当成第一页的边界错误；已提交
+- Fixed the `page=0` boundary bug that treated it as the first page; committed
 
 **web-client**
-- 搜索结果空态补了骨架屏
+- Added a skeleton screen to the empty search state
 
-## 决策
-- 缓存只保留最近 7 天；更早的数据回源，避免无限增长
+## Decisions
+- Keep only the last 7 days of cache; older data is fetched from the source, so it cannot grow without bound
 
-## 待续
-- [ ] demo-app 缓存清理的定时任务
-- [ ] api-service 分页游标迁移
+## Open threads
+- [ ] Scheduled cache-cleanup job for demo-app
+- [ ] Pagination cursor migration for api-service
 
-## 明天第一件事
-补缓存清理定时任务
+## First task tomorrow
+Add the scheduled cache-cleanup job
 
-## 概览
-| 项目 | 会话 | 问答 | Agent |
+## Overview
+| Project | Sessions | Turns | Agent |
 | --- | ---: | ---: | --- |
-| demo-app | 2 | 9 | omp、pi |
+| demo-app | 2 | 9 | omp, pi |
 | api-service | 2 | 8 | claude-code |
 | web-client | 1 | 5 | cursor |
 ```
 
-Deliberately four movable parts: **进展 / 决策 / 待续 / 明天第一件事**. The raw
-prompt list is not here; it belongs to `archive`.
+Deliberately four movable parts: **Progress / Decisions / Open threads / First
+task tomorrow**. The raw prompt list is not here; it belongs to `archive`.
 
 ## Weekly (`--format week`, `--week 2026-W11`)
 
 ```markdown
 ---
 kind: weekly
+lang: en
 week: 2026-W11
 range: 2026-03-09..2026-03-15
 active_days: 4
@@ -101,46 +108,46 @@ turns: 96
 agents: [cursor, omp, pi, alma, opencode, claude-code]
 ---
 
-# 周报 · 2026-W11（03-09 ~ 03-15）
+# Weekly · 2026-W11 · 03/09–03/15
 
-**本周一句话**：把 demo-app 的离线能力从原型推进到可回放，api-service 的分页问题收尾。
+**Week in one line**: took demo-app's offline support from prototype to replayable, and wrapped up the paging issue in api-service.
 
-## 亮点
-- demo-app 离线缓存与断网回放测试落地
-- api-service 分页边界修复并补了回归用例
+## Highlights
+- demo-app offline cache and offline-replay tests landed
+- api-service paging boundary fixed, with regression cases added
 
-## 按项目
+## By project
 **demo-app**
-- 完成：缓存读写、失效策略、回放测试
-- 进行中：多端同步冲突处理
-- 下周：缓存压测
+- Done: cache reads and writes, invalidation strategy, replay tests
+- In progress: multi-device sync conflict handling
+- Next week: cache load testing
 
 **api-service**
-- 完成：分页边界修复
-- 下周：游标分页迁移
+- Done: paging boundary fix
+- Next week: cursor-based pagination migration
 
 **web-client**
-- 完成：搜索空态与错误态
-- 进行中：长列表虚拟滚动
+- Done: search empty and error states
+- In progress: long-list virtual scrolling
 
-## 主题与决策
-- 优先保证离线可用，再评估同步冲突的自动合并策略
+## Themes and decisions
+- Prioritise offline availability first, then evaluate automatic merge of sync conflicts
 
-## 指标
-| 日期 | 会话 | 问答 | 活跃项目 |
+## Metrics
+| Date | Sessions | Turns | Active projects |
 | --- | ---: | ---: | ---: |
 | 03-09 | 3 | 18 | 2 |
 | 03-10 | 5 | 27 | 3 |
 | 03-11 | 4 | 22 | 2 |
 | 03-12 | 5 | 29 | 3 |
 
-（可选一行活跃度 sparkline：`▁▃█▅`）
+(optional one-line activity sparkline: `▁▃█▅`)
 
-## 风险 / 阻塞
-- 离线缓存与多端同步的冲突策略还没定
+## Risks
+- The conflict strategy between the offline cache and multi-device sync is still undecided
 
-## 下周计划
-- [ ] 补缓存冲突的端到端测试
+## Next week
+- [ ] End-to-end tests for cache conflicts
 ```
 
 ## Metrics
@@ -156,13 +163,16 @@ belong in `archive`, not the weekly.
   activity day; in the weekly it is grouped by its project.
 - `active_days` = days with at least one session.
 
-## Deriving 决策 / 待续 (the hard part)
+## Deriving Decisions / Open threads (the hard part)
 
 Model judgement of "was this a decision?" is noisy. Start deterministic:
 
-- **待续**: collect unchecked `- [ ]` items and lines containing
-  待办 / 下一步 / TODO from each session's **last assistant message**, dedupe.
-- **决策**: collect lines marked `<!-- decision: … -->` (explicit), else omit.
+- **Open threads**: collect unchecked `- [ ]` items and lines containing
+  `TODO` or one of the localized to-do / next-step markers the generator
+  recognizes (see `src/brief.ts`) from each session's **last assistant
+  message**; dedupe.
+- **Decisions**: collect lines marked `<!-- decision: … -->` (explicit), else
+  omit.
 - Allow the user to edit the generated file; never re-derive on read.
 
 Do not ship an LLM summarizer as the default. `--summarize` is opt-in and must

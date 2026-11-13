@@ -49,7 +49,7 @@
 ## 组件
 
 - Agent 徽标：8px 圆点 + 等宽名称，按 agent 着色。
-- 报告控件：左侧栏 footer 里日期行上方的 日报 / 周报 分段控件。周报模式下日期按钮显示所选日期所在的 ISO 周范围（`11/09–11/15`），生成写到 `<app dir>/brief/weekly/<week>.md`；生成的报告在应用内打开 `#/brief/<week>?format=week`。
+- 报告控件：左侧栏 footer 里日期行上方的 日报 / 周报 分段控件。周报模式下日期按钮显示所选日期所在的 ISO 周范围（`11/09–11/15`），生成写到 `<app dir>/brief/weekly/<week>.md`；生成的报告按界面语言生成，并在应用内打开 `#/brief/<week>?format=week`。
 - 日期选择器：自绘日历 popover，而不是 `<input type="date">`，后者的弹层属于 OS/浏览器，无法跟随主题。周一开始（匹配 ISO 周），42 格，今天描边，选中填充 accent，箭头切月，PageUp/PageDown 跳月，Home/End 到周首尾，Enter 选择，Escape 关闭并把焦点还给按钮。
 - 主题切换：左侧栏 footer 里的三态分段控件（Auto / Light / Dark）。
 - 语言切换：主题切换旁的两态分段控件（中文 / EN）；Auto 跟随浏览器语言，选择保存在服务端 `<app dir>/prefs.json`。Auto 跟随系统；选择保存在服务端 `<app dir>/prefs.json`，所以换端口重启后仍然保留（`localStorage` 只是当前 origin 的首屏缓存）。

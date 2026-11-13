@@ -1,6 +1,6 @@
 # Product
 
-[English](PRODUCT.md) | [简体中文](PRODUCT.zh-CN.md)
+[English](PRODUCT.md) | [Chinese](PRODUCT.zh-CN.md)
 
 <!-- impeccable:product-schema 1 -->
 
@@ -38,9 +38,9 @@ A recall tool, not an agent dashboard or usage meter. It persists a turn-level f
 
 - Adapters: omp, pi, OpenCode (v1 and v2 tables), Cursor (transcripts + composer/bubble KV), Alma, Cindy, Claude Code, Codex.
 - Search across prompts, answers and process events (tool calls, commands, errors), with agent, project, date, scope, and role filters.
-- Session view pairs each prompt with the answer that followed it; the 过程 disclosure opens the tool/reasoning trail.
+- Session view pairs each prompt with the answer that followed it; the Process disclosure opens the tool/reasoning trail.
 - Read-only: agent databases are opened read-only; the index lives under `~/Library/Application Support/session-recall`.
-- Write-time redaction of secrets and PII, plus 「忘记会话」 (`forget` / `unforget`) to drop a session from the index without touching its transcript.
+- Write-time redaction of secrets and PII, plus “Forget session” (`forget` / `unforget`) to drop a session from the index without touching its transcript.
 - Agent-accessible recall: the `sr` CLI and a read-only stdio MCP server.
 - Daily standup and ISO-week reports, in the sidebar and via `bun run brief`.
 - WorkBuddy exposes local session metadata only; transcripts are cloud-side. Deferred with an explicit "no local transcript" state.

@@ -137,6 +137,16 @@ bun run sr "$@" --json --limit 5
 
 因为 `search` 只读且离线，交给 agent 是安全的：它从不扫描、不修改索引，也不碰 agent 自己的存储。（下面的 `forget` / `unforget` 是唯一会写入的命令，不要交给你不信任其修改索引的 agent。）
 
+## 报告
+
+`brief` 生成日报 standup、旧的 archive dump 或周报：
+
+```bash
+bun run src/cli.ts brief [YYYY-MM-DD] [--format standup|archive|week] [--week YYYY-Www] [--lang zh|en]
+```
+
+`--lang` 选择中文或英文模板，front matter 的 `lang:` 记录实际使用的语言。不带这个参数时用保存的语言偏好；`auto` 表示中文。
+
 ## 忘记会话
 
 从索引移除会话不会改动原始 transcript：

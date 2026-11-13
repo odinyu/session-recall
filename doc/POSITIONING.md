@@ -1,6 +1,6 @@
 # Positioning & Roadmap
 
-[English](POSITIONING.md) | [简体中文](POSITIONING.zh-CN.md)
+[English](POSITIONING.md) | [Chinese](POSITIONING.zh-CN.md)
 
 ## One line
 
