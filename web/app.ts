@@ -2068,8 +2068,9 @@ function bindAgentCombobox(): void {
   });
 
   // The keyboard lives on the popup, not on each row: one handler covers both
-  // the trigger and the rows inside it.
-  popup.addEventListener("keydown", onAgentKeydown);
+  // the trigger and the rows inside it. The capture phase makes sure a Tab is
+  // trapped before the browser moves focus anywhere.
+  popup.addEventListener("keydown", onAgentKeydown, true);
 
   // A removable chip clears one agent without opening the popup.
   chips?.addEventListener("click", (event) => {
@@ -2080,9 +2081,12 @@ function bindAgentCombobox(): void {
     toggleAgent(button.dataset.agentRemove as AgentId);
   });
 
+  // Focus leaving the combobox closes the popup — but not when Tab is cycling
+  // inside it, which the keydown handler traps.
   combo.addEventListener("focusout", (event) => {
     const next = (event as FocusEvent).relatedTarget;
     if (next instanceof Node && combo.contains(next)) return;
+    if (agentOpen && agentTrapFocus) return;
     closeAgentPopup();
   });
 
