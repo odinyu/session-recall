@@ -1,21 +1,22 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { HOME } from "../config.ts";
+import { CINDY_DIR, HOME } from "../config.ts";
 import { capText } from "../db.ts";
 import { capEventText, EVENT_CAPS, jsonText } from "../util/events.ts";
-import { filesInChildDirs } from "../util/fs.ts";
+import { filesInChildDirs, walkFiles } from "../util/fs.ts";
 import {
   cleanTitle,
   firstLine,
   objectValue,
   readArray,
   readString,
+  titlePrompt,
 } from "../util/values.ts";
 import type { Adapter, ParsedEvent, ParsedSession, ParsedTurn, SessionRef } from "./types.ts";
 
 const OMP_AGENT = join(HOME, ".omp", "agent");
 
-function sessionRoots(): string[] {
+function ompSessionRoots(): string[] {
   const roots = [join(OMP_AGENT, "sessions")];
   const profiles = join(HOME, ".omp", "profiles");
   if (existsSync(profiles)) {
@@ -29,6 +30,19 @@ function sessionRoots(): string[] {
   return roots;
 }
 
+/**
+ * Official pi writes flat JSONL files. Cindy gives each worker its own agent
+ * home, so the same layout appears under `CindyGlobal/pi-agent-home`; a direct
+ * CLI install keeps them under `~/.pi/agent/sessions`.
+ */
+function piSessionRoots(): string[] {
+  return [
+    join(CINDY_DIR, "pi-agent-home", "sessions"),
+    join(CINDY_DIR, "pi-package-home", "sessions"),
+    join(HOME, ".pi", "agent", "sessions"),
+  ];
+}
+
 function textOfContent(content: unknown[]): string {
   const parts: string[] = [];
   for (const part of content) {
@@ -40,22 +54,35 @@ function textOfContent(content: unknown[]): string {
   return parts.join("\n");
 }
 
-export function ompAdapter(): Adapter {
+export interface PiFamilyOptions {
+  id: "omp" | "pi";
+  label: string;
+  roots: string[];
+  version?: number;
+  /** pi stores session files directly in the root; omp nests them by project. */
+  flat?: boolean;
+}
+
+/** omp and official pi share the same JSONL transcript format. */
+export function piFamilyAdapter(options: PiFamilyOptions): Adapter {
   return {
-    id: "omp",
-    label: "omp",
-    version: 5,
+    id: options.id,
+    label: options.label,
+    version: options.version ?? 1,
 
     async list(): Promise<SessionRef[]> {
       const refs: SessionRef[] = [];
       const seen = new Set<string>();
-      for (const root of sessionRoots()) {
-        for (const file of filesInChildDirs(root)) {
+      for (const root of options.roots) {
+        const files = options.flat
+          ? walkFiles(root, (name) => name.endsWith(".jsonl"))
+          : filesInChildDirs(root);
+        for (const file of files) {
           const externalId = file.path.split("/").pop()!.replace(/\.jsonl$/, "");
           if (seen.has(externalId)) continue;
           seen.add(externalId);
           refs.push({
-            agent: "omp",
+            agent: options.id,
             externalId,
             fingerprint: `${file.size}:${file.mtimeMs}`,
             sourcePath: file.path,
@@ -226,10 +253,10 @@ export function ompAdapter(): Adapter {
       });
 
       return {
-        agent: "omp",
+        agent: options.id,
         externalId: ref.externalId,
         projectPath,
-        title: cleanTitle(title, firstLine(capped[0].userText)),
+        title: cleanTitle(title, firstLine(titlePrompt(capped))),
         startedAt,
         updatedAt,
         sourceKind: "jsonl",
@@ -240,4 +267,23 @@ export function ompAdapter(): Adapter {
       };
     },
   };
+}
+
+export function ompAdapter(): Adapter {
+  return piFamilyAdapter({
+    id: "omp",
+    label: "omp",
+    roots: ompSessionRoots(),
+    version: 7,
+  });
+}
+
+export function piAdapter(roots: string[] = piSessionRoots()): Adapter {
+  return piFamilyAdapter({
+    id: "pi",
+    label: "pi",
+    roots,
+    version: 2,
+    flat: true,
+  });
 }

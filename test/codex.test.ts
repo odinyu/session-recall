@@ -178,3 +178,57 @@ test("reaches the search index through scan", async () => {
     db.close();
   }
 });
+
+test("lists Cindy's active and archived roots together", async () => {
+  const archived = join(root, "codex-home", "archived_sessions");
+  mkdirSync(archived, { recursive: true });
+  const archivedRollout = join(
+    archived,
+    "rollout-2026-11-12T03-03-23-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl",
+  );
+  writeFileSync(archivedRollout, "");
+
+  const refs = await codexAdapter([sessions, archived]).list();
+  expect(refs.map((ref) => ref.sourcePath)).toContain(archivedRollout);
+
+  const duplicate = join(
+    archived,
+    "rollout-2026-11-11T02-00-00-11111111-2222-3333-4444-555555555555.jsonl",
+  );
+  writeFileSync(duplicate, "");
+  const deduped = await codexAdapter([sessions, archived]).list();
+  const ids = deduped.map((ref) => ref.externalId);
+  expect(ids.filter((id) => id === "rollout-2026-11-11T02-00-00-11111111-2222-3333-4444-555555555555")).toHaveLength(1);
+});
+
+test("skips environment_context when choosing a title", async () => {
+  const dir = join(root, "env-titles");
+  mkdirSync(dir, { recursive: true });
+  const file = join(
+    dir,
+    "rollout-2026-11-13T02-00-00-99999999-2222-3333-4444-555555555555.jsonl",
+  );
+  writeFileSync(
+    file,
+    [
+      line("2026-11-13T02:00:00.000Z", "session_meta", {
+        id: "99999999-2222-3333-4444-555555555555",
+        cwd: "/Users/test/env",
+      }),
+      line("2026-11-13T02:00:01.000Z", "response_item", {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "<environment_context>\nworkdir" }],
+      }),
+      line("2026-11-13T02:00:02.000Z", "response_item", {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "真正的第一个问题" }],
+      }),
+    ].join("\n") + "\n",
+  );
+
+  const adapter = codexAdapter(dir);
+  const session = await adapter.load((await adapter.list())[0]!);
+  expect(session!.title).toBe("真正的第一个问题");
+});

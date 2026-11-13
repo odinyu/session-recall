@@ -3,6 +3,7 @@ import { renderMarkdown } from "./markdown.ts";
 
 type AgentId =
   | "omp"
+  | "pi"
   | "opencode"
   | "cursor"
   | "alma"
@@ -140,6 +141,7 @@ interface UiState {
 
 const AGENT_LABEL: Record<AgentId, string> = {
   omp: "omp",
+  pi: "pi",
   opencode: "OpenCode",
   cursor: "Cursor",
   alma: "Alma",
@@ -152,6 +154,7 @@ const AGENTS: AgentId[] = [
   "cursor",
   "opencode",
   "omp",
+  "pi",
   "claude-code",
   "codex",
   "alma",

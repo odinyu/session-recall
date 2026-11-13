@@ -7,9 +7,9 @@ A local, read-only full-text index over the coding-agent sessions on this Mac.
 Search a half-remembered Chinese phrase or a code identifier and get back the
 question, the answer, the agent, the project, and the date.
 
-Built for the sessions that pile up across **omp**, **OpenCode**, **Cursor**,
-**Alma**, **Cindy**, **Claude Code**, and **Codex**. It never writes to an
-agent's own storage.
+Built for the sessions that pile up across **omp**, **pi**, **OpenCode**,
+**Cursor**, **Alma**, **Cindy**, **Claude Code**, and **Codex**. It never writes
+to an agent's own storage.
 
 ## Quick start
 
@@ -125,12 +125,13 @@ which is how a failing run behind a conversation gets found.
 | Agent | Source | Extract |
 |---|---|---|
 | omp | `~/.omp/agent/sessions/<cwd>/*.jsonl` (plus profile roots) | user/assistant text messages; titles |
+| pi | `~/Library/Application Support/CindyGlobal/pi-agent-home/sessions/*.jsonl`, `.../pi-package-home/sessions/*.jsonl`, and `~/.pi/agent/sessions/*.jsonl` | official pi shares omp's JSONL format: turns, thinking and tool calls become text + process events |
 | OpenCode | `~/.local/share/opencode/opencode.db` | `session_v2` + `session_message` (falls back to the v1 `session`/`message`/`part` tables) |
 | Cursor | `~/.cursor/projects/*/agent-transcripts/**/*.jsonl` and `state.vscdb` (`composerData` + `bubbleId`) | transcripts first, KV for chats without a transcript; project path from `workspaceIdentifier` |
 | Alma | `~/Library/Application Support/alma/chat_threads.db` | `chat_threads` + `chat_messages` (message JSON `parts`); project path from `workspaces.path`; threads marked `is_incognito` are never listed |
-| Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` (newest match wins) | `sessions` + `messages`: user rows are JSON `{text}`, assistant rows plain text, `thinking`/`tool_use`/`ask_user` rows become process events; project path from `working_dir`; `rewind_at` and messages before `cleared_at` are excluded |
+| Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` (newest match wins) | `sessions` + `messages`: user rows are JSON `{text}` or an Orca task `{orcaSource, content}`, assistant rows plain text, `thinking`/`tool_use`/`ask_user` rows become process events; project path from `working_dir`; `rewind_at` and messages before `cleared_at` are excluded |
 | Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | `user`/`assistant` records with Anthropic content blocks: text, `thinking` and `tool_use` become turns + process events, `tool_result` user records attach to their call; title from `ai-title`; project path from `cwd`; `isSidechain` subagent records are skipped |
-| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | `session_meta` + `turn_context` for cwd/model; `response_item` messages, `function_call`/`*_output` and `reasoning` become turns + process events; `event_msg` message echoes are ignored unless a rollout has no `response_item` messages |
+| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, plus Cindy's `CindyGlobal/codex-home/sessions` and `.../archived_sessions` | `session_meta` + `turn_context` for cwd/model; `response_item` messages, `function_call`/`*_output` and `reasoning` become turns + process events; `event_msg` message echoes are ignored unless a rollout has no `response_item` messages |
 
 The index unit is a **turn**: one user prompt plus the assistant text that
 followed it before the next prompt. Tool calls and reasoning traces are stored
@@ -202,13 +203,14 @@ every supported agent and shows how to continue *this* session there:
 cd '/path/to/project' && omp --resume <session-uuid>
 cd '/path/to/project' && opencode --session <session-id>
 cd '/path/to/project' && claude --resume <session-id>
+cd '/path/to/project' && pi --session <session-uuid>
 cd '/path/to/project' && codex resume <session-uuid>
 cd '/path/to/project' && omp            # cross-agent: new session
 cursor '/path/to/project'               # cross-agent: open the project
 ```
 
-The path is shell-quoted; the omp uuid is the suffix after the timestamp in the
-stored session filename, and for Codex it is the trailing uuid of the rollout
+The path is shell-quoted; the omp/pi uuid is the suffix after the timestamp in
+the stored session filename, and for Codex it is the trailing uuid of the rollout
 file (Codex's `resume` syntax is version-dependent and unverified on this
 machine). Alma's equivalent is the deep link that opens the thread in the Alma app:
 

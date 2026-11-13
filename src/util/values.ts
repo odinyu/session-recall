@@ -46,6 +46,20 @@ export function firstLine(text: string, max = 120): string {
   return (line ?? "").slice(0, max);
 }
 
+/**
+ * Cindy and Orca prepend instructions before the user's actual prompt. They are
+ * still transcript turns, but a title built from them is useless.
+ */
+const INJECTED_PROMPT =
+  /^(?:<environment_context>|<cindy-extra-writable-directories>|\[UI language\]|\[系统\]\s*Orca Worker)/i;
+
+/** The first prompt worth showing as a title, or the first one if none is. */
+export function titlePrompt(turns: { userText: string }[]): string {
+  const real = turns.find((turn) => !INJECTED_PROMPT.test(turn.userText.trimStart()));
+  const text = real?.userText ?? turns[0]?.userText ?? "";
+  return text.replace(/^\[From Orca Lead\]\s*/i, "");
+}
+
 export function collapse(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }

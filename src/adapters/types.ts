@@ -1,5 +1,6 @@
 export type AgentId =
   | "omp"
+  | "pi"
   | "opencode"
   | "cursor"
   | "alma"
@@ -10,6 +11,7 @@ export type AgentId =
 /** Every id in the `AgentId` union, for validation and help text. */
 export const AGENT_IDS = [
   "omp",
+  "pi",
   "opencode",
   "cursor",
   "alma",
@@ -21,6 +23,7 @@ export const AGENT_IDS = [
 /** Human-facing names, shared by the brief, handoff card and MCP tools. */
 export const AGENT_LABELS: Record<AgentId, string> = {
   omp: "omp",
+  pi: "pi",
   opencode: "OpenCode",
   cursor: "Cursor",
   alma: "Alma",

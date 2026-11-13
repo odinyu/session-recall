@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { CODEX_DIR } from "../config.ts";
+import { CINDY_DIR, CODEX_DIR } from "../config.ts";
 import { capText } from "../db.ts";
 import { capEventText, EVENT_CAPS, jsonText } from "../util/events.ts";
 import { walkFiles } from "../util/fs.ts";
@@ -9,6 +9,7 @@ import {
   objectValue,
   readArray,
   readString,
+  titlePrompt,
 } from "../util/values.ts";
 import type {
   Adapter,
@@ -42,6 +43,20 @@ import type {
 
 const SESSIONS_DIR = join(CODEX_DIR, "sessions");
 const ROLLOUT = /^rollout-.*\.jsonl$/;
+
+/**
+ * Cindy runs Codex with its own home, and moves finished rollouts into
+ * `archived_sessions`. Both live outside `~/.codex`, so a default install of
+ * the desktop app would otherwise index no Codex session at all.
+ */
+function defaultSessionRoots(): string[] {
+  const cindyHome = join(CINDY_DIR, "codex-home");
+  return [
+    SESSIONS_DIR,
+    join(cindyHome, "sessions"),
+    join(cindyHome, "archived_sessions"),
+  ];
+}
 
 function contentText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -78,19 +93,32 @@ interface FallbackMessage {
   text: string;
 }
 
-export function codexAdapter(sessionsDir: string = SESSIONS_DIR): Adapter {
+export function codexAdapter(
+  sessionRoots: string | string[] = defaultSessionRoots(),
+): Adapter {
+  const roots = Array.isArray(sessionRoots) ? sessionRoots : [sessionRoots];
   return {
     id: "codex",
     label: "Codex",
-    version: 1,
+    version: 3,
 
     async list(): Promise<SessionRef[]> {
-      return walkFiles(sessionsDir, (name) => ROLLOUT.test(name)).map((file) => ({
-        agent: "codex",
-        externalId: file.path.split("/").pop()!.replace(/\.jsonl$/, ""),
-        fingerprint: `${file.size}:${file.mtimeMs}`,
-        sourcePath: file.path,
-      }));
+      const refs: SessionRef[] = [];
+      const seen = new Set<string>();
+      for (const root of roots) {
+        for (const file of walkFiles(root, (name) => ROLLOUT.test(name))) {
+          const externalId = file.path.split("/").pop()!.replace(/\.jsonl$/, "");
+          if (seen.has(externalId)) continue;
+          seen.add(externalId);
+          refs.push({
+            agent: "codex",
+            externalId,
+            fingerprint: `${file.size}:${file.mtimeMs}`,
+            sourcePath: file.path,
+          });
+        }
+      }
+      return refs;
     },
 
     async load(ref: SessionRef): Promise<ParsedSession | null> {
@@ -282,7 +310,7 @@ export function codexAdapter(sessionsDir: string = SESSIONS_DIR): Adapter {
         agent: "codex",
         externalId: ref.externalId,
         projectPath,
-        title: cleanTitle("", firstLine(capped[0]?.userText ?? "")),
+        title: cleanTitle("", firstLine(titlePrompt(capped))),
         startedAt: started,
         updatedAt: updated,
         sourceKind: "jsonl",

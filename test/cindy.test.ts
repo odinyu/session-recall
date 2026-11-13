@@ -62,6 +62,15 @@ function createFixture(): Fixture {
   session.run("visible", "New CCS", "/Users/test/project", "test-model", null, 1000, 5000);
   session.run("cleared", "Cleared", "/Users/test/cleared", "test-model", 3000, 1000, 5000);
   session.run("rewound", "Rewound", "/Users/test/rewound", "test-model", null, 1000, 5000);
+  session.run(
+    "orca",
+    "Worker · developer · test",
+    "/Users/test/worktree",
+    "test-model",
+    null,
+    1000,
+    2000,
+  );
 
   const message = db.query(
     `INSERT INTO messages(id, client_id, session_id, role, content, created_at, rewind_at)
@@ -114,6 +123,16 @@ function createFixture(): Fixture {
   add("r1", "rewound", "user", { text: "被撤回的问题" }, 1000, 2000);
   add("r2", "rewound", "assistant", "被撤回的回答", 1100, 2000);
 
+  // Orca workers get their task from the lead, not a typed prompt.
+  add(
+    "o1",
+    "orca",
+    "user",
+    { orcaSource: "lead", content: "任务：修深链上下文" },
+    1000,
+  );
+  add("o2", "orca", "assistant", "开始处理", 1100);
+
   return { path, db };
 }
 
@@ -126,6 +145,7 @@ test("lists every session and exposes a fingerprint over visible messages", asyn
   const refs = await refsFor(fixture.path);
   expect(refs.map((ref) => ref.externalId).sort()).toEqual([
     "cleared",
+    "orca",
     "visible",
   ]);
   expect(refs.every((ref) => ref.agent === "cindy")).toBe(true);
@@ -197,6 +217,20 @@ test("filters rewound messages and everything before cleared_at", async () => {
   fixture.db.close();
 });
 
+test("reads an Orca lead message as the worker's prompt", async () => {
+  const fixture = createFixture();
+  const ref = (await refsFor(fixture.path)).find((entry) => entry.externalId === "orca");
+  const session = await cindyAdapter(fixture.path).load(ref!);
+
+  expect(session).not.toBeNull();
+  expect(session!.turns).toHaveLength(1);
+  expect(session!.turns[0]!.userText).toBe("任务：修深链上下文");
+  expect(session!.turns[0]!.assistantText).toBe("开始处理");
+  expect(session!.title).toBe("Worker · developer · test");
+
+  fixture.db.close();
+});
+
 test("fingerprint changes when a session gains a message", async () => {
   const fixture = createFixture();
   const first = (await refsFor(fixture.path)).find(
@@ -223,8 +257,8 @@ test("Cindy sessions reach the search index without hidden rows", async () => {
   const db = openDb(join(dir, "index.db"));
   const report = await scan(db, [cindyAdapter(fixture.path)]);
 
-  expect(report.agents.cindy?.refs).toBe(2);
-  expect(report.sessions).toBe(2);
+  expect(report.agents.cindy?.refs).toBe(3);
+  expect(report.sessions).toBe(3);
 
   const params = {
     q: "",

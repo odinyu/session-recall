@@ -3,6 +3,18 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## Unreleased
+
+- Codex sessions now come from Cindy's own home too: the adapter scans
+  `CindyGlobal/codex-home/sessions` and `archived_sessions` alongside
+  `~/.codex/sessions`, so work done by Cindy-launched Codex workers is indexed.
+- New `pi` adapter for official pi sessions under Cindy's `pi-agent-home`,
+  `pi-package-home`, and a direct `~/.pi/agent/sessions`. It shares omp's JSONL
+  parser, gets its own agent filter, title, and `pi --session <uuid>` resume.
+- Cindy's adapter reads Orca lead messages (`{orcaSource, content}`) as prompts,
+  so worker sessions whose only user turns came from the lead are no longer
+  dropped; titles also skip injected environment/language/ready prompts.
+
 ## 1.2.0 — 2026-11-12
 
 - MIT license, continuous integration, and a tagged macOS release workflow that

@@ -23,6 +23,13 @@ export function resumeCommand(
   if (agent === "claude-code") {
     return `${cwd}claude --resume ${externalId}`;
   }
+  if (agent === "pi") {
+    // pi filenames are `<timestamp>_<uuid>.jsonl`; resume by the uuid.
+    const uuid = externalId.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    )?.[0];
+    return `${cwd}pi --session ${uuid ?? externalId}`;
+  }
   if (agent === "codex") {
     // Rollout files end in the session uuid; older ones may be named by id.
     const uuid = externalId.match(
@@ -46,6 +53,7 @@ export function almaDeepLink(externalId: string): string {
 /** How a *new* session starts in an agent that has a command-line entry point. */
 const LAUNCH: Partial<Record<AgentId, string>> = {
   omp: "omp",
+  pi: "pi",
   opencode: "opencode",
   "claude-code": "claude",
   codex: "codex",

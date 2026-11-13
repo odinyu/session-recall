@@ -9,6 +9,7 @@ import {
   objectValue,
   parseJson,
   readString,
+  titlePrompt,
 } from "../util/values.ts";
 import type {
   Adapter,
@@ -81,8 +82,16 @@ function jsonTextOf(content: string, key: string): string {
   return readString(parsed, key) || readString(parsed, "text");
 }
 
+/**
+ * Normal user rows carry `text`. Orca worker rows carry the lead's task as
+ * `{"orcaSource":"lead","content":"..."}`, so read that as the prompt too;
+ * otherwise a worker whose only prompts came from Orca parses to zero turns
+ * and is dropped from the index.
+ */
 function userText(content: string): string {
-  return jsonTextOf(content, "text");
+  const parsed = objectValue(parseJson(content));
+  if (!parsed) return content;
+  return readString(parsed, "text") || readString(parsed, "content");
 }
 
 function toolEvent(
@@ -264,7 +273,7 @@ export function cindyAdapter(dbPath: string = cindyDbPath()): Adapter {
   return {
     id: "cindy",
     label: "Cindy",
-    version: 1,
+    version: 3,
 
     async list(): Promise<SessionRef[]> {
       const opened = open();
@@ -323,7 +332,7 @@ export function cindyAdapter(dbPath: string = cindyDbPath()): Adapter {
         projectPath: session.working_dir ?? "",
         title: cleanTitle(
           isPlaceholderTitle(session.title) ? "" : session.title,
-          firstLine(capped[0]?.userText ?? ""),
+          firstLine(titlePrompt(capped)),
         ),
         startedAt,
         updatedAt: updatedAt || parsed.lastMessageTs || startedAt,

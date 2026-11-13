@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import { ompAdapter } from "./adapters/omp.ts";
+import { ompAdapter, piAdapter } from "./adapters/omp.ts";
 import { openCodeAdapter } from "./adapters/opencode.ts";
 import { cursorAdapter } from "./adapters/cursor.ts";
 import { almaAdapter } from "./adapters/alma.ts";
@@ -55,6 +55,7 @@ export async function scan(
   db: Database,
   adapters: Adapter[] = [
     ompAdapter(),
+    piAdapter(),
     openCodeAdapter(),
     cursorAdapter(),
     almaAdapter(),
