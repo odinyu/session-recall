@@ -129,16 +129,16 @@ Every download link is a direct GitHub Releases URL with the version in the path
 release means editing them by hand. Find them all with:
 
 ```sh
-grep -rn "1\.3\.0" site/index.html site/zh/index.html
+grep -rn "1\.3\.1" site/index.html site/zh/index.html
 ```
 
 Per page the version appears in **three** places: the hero buttons, the final call to action,
 and the JSON-LD `downloadUrl`. Also bump the visible version in the header/footer meta lines
-(`v1.3.0 · macOS 11+ · 26.7 MB · MIT`) and in the FAQ answer that quotes the two build sizes.
+(`v1.3.1 · macOS 11+ · 26.7 MB · MIT`) and in the FAQ answer that quotes the two build sizes.
 
 ```
-https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip
-https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-intel.zip
+https://github.com/odinyu/session-recall/releases/download/v1.3.1/session-recall_1.3.1_macos-arm64.zip
+https://github.com/odinyu/session-recall/releases/download/v1.3.1/session-recall_1.3.1_macos-intel.zip
 ```
 
 Each zip has a matching `.sha256` asset beside it on the release.
