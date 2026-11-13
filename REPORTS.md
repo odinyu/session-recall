@@ -41,90 +41,104 @@ calendar pick a day and generate it in place. A weekly report opens at
 ```markdown
 ---
 kind: daily
-date: 2026-11-11
-projects: 6
-sessions: 8
-turns: 36
-agents: [cindy, omp, alma, opencode]
-generated_at: 2026-11-11T19:30:00+08:00
+date: 2026-03-12
+projects: 3
+sessions: 5
+turns: 22
+agents: [cursor, omp, pi, claude-code]
+generated_at: 2026-03-12T19:30:00+08:00
 ---
 
-# 日报 · 2026-11-11 周二
+# 日报 · 2026-03-12 周四
 
-**一句话**：给 session-recall 加了 MCP server 与跨进程扫描锁，修好 demo-app 的 front-matter 高亮。
+**一句话**：给 demo-app 加上离线缓存，修好 api-service 的分页边界。
 
 ## 进展
-**session-recall**
-- 新增 stdio MCP server（5 工具）+ 扫描锁；测试 59→80
-- CLI `search`/`sr` 与 USAGE.md 已提交推送
-
 **demo-app**
-- 修 front-matter 被当成 setext 标题；已提交推送
+- 离线缓存接入 IndexedDB，断网回放通过
+- 缓存失效策略补了单元测试
+
+**api-service**
+- 修复 `page=0` 被当成第一页的边界错误；已提交
+
+**web-client**
+- 搜索结果空态补了骨架屏
 
 ## 决策
-- App 与 MCP 共用同一 index.db：App 长驻写、MCP 只读，扫描靠文件锁互斥
+- 缓存只保留最近 7 天；更早的数据回源，避免无限增长
 
 ## 待续
-- [ ] 深链 `?turn` 定位（web + Rust 路由）
-- [ ] Claude Code / Codex 适配器
+- [ ] demo-app 缓存清理的定时任务
+- [ ] api-service 分页游标迁移
 
 ## 明天第一件事
-补深链 turn 定位
+补缓存清理定时任务
 
 ## 概览
 | 项目 | 会话 | 问答 | Agent |
 | --- | ---: | ---: | --- |
-| session-recall | 2 | 11 | omp、Alma |
+| demo-app | 2 | 9 | omp、pi |
+| api-service | 2 | 8 | claude-code |
+| web-client | 1 | 5 | cursor |
 ```
 
 Deliberately four movable parts: **进展 / 决策 / 待续 / 明天第一件事**. The raw
 prompt list is not here; it belongs to `archive`.
 
-## Weekly (`--format week`, `--week 2026-W46`)
+## Weekly (`--format week`, `--week 2026-W11`)
 
 ```markdown
 ---
 kind: weekly
-week: 2026-W46
-range: 2026-11-09..2026-11-15
+week: 2026-W11
+range: 2026-03-09..2026-03-15
 active_days: 4
-projects: 8
-sessions: 23
-turns: 210
-agents: [cindy, omp, pi, alma, opencode, cursor]
+projects: 4
+sessions: 17
+turns: 96
+agents: [cursor, omp, pi, alma, opencode, claude-code]
 ---
 
-# 周报 · 2026-W46（11-09 ~ 11-15）
+# 周报 · 2026-W11（03-09 ~ 03-15）
 
-**本周一句话**：把 session-recall 从「跨 agent 检索」推进到「agent 可直接调用的记忆层」。
+**本周一句话**：把 demo-app 的离线能力从原型推进到可回放，api-service 的分页问题收尾。
 
 ## 亮点
-- MCP server + 扫描锁落地，App/CLI/MCP 可并发
-- 新增 Claude Code / Codex 两个数据源
+- demo-app 离线缓存与断网回放测试落地
+- api-service 分页边界修复并补了回归用例
 
 ## 按项目
-**session-recall**
-- 完成：MCP、跨进程锁、CLI、文档
-- 进行中：深链 turn 定位、跨 agent 接力
-- 下周：语义检索评估
+**demo-app**
+- 完成：缓存读写、失效策略、回放测试
+- 进行中：多端同步冲突处理
+- 下周：缓存压测
+
+**api-service**
+- 完成：分页边界修复
+- 下周：游标分页迁移
+
+**web-client**
+- 完成：搜索空态与错误态
+- 进行中：长列表虚拟滚动
 
 ## 主题与决策
-- 定位收敛为「本地、跨 agent 的记忆层」；详见 POSITIONING.md
+- 优先保证离线可用，再评估同步冲突的自动合并策略
 
 ## 指标
 | 日期 | 会话 | 问答 | 活跃项目 |
 | --- | ---: | ---: | ---: |
-| 11-09 | 3 | 28 | 2 |
-| 11-10 | 6 | 41 | 4 |
-| 11-11 | 8 | 36 | 6 |
+| 03-09 | 3 | 18 | 2 |
+| 03-10 | 5 | 27 | 3 |
+| 03-11 | 4 | 22 | 2 |
+| 03-12 | 5 | 29 | 3 |
 
 （可选一行活跃度 sparkline：`▁▃█▅`）
 
 ## 风险 / 阻塞
-- 适配器随 agent 格式变化会漂移
+- 离线缓存与多端同步的冲突策略还没定
 
 ## 下周计划
-- [ ] 补 `?turn` 深链定位
+- [ ] 补缓存冲突的端到端测试
 ```
 
 ## Metrics
@@ -156,9 +170,9 @@ keep the deterministic draft recoverable.
 
 ```
 brief                          # today, --format standup
-brief 2026-11-11               # a day
+brief 2026-03-12               # a day
 brief --format archive        # the full dump (today's behaviour)
-brief --week 2026-W46         # weekly rollup
+brief --week 2026-W11         # weekly rollup
 brief --summarize             # optional: polish the draft, keep the original
 ```
 
@@ -166,8 +180,8 @@ brief --summarize             # optional: polish the draft, keep the original
 
 ```
 brief/
-  daily/2026-11-11.md
-  weekly/2026-W46.md
+  daily/2026-03-12.md
+  weekly/2026-W11.md
   index.md            # last N daily + weekly entries
 ```
 

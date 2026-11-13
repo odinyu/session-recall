@@ -3,7 +3,7 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
-## Unreleased
+## 1.2.1 — 2026-11-13
 
 - Codex sessions now come from Cindy's own home too: the adapter scans
   `CindyGlobal/codex-home/sessions` and `archived_sessions` alongside
