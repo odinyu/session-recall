@@ -889,9 +889,13 @@ export function verifyScreenshotDb(dbPath: string): {
   }
 }
 
+const USAGE =
+  "usage: bun run test/fixtures/screenshot-data.ts [--verify] [--lang zh|en] <db-path>";
+
+/** Accepts `--lang zh` and `--lang=zh`; anything else is a usage error. */
 function parseLang(value: string | undefined): Lang {
   if (value === "zh" || value === "en") return value;
-  console.error("--lang expects zh or en");
+  console.error(`invalid --lang value: ${value ?? ""} (expected zh or en)`);
   process.exit(2);
 }
 
@@ -906,13 +910,20 @@ if (import.meta.main) {
     else if (arg === "--lang") {
       lang = parseLang(argv[i + 1]);
       i += 1;
+    } else if (arg.startsWith("--lang=")) lang = parseLang(arg.slice("--lang=".length));
+    else if (arg === "-h" || arg === "--help") {
+      console.log(USAGE);
+      process.exit(0);
+    } else if (arg.startsWith("-")) {
+      // Never let an unknown flag become the db path: "bun run fixture --lang=en"
+      // would otherwise silently write an index into a file named "--lang=en".
+      console.error(`unknown option: ${arg}\n${USAGE}`);
+      process.exit(2);
     } else positional.push(arg);
   }
   const dbPath = positional[0];
   if (!dbPath) {
-    console.error(
-      "usage: bun run test/fixtures/screenshot-data.ts [--verify] [--lang zh|en] <db-path>",
-    );
+    console.error(USAGE);
     process.exit(2);
   }
   if (verify) {
