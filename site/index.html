@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Session Recall — full-text search across your coding agents' sessions</title>
-<meta name="description" content="Session Recall is a local, read-only full-text index over the sessions your coding agents ran on this Mac. Search eight agents at once, land on the exact turn, and hand it back to your agent. Free, MIT, no account.">
+<title>Session Recall — search every coding agent session on your Mac</title>
+<meta name="description" content="One local index for all eight coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Read-only, no account, MIT.">
 
 <link rel="canonical" href="https://070801.top/">
 <link rel="alternate" hreflang="en" href="https://070801.top/">
@@ -15,18 +15,18 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Session Recall">
 <meta property="og:title" content="Session Recall — find that session again.">
-<meta property="og:description" content="A local, read-only full-text index over eight coding agents' sessions on your Mac. No account, no sync, nothing leaves the machine.">
+<meta property="og:description" content="Eight coding agents, one local index. Search the half-remembered phrase, open the exact turn, and hand the work back to your agent. Nothing leaves your Mac.">
 <meta property="og:url" content="https://070801.top/">
 <meta property="og:image" content="https://070801.top/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Session Recall — Find that session again.">
+<meta property="og:image:alt" content="Session Recall — Find that session again. A local, read-only index over eight coding agents' sessions on your Mac.">
 <meta property="og:locale" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Session Recall — find that session again.">
-<meta name="twitter:description" content="A local, read-only full-text index over eight coding agents' sessions on your Mac. No account, no sync, nothing leaves the machine.">
+<meta name="twitter:description" content="Eight coding agents, one local index. Search the half-remembered phrase, open the exact turn, and hand the work back to your agent. Nothing leaves your Mac.">
 <meta name="twitter:image" content="https://070801.top/assets/og.png">
 
 <meta name="theme-color" content="#f2f3ef" media="(prefers-color-scheme: light)">
@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=5"></script>
-<link rel="stylesheet" href="/assets/site.css?v=5">
+<script src="/assets/theme-init.js?v=8"></script>
+<link rel="stylesheet" href="/assets/site.css?v=8">
 
 <script type="application/ld+json">
 {
@@ -47,7 +47,7 @@
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS 11 or later",
   "softwareVersion": "1.3.1",
-  "description": "A local, read-only full-text index over the sessions your coding agents ran on this Mac. Search eight agents at once, land on the exact turn, and hand it back to your agent.",
+  "description": "One local index for all eight coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it.",
   "license": "https://opensource.org/licenses/MIT",
   "codeRepository": "https://github.com/odinyu/session-recall",
   "downloadUrl": "https://github.com/odinyu/session-recall/releases/download/v1.3.1/session-recall_1.3.1_macos-arm64.zip",
@@ -74,10 +74,10 @@
     <nav class="nav" aria-label="Sections">
       <a href="#how">How it works</a>
       <a href="#screenshots">Screenshots</a>
+      <a href="#workflow">Beyond search</a>
       <a href="#install">Install</a>
       <a href="#mcp">For agents</a>
       <a href="#faq">Questions</a>
-      <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">GitHub</a>
     </nav>
 
     <div class="hdr__right">
@@ -97,7 +97,7 @@
         <svg class="ti-dark" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.4 9.7A5.9 5.9 0 0 1 6.3 2.6a5.9 5.9 0 1 0 7.1 7.1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
       </button>
 
-      <a class="hdr__gh" href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener" aria-label="Session Recall on GitHub">
+      <a class="hdr__gh" href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener" aria-label="Session Recall on GitHub" title="Session Recall on GitHub">
         <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
       </a>
       <a class="btn btn--primary btn--sm hdr__dl" href="#install" aria-label="Download">
@@ -118,9 +118,9 @@
       <h1>Find that <span class="hl">session</span> again.</h1>
 
       <p class="hero__lede">
-        Session Recall keeps one local full-text index of every coding-agent session on your Mac.
-        Eight agents, one search box. Find the turn you half-remember, open it exactly, and hand it
-        back to your agent.
+        Eight coding agents, one local index. Type the few words you still remember and Session
+        Recall opens the exact turn, resume command attached, ready to hand back to your agent.
+        The answer was never lost. It has been on this Mac the whole time.
       </p>
 
       <div class="hero__cta">
@@ -155,14 +155,14 @@
       </figure>
       <p class="figcap">
         <b>Actual app UI over a synthetic index of demo sessions.</b>
-        The query “reconnect backoff” returns 2 sessions and 5 turns in 1.2 ms; every matched term is
-        highlighted. The sidebar carries the agents, the project filter and the date range.
+        The query “reconnect backoff” returns 2 sessions and 5 turns in 1.2 ms, every matched term
+        highlighted. The sidebar holds the agents, the project filter and the date range.
       </p>
     </div>
   </section>
 
   <!-- ===================== Agents ===================== -->
-  <section class="agents" id="how" aria-labelledby="agents-label">
+  <section class="agents" aria-labelledby="agents-label">
     <div class="wrap">
       <p class="eyebrow" id="agents-label">Indexes sessions from</p>
       <ul class="agents__grid">
@@ -181,12 +181,14 @@
   <!-- ===================== How it works ===================== -->
   <section class="section" aria-labelledby="how-h">
     <div class="wrap">
+      <span class="anchor" id="how" aria-hidden="true"></span>
       <p class="eyebrow">How it works</p>
       <h2 class="h2" id="how-h">One index for eight agents.</h2>
       <p class="lede">
-        Each session is stored as turns — the question you asked and the answer you got — plus, in a
-        second scope, the process events around them. All of it lives in a single SQLite file you can
-        move, back up or delete: <code>~/Library/Application Support/session-recall/index.db</code>.
+        The unit is the turn: the question you asked and the answer you got. Tool calls, shell
+        commands and errors get a second scope of their own. Both land in one SQLite file you own,
+        <code>~/Library/Application Support/session-recall/index.db</code>, that you can move, back
+        up or delete.
       </p>
 
       <div class="features">
@@ -196,9 +198,10 @@
           </div>
           <h3>Search the words you remember.</h3>
           <p>
-            Full text over prompts and answers, backed by SQLite FTS5 with a trigram tokenizer for
-            Chinese phrases, substrings and code identifiers, falling back to porter for English.
-            Wrap an exact phrase in quotes; multiple terms are AND-ed.
+            Three half-remembered words are usually enough. Full text over prompts and answers,
+            built on SQLite FTS5: a trigram tokenizer so Chinese phrases, substrings and code
+            identifiers all match, and porter for English. Put an exact phrase in quotes; several
+            terms must all match.
           </p>
         </article>
 
@@ -208,9 +211,9 @@
           </div>
           <h3>Search the run, not just the reply.</h3>
           <p>
-            Switch to the process scope and search tool calls, shell commands, stdout and stderr, and
-            the error lines extracted from them. Reasoning is excluded, so results stay about what
-            actually happened.
+            Sometimes the answer is not what you need; the failure is. The process scope searches
+            tool calls, shell commands, stdout and stderr, and the error lines pulled out of them.
+            Reasoning is excluded, so results stay about what actually ran.
           </p>
         </article>
 
@@ -220,9 +223,9 @@
           </div>
           <h3>Land on the exact turn.</h3>
           <p>
-            Every result deep-links to <code>sessionrecall://session/&lt;id&gt;?turn=N</code> with your
-            terms highlighted. The session page carries the exact resume command and a copyable
-            Markdown handoff card.
+            Open a result and you are exactly where you were, terms still highlighted. Each hit
+            deep-links to <code>sessionrecall://session/&lt;id&gt;?turn=N</code>, and the session page
+            carries the resume command and a copyable handoff card.
           </p>
         </article>
 
@@ -232,8 +235,9 @@
           </div>
           <h3>Read-only by design.</h3>
           <p>
-            The index is a separate SQLite file. Agent stores are opened read-only and never written
-            to, and sessions never leave the Mac — there is no sync and no account.
+            Your agent history is not a database to be edited. Agent stores are opened read-only and
+            never written to, and the index is a separate file you can throw away. No sync, no
+            account, nothing leaving the Mac.
           </p>
         </article>
       </div>
@@ -243,12 +247,13 @@
   </section>
 
   <!-- ===================== Screenshots ===================== -->
-  <section class="section" id="screenshots" aria-labelledby="shots-h">
+  <section class="section" aria-labelledby="shots-h">
     <div class="wrap">
+      <span class="anchor" id="screenshots" aria-hidden="true"></span>
       <p class="eyebrow">Screenshots</p>
       <h2 class="h2" id="shots-h">Built for a half-remembered query.</h2>
       <p class="lede">
-        Two views of the same index: opening a session at the turn you found, and searching the
+        Two views of the same index. One opens a session at the turn you found. The other searches
         process output around a failure. Both run over a synthetic index of demo sessions.
       </p>
 
@@ -266,9 +271,9 @@
                  alt="The Session Recall session detail view in dark theme, opened at turn 02 with the matched answer highlighted. A bar above the transcript reads CONTINUE IN Claude Code, followed by the resume command, a Copy button and a Copy handoff button.">
           </div>
           <figcaption class="figcap">
-            <b>Session detail.</b> The bar above the transcript holds the <b>Continue in</b> command —
-            here <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code> — next to
-            <b>Copy</b> and <b>Copy handoff</b>, so the next prompt starts from the session you found.
+            <b>Session detail.</b> The bar above the transcript carries the resume command, here
+            <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>, next to
+            <b>Copy handoff</b>. The next prompt starts from the session you found.
           </figcaption>
         </figure>
 
@@ -285,9 +290,9 @@
                  alt="The Session Recall process search view in dark theme. A search for timeout returns three sessions and three process rows in 0.7 ms, each showing an extracted error line from a failing test with the matched word highlighted.">
           </div>
           <figcaption class="figcap">
-            <b>Process search.</b> A search for <code>timeout</code> against tool calls, commands and
-            error output — 3 sessions, 3 process rows, 0.7 ms. Each row names the agent, the project
-            and the date.
+            <b>Process search.</b> Searching <code>timeout</code> across tool calls, commands and
+            error output returns 3 sessions in 3 process rows, 0.7 ms. Each row names the agent, the
+            project and the date.
           </figcaption>
         </figure>
       </div>
@@ -295,26 +300,27 @@
   </section>
 
   <!-- ===================== Beyond search ===================== -->
-  <section class="section" id="workflow" aria-labelledby="workflow-h">
+  <section class="section" aria-labelledby="workflow-h">
     <div class="wrap">
+      <span class="anchor" id="workflow" aria-hidden="true"></span>
       <p class="eyebrow">Beyond search</p>
       <h2 class="h2" id="workflow-h">Search is only the start.</h2>
       <p class="lede">
-        Finding a session is half the job. The other half is carrying the work forward — into
-        another agent, into tomorrow's standup — and pruning what should not stay searchable.
+        Finding the session is half the job. The rest is carrying it forward: into another agent,
+        into tomorrow's standup, and out of the index once it should not be searched again.
       </p>
 
       <div class="workflows">
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">01</p>
-          <h3>Hand off a session.</h3>
+          <h3>Pick the work back up.</h3>
           <p class="workflow__text">
-            Every session page builds a handoff card: project, agent, time range, the resume command,
-            the last few prompts, the last answer quoted verbatim (truncated), files touched by tool calls,
-            commands run, tool errors, and the current Git branch when the project is a worktree.
-            Paste it into a scratchpad or hand it to another agent; a cross-agent handoff opens a new
-            session there with the card as its context, because a session id only means something to
-            its own agent. It is built on demand from the local index, so nothing is uploaded.
+            The handoff card collects what a fresh session needs: the project, the resume command,
+            the last few prompts, the last answer verbatim, the files tool calls touched, the
+            commands that ran, the errors they hit, and the Git branch when the project is a
+            worktree. Paste it into a scratchpad or into another agent and the work carries on
+            instead of starting over. Cross-agent handoff opens a new session there with the card as
+            its context, because a session id only means something to its own agent.
           </p>
           <div class="workflow__key">
             <p><span class="chip">Copy handoff</span></p>
@@ -323,30 +329,30 @@
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">02</p>
-          <h3>Daily and weekly briefs.</h3>
+          <h3>Your day, written down.</h3>
           <p class="workflow__text">
-            A standup for the day and a rollup for the week, both derived from the index with no
-            model calls. Read either report in the app, or download the Markdown. The generated
-            file's section headings are Chinese:
+            A standup for the day and a rollup for the week, read straight out of the index. No
+            model call and no summary service: the same sessions always produce the same report.
+            Read it in the app, or download the Markdown. The list below is what an English
+            interface writes; a Chinese interface produces the same report with Chinese headings:
           </p>
           <div class="workflow__key">
-            <p><span class="k">standup</span> <code><span>进展</span> · <span>决策</span> · <span>待续</span> · <span>明天第一件事</span> · <span>概览</span></code></p>
-            <p><span class="k">weekly</span> <code><span>亮点</span> · <span>按项目</span> · <span>主题与决策</span> · <span>指标</span> · <span>风险</span> · <span>下周计划</span></code></p>
+            <p><span class="k">standup</span> <code><span>Progress</span> · <span>Decisions</span> · <span>Open threads</span> · <span>First task tomorrow</span> · <span>Overview</span></code></p>
+            <p><span class="k">weekly</span> <code><span>Highlights</span> · <span>By project</span> · <span>Themes and decisions</span> · <span>Metrics</span> · <span>Risks</span> · <span>Next week</span></code></p>
             <p><span class="chip">bun run brief --week 2026-W46</span></p>
           </div>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">03</p>
-          <h3>Forget a session.</h3>
+          <h3>Un-index a session.</h3>
           <p class="workflow__text">
-            Taking a session out of the index is not the same as deleting it. The
-            <b>Forget this session</b> button drops it from the local index and records the id so
-            later scans skip it, leaving the original transcript in the agent's own storage
+            <b>Forget this session</b> removes it from the local index and remembers the id, so no
+            later scan puts it back. The original transcript, in the agent's own storage, is
             untouched. <b>Undo</b> clears the mark and the next scan indexes it again. This is not
-            secure erasure — the index rows and full-text entries go, the source files stay — and
-            generated briefs are plain Markdown copies that are never rewritten, so the app lists
-            the ones that still mention the session for you to regenerate or delete.
+            secure erasure: the index rows and full-text entries go, the source file stays.
+            Generated briefs are plain Markdown that is never rewritten, so the app lists the ones
+            still naming that session, for you to regenerate or delete.
           </p>
           <div class="workflow__key">
             <p><span class="chip">Forget this session</span></p>
@@ -358,9 +364,10 @@
   </section>
 
   <!-- ===================== Install ===================== -->
-  <section class="section" id="install" aria-labelledby="install-h">
+  <section class="section" aria-labelledby="install-h">
     <div class="wrap">
       <div class="panel">
+        <span class="anchor" id="install" aria-hidden="true"></span>
         <p class="eyebrow">Install</p>
         <h2 class="h2" id="install-h">Two minutes to your first search.</h2>
 
@@ -370,8 +377,8 @@
             <div>
               <h3>Download, unzip, drag to Applications.</h3>
               <p>
-                Take the Apple silicon build or the Intel build — both are the same app. The packaged
-                app is about 67 MB and ships its own runtime, so nothing else needs installing first.
+                The Apple silicon and Intel builds are the same app. The download is about 67 MB and
+                carries its own runtime, so there is nothing to install first.
               </p>
             </div>
           </li>
@@ -381,9 +388,9 @@
             <div>
               <h3>Clear the quarantine flag.</h3>
               <p>
-                Session Recall is ad-hoc signed but not notarized, because notarization needs a paid
-                Apple Developer account. macOS therefore stops the first launch and claims the app is
-                damaged. Run this once per copy and it opens normally from then on:
+                Session Recall is ad-hoc signed, not notarized: notarization needs a paid Apple
+                Developer account. So macOS blocks the first launch and says the app is damaged. Run
+                this once per copy and it opens normally afterwards:
               </p>
 
               <div class="term">
@@ -405,15 +412,15 @@ bun run mcp</code></pre>
               <h3>Open it and search.</h3>
               <p>
                 The app scans agent storage on boot and refreshes the index every 90 seconds while it
-                is open. Type the words you remember — quote an exact phrase if you have one.
+                is open. Type the words you remember. Quote them if you want the exact phrase.
               </p>
             </div>
           </li>
         </ol>
 
         <p class="note">
-          macOS 11 or later. The packaged app includes its own runtime; Bun 1.3+ is only needed for
-          the CLI, the MCP server, or building from source.<br>
+          macOS 11 or later. The app carries its own runtime; Bun 1.3+ is only needed for the CLI,
+          the MCP server, or a build from source.<br>
           Index: ~/Library/Application Support/session-recall/index.db
         </p>
       </div>
@@ -421,14 +428,16 @@ bun run mcp</code></pre>
   </section>
 
   <!-- ===================== MCP ===================== -->
-  <section class="section section--tight" id="mcp" aria-labelledby="mcp-h">
+  <section class="section section--tight" aria-labelledby="mcp-h">
     <div class="wrap band">
       <div>
+        <span class="anchor" id="mcp" aria-hidden="true"></span>
         <p class="eyebrow">For agents</p>
         <h2 class="h2" id="mcp-h">Your agent can search it too.</h2>
         <p class="lede">
-          <code>bun run mcp</code> serves the same index to any MCP client over stdio — no port, no
-          network. Point your client at the absolute path:
+          <code>bun run mcp</code> serves the same index to any MCP client over stdio: no port, no
+          network, no second copy of your history to keep in step. Point your client at the
+          absolute path:
         </p>
         <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
           MCP server docs
@@ -453,8 +462,9 @@ bun run mcp</code></pre>
   </section>
 
   <!-- ===================== FAQ ===================== -->
-  <section class="section" id="faq" aria-labelledby="faq-h">
+  <section class="section" aria-labelledby="faq-h">
     <div class="wrap">
+      <span class="anchor" id="faq" aria-hidden="true"></span>
       <p class="eyebrow">Questions</p>
       <h2 class="h2" id="faq-h">What people ask before installing.</h2>
 
@@ -462,9 +472,9 @@ bun run mcp</code></pre>
         <details>
           <summary>Does anything leave my Mac?</summary>
           <div class="a">
-            No. There is no account, no sync and no telemetry. Sessions are read from agent storage
-            into a local SQLite index at <code>~/Library/Application Support/session-recall/index.db</code>
-            and are never uploaded anywhere.
+            No. No account, no sync, no telemetry. Sessions are read from agent storage into one
+            local SQLite file, <code>~/Library/Application Support/session-recall/index.db</code>, and
+            nothing is ever uploaded.
           </div>
         </details>
 
@@ -472,16 +482,17 @@ bun run mcp</code></pre>
           <summary>Which agents does it index?</summary>
           <div class="a">
             Eight: omp, pi, OpenCode, Cursor, Alma, Cindy, Claude Code and Codex. omp and the official
-            pi share a JSONL format; the others are read from their own stores. Each adapter is
-            read-only and each one excludes its agent's private records.
+            pi share a JSONL format; the rest are read from their own stores. Every adapter is
+            read-only, and each one excludes its agent's private records.
           </div>
         </details>
 
         <details>
           <summary>Does it modify my history?</summary>
           <div class="a">
-            No. Agent stores are opened read-only and never written to. The only file Session Recall
-            writes is its own index, and deleting that index only costs you the time to rebuild it.
+            No. Agent stores are opened read-only and are never written to. The only file Session
+            Recall writes is its own index, and deleting that index costs you nothing but the time
+            to rebuild it.
           </div>
         </details>
 
@@ -489,26 +500,26 @@ bun run mcp</code></pre>
           <summary>Why does macOS warn on first launch?</summary>
           <div class="a">
             The app is ad-hoc signed rather than notarized, so Gatekeeper treats a fresh copy as
-            untrusted and reports it as damaged. Clearing the quarantine attribute once per copy —
-            <code>xattr -dr com.apple.quarantine "/Applications/Session Recall.app"</code> — tells
-            macOS to trust it from then on.
+            untrusted and reports it as damaged. Clearing the quarantine attribute once per copy
+            tells macOS to trust it from then on:
+            <code>xattr -dr com.apple.quarantine "/Applications/Session Recall.app"</code>
           </div>
         </details>
 
         <details>
           <summary>Apple silicon or Intel?</summary>
           <div class="a">
-            The Apple silicon build is 26.7 MB and the Intel build is 29.5 MB; both are v1.3.1 and both
-            need macOS 11 or later. If you are not sure which Mac you have, open the Apple menu and
-            choose “About This Mac”.
+            The Apple silicon build is 26.7 MB and the Intel build is 29.5 MB. Both are v1.3.1 and
+            both need macOS 11 or later. If you are not sure which Mac you have, open the Apple menu
+            and choose “About This Mac”.
           </div>
         </details>
 
         <details>
           <summary>What about Windows and Linux?</summary>
           <div class="a">
-            No. Session Recall is a macOS app and indexes agent storage in macOS locations. The CLI
-            and the MCP server run under Bun, but no Windows or Linux build is published.
+            No. Session Recall is a macOS app and reads agent storage from macOS locations. The CLI
+            and the MCP server run under Bun, but there is no Windows or Linux build.
           </div>
         </details>
 
@@ -516,8 +527,8 @@ bun run mcp</code></pre>
           <summary>How current is the index?</summary>
           <div class="a">
             The app scans on boot and refreshes every 90 seconds while it is open. The MCP server
-            refreshes in the background when the index is more than five minutes old, and reports how
-            stale it is with every reply.
+            refreshes in the background once the index is more than five minutes old, and reports its
+            age with every reply.
           </div>
         </details>
 
@@ -525,8 +536,8 @@ bun run mcp</code></pre>
           <summary>How do I update?</summary>
           <div class="a">
             Download the newer zip from Releases, replace the app in Applications, and clear the
-            quarantine flag again for the new copy. Your index lives outside the app and is reused, so
-            there is nothing to re-scan from scratch.
+            quarantine flag on the new copy. The index lives outside the app and is reused, so
+            nothing is re-scanned from scratch.
           </div>
         </details>
       </div>
@@ -584,6 +595,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=5" defer></script>
+<script src="/assets/site.js?v=8" defer></script>
 </body>
 </html>

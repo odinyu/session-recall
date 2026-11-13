@@ -223,8 +223,16 @@ samp {
   border-radius: 3px;
 }
 
-section[id] {
-  scroll-margin-top: 88px;
+/* Nav targets sit immediately before each section's eyebrow, so a nav link
+   lands on the heading itself instead of on the section's 64–116px top
+   padding. Zero-height, so they never take part in layout. The sticky header
+   is 62px tall, so 74px leaves ~12px of clearance above the eyebrow. */
+.anchor {
+  display: block;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  scroll-margin-top: 74px;
 }
 
 /* --- shared primitives ---------------------------------------------------- */
@@ -380,7 +388,7 @@ section[id] {
 .hdr__in {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   min-height: 62px;
 }
 
@@ -410,20 +418,24 @@ section[id] {
   height: 15px;
 }
 
+/* One nav size, not two tiers: .wrap caps at 1120px, so the header's content
+   box is 1040px wide at every width from 1120 up — the nav has exactly the
+   same room at 1440 as at 1120. These values leave ~45px of slack, so a
+   fallback font on a non-Mac cannot push the row into a collision. */
 .nav {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 8px;
+  gap: 2px;
+  margin-left: 4px;
 }
 
 .nav a {
   display: inline-flex;
   align-items: center;
   min-height: 40px;
-  padding: 0 11px;
+  padding: 0 8px;
   border-radius: 7px;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--muted);
   transition: color 0.16s ease, background-color 0.16s ease;
 }
@@ -475,8 +487,10 @@ section[id] {
   color: var(--ink);
 }
 
+/* GitHub lives here, not in .nav, so it reads as an outbound link rather than
+   a seventh section link. Visible at every width above 360px. */
 .hdr__gh {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
@@ -485,6 +499,7 @@ section[id] {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
+  flex: none;
 }
 
 .hdr__gh:hover {
@@ -1348,27 +1363,31 @@ html.js .to-top.is-visible {
   }
 }
 
-/* Six nav links need more room than four: tighten before the row collides
-   with the language switch and the Download button. */
-@media (max-width: 1180px) {
-  .nav {
-    gap: 2px;
-    margin-left: 4px;
-  }
-  .nav a {
-    padding: 0 8px;
-    font-size: 0.8125rem;
+/* Six section links plus language, theme, GitHub and Download is a wide row,
+   and the two pages need different thresholds, because their labels are
+   different lengths. Measured with the nav at its one tightened size (13px
+   links), from the wordmark to .hdr__right, which the nav reaches through a
+   20px offset plus a 16px gap:
+     EN  needs 20 + 510 + 16 = 546px. The space available is 456px at 1001,
+         505 at 1050, 555 at 1100 and 575 at 1120, so 546px is only first
+         satisfied around 1091 — with no margin for a wider font or a visible
+         scrollbar. EN therefore hides at <=1120, which is its earlier
+         behaviour, and the 1001-1120 band keeps the four controls (GitHub
+         included) instead of the nav, because 546px does not fit there.
+     ZH  needs 20 + 409 + 16 = 445px and has 495px at 1001 — 50px to spare —
+         so it keeps the nav all the way down to 1001.
+   The tell is the hit-box height: a squeezed nav still reports its 510px
+   width while EN's "How it works", "Beyond search" and "For agents" wrap
+   onto a second line, so their links measure 42px instead of 40px. */
+@media (max-width: 1120px) {
+  html[lang="en"] .nav {
+    display: none;
   }
 }
 
-/* Hide the nav a little earlier than before, so six links never crowd the
-   right-hand controls on a narrow laptop. */
-@media (max-width: 1010px) {
+@media (max-width: 1000px) {
   .nav {
     display: none;
-  }
-  .hdr__gh {
-    display: inline-flex;
   }
 }
 

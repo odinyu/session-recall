@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Session Recall — 在你所有编码 Agent 的会话里做全文检索</title>
-<meta name="description" content="Session Recall 在本机为你的编码 Agent 会话建立只读全文索引。一次检索八个 Agent，直接跳到那一轮对话，再交回给你的 Agent。免费、MIT、无需账号，数据不出本机。">
+<title>Session Recall — 在你 Mac 上检索所有编码 Agent 的会话</title>
+<meta name="description" content="八个编码 Agent，一份本地索引。凭你还记得的几个字，找回那次会话，跳到确切的那一轮，直接在那个 Agent 里接着做。只读，无需账号，MIT。">
 
 <link rel="canonical" href="https://070801.top/zh/">
 <link rel="alternate" hreflang="en" href="https://070801.top/">
@@ -15,18 +15,18 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Session Recall">
 <meta property="og:title" content="Session Recall — 把那次会话找回来。">
-<meta property="og:description" content="在本机为八个编码 Agent 的会话建立只读全文索引。无需账号，不做同步，数据不出这台 Mac。">
+<meta property="og:description" content="八个编码 Agent，一份本地索引。搜你还记得的那几个字，打开确切的那一轮，把活交回给你的 Agent。数据不出这台 Mac。">
 <meta property="og:url" content="https://070801.top/zh/">
 <meta property="og:image" content="https://070801.top/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Session Recall — 把那次会话找回来。">
+<meta property="og:image:alt" content="Session Recall — 把那次会话找回来。八个编码 Agent 的会话，全在一份本机只读索引里。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:locale:alternate" content="en_US">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Session Recall — 把那次会话找回来。">
-<meta name="twitter:description" content="在本机为八个编码 Agent 的会话建立只读全文索引。无需账号，不做同步，数据不出这台 Mac。">
+<meta name="twitter:description" content="八个编码 Agent，一份本地索引。搜你还记得的那几个字，打开确切的那一轮，把活交回给你的 Agent。数据不出这台 Mac。">
 <meta name="twitter:image" content="https://070801.top/assets/og.png">
 
 <meta name="theme-color" content="#f2f3ef" media="(prefers-color-scheme: light)">
@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=5"></script>
-<link rel="stylesheet" href="/assets/site.css?v=5">
+<script src="/assets/theme-init.js?v=8"></script>
+<link rel="stylesheet" href="/assets/site.css?v=8">
 
 <script type="application/ld+json">
 {
@@ -48,7 +48,7 @@
   "operatingSystem": "macOS 11 或更高版本",
   "softwareVersion": "1.3.1",
   "inLanguage": "zh-CN",
-  "description": "在本机为你的编码 Agent 会话建立只读全文索引。一次检索八个 Agent，直接跳到那一轮对话，再交回给你的 Agent。",
+  "description": "八个编码 Agent，一份本地索引。凭你还记得的几个字，找回那次会话，跳到确切的那一轮，直接在那个 Agent 里接着做。",
   "license": "https://opensource.org/licenses/MIT",
   "codeRepository": "https://github.com/odinyu/session-recall",
   "downloadUrl": "https://github.com/odinyu/session-recall/releases/download/v1.3.1/session-recall_1.3.1_macos-arm64.zip",
@@ -75,10 +75,10 @@
     <nav class="nav" aria-label="页面导航">
       <a href="#how">工作原理</a>
       <a href="#screenshots">界面截图</a>
+      <a href="#workflow">不止检索</a>
       <a href="#install">安装</a>
       <a href="#mcp">给 Agent 用</a>
       <a href="#faq">常见问题</a>
-      <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">GitHub</a>
     </nav>
 
     <div class="hdr__right">
@@ -98,7 +98,7 @@
         <svg class="ti-dark" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.4 9.7A5.9 5.9 0 0 1 6.3 2.6a5.9 5.9 0 1 0 7.1 7.1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
       </button>
 
-      <a class="hdr__gh" href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener" aria-label="Session Recall 的 GitHub 仓库">
+      <a class="hdr__gh" href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener" aria-label="Session Recall 的 GitHub 仓库" title="Session Recall 的 GitHub 仓库">
         <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
       </a>
       <a class="btn btn--primary btn--sm hdr__dl" href="#install" aria-label="下载">
@@ -119,8 +119,8 @@
       <h1>把那次<span class="hl">会话</span>找回来。</h1>
 
       <p class="hero__lede">
-        Session Recall 在你 Mac 上为所有编码 Agent 的会话维护一份本地全文索引。八个 Agent，一个搜索框。
-        找到你只记得一半的那一轮，精确打开它，再交回给你的 Agent。
+        八个编码 Agent，一份本地索引。输入你还记得的那几个字，Session Recall 就打开确切的那一轮，
+        恢复命令已经附好，随时交回给你的 Agent。答案从来没有丢，它一直在这台 Mac 上。
       </p>
 
       <div class="hero__cta">
@@ -155,16 +155,16 @@
       </figure>
       <p class="figcap">
         <b>真实的 App 界面，索引为合成的演示会话。</b>
-        查询“reconnect backoff”在 1.2 毫秒内返回 2 次会话、5 个轮次，命中的词全部高亮。
-        侧边栏是 Agent 列表、项目筛选和日期范围。
+        查询“reconnect backoff”1.2 毫秒返回 2 次会话、5 个轮次，命中的词全部高亮。
+        侧边栏放着 Agent 列表、项目筛选和日期范围。
       </p>
     </div>
   </section>
 
   <!-- ===================== Agents ===================== -->
-  <section class="agents" id="how" aria-labelledby="agents-label">
+  <section class="agents" aria-labelledby="agents-label">
     <div class="wrap">
-      <p class="eyebrow" id="agents-label">可检索以下 Agent 的会话</p>
+      <p class="eyebrow" id="agents-label">收录这些 Agent 的会话</p>
       <ul class="agents__grid">
         <li class="agent agent--omp"><i></i><span>omp</span></li>
         <li class="agent agent--pi"><i></i><span>pi</span></li>
@@ -181,11 +181,12 @@
   <!-- ===================== How it works ===================== -->
   <section class="section" aria-labelledby="how-h">
     <div class="wrap">
+      <span class="anchor" id="how" aria-hidden="true"></span>
       <p class="eyebrow">工作原理</p>
       <h2 class="h2" id="how-h">八个 Agent，一份索引。</h2>
       <p class="lede">
-        每次会话都被拆成轮次——你问的问题和得到的回答——再加上第二层范围里的进程事件。
-        这些都存在一个 SQLite 文件里，你可以随时移动、备份或删除：
+        索引的最小单位是轮次：你问的问题，和得到的回答。工具调用、命令行和报错另有进程范围。
+        两者都落进同一个 SQLite 文件，归你所有，随时可以搬走、备份或者删掉：
         <code>~/Library/Application Support/session-recall/index.db</code>。
       </p>
 
@@ -196,8 +197,8 @@
           </div>
           <h3>搜你记得的那几个词。</h3>
           <p>
-            对提问和回答做全文检索，底层是 SQLite FTS5；三元组（trigram）分词器负责中文短语、子串和
-            代码标识符，英文回退到 porter。精确短语加引号，多个词之间是 AND 关系。
+            只记得三个字，通常也够用。全文覆盖提问和回答，底层是 SQLite FTS5：trigram 分词器让中文短语、
+            子串和代码标识符都能命中，英文用 porter。精确短语加引号，多个词必须同时命中。
           </p>
         </article>
 
@@ -207,8 +208,8 @@
           </div>
           <h3>搜过程，不只是回复。</h3>
           <p>
-            切到进程范围，可以搜工具调用、命令行、stdout 和 stderr，以及从里面提取出来的错误行。
-            推理内容被排除在外，所以留下来的都是真正发生过的事。
+            有时候你要的不是答案，而是那次失败。进程范围覆盖工具调用、命令行、stdout 和 stderr，
+            以及从中提取出来的错误行。推理内容不进索引，留下的都是真正跑过的东西。
           </p>
         </article>
 
@@ -218,8 +219,9 @@
           </div>
           <h3>直接跳到那一轮。</h3>
           <p>
-            每条结果都深链到 <code>sessionrecall://session/&lt;id&gt;?turn=N</code>，并高亮你搜的词。
-            会话页面带着精确的恢复命令，以及一张可复制的 Markdown 交接卡片。
+            点开结果，你就回到当时那一轮，关键词还高亮着。每条结果都深链到
+            <code>sessionrecall://session/&lt;id&gt;?turn=N</code>，会话页上带着恢复命令，
+            以及一张可复制的交接卡。
           </p>
         </article>
 
@@ -229,8 +231,8 @@
           </div>
           <h3>设计上就是只读。</h3>
           <p>
-            索引是一份独立的 SQLite 文件。Agent 的存储以只读方式打开，永不写入；会话也不会离开这台
-            Mac——没有同步，也没有账号。
+            Agent 的历史记录不是拿来改的数据库。Agent 存储以只读打开，从不写入；索引是另一个文件，
+            随时可以丢掉。没有同步，没有账号，什么都不会离开这台 Mac。
           </p>
         </article>
       </div>
@@ -240,13 +242,14 @@
   </section>
 
   <!-- ===================== Screenshots ===================== -->
-  <section class="section" id="screenshots" aria-labelledby="shots-h">
+  <section class="section" aria-labelledby="shots-h">
     <div class="wrap">
+      <span class="anchor" id="screenshots" aria-hidden="true"></span>
       <p class="eyebrow">界面截图</p>
-      <h2 class="h2" id="shots-h">为半个模糊的查询而做。</h2>
+      <h2 class="h2" id="shots-h">为记不全的查询而做。</h2>
       <p class="lede">
-        同一份索引的两个视图：跳到找到的那一轮，以及围绕一次失败检索进程输出。
-        两者都跑在合成的演示会话索引上。
+        同一份索引的两个视图。一个直接打开你找到的那一轮，一个围绕某次失败去搜进程输出。
+        两个都跑在合成的演示会话索引上。
       </p>
 
       <div class="figs">
@@ -260,12 +263,12 @@
                  srcset="/assets/screenshots/zh/session-detail-720.webp 720w, /assets/screenshots/zh/session-detail-1440.webp 1440w"
                  sizes="(max-width: 768px) 94vw, 46vw"
                  width="1440" height="900" loading="lazy" decoding="async"
-                 alt="深色主题下的 Session Recall 会话详情页，停在并高亮了第 02 轮。转写内容上方的一条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。">
+                 alt="深色主题下的 Session Recall 会话详情页，打开在第 02 轮，命中的回答已高亮。转写内容上方那条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。">
           </div>
           <figcaption class="figcap">
-            <b>会话详情。</b>转写内容上方那条栏给出 <b>Continue in</b> 命令——这里是
-            <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>——旁边是
-            <b>Copy</b> 和 <b>Copy handoff</b>，下一次提问就能接着你找到的那次会话走。
+            <b>会话详情。</b>转写内容上方那条栏放着恢复命令，这里是
+            <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>，旁边是
+            <b>Copy handoff</b>。下一次提问，就从你找到的这次会话接着走。
           </figcaption>
         </figure>
 
@@ -282,8 +285,8 @@
                  alt="深色主题下的 Session Recall 进程搜索页。搜索 timeout 返回 3 次会话、3 条进程记录，用时 0.7 毫秒；每条都显示从失败测试中提取的错误行，命中的词已高亮。">
           </div>
           <figcaption class="figcap">
-            <b>进程搜索。</b>用 <code>timeout</code> 搜工具调用、命令和错误输出——3 次会话、3 条进程记录、
-            0.7 毫秒。每条记录都标出 Agent、项目和日期。
+            <b>进程搜索。</b>用 <code>timeout</code> 搜工具调用、命令和错误输出，返回 3 次会话、
+            3 条进程记录，0.7 毫秒。每条记录都标出 Agent、项目和日期。
           </figcaption>
         </figure>
       </div>
@@ -291,25 +294,25 @@
   </section>
 
   <!-- ===================== Beyond search ===================== -->
-  <section class="section" id="workflow" aria-labelledby="workflow-h">
+  <section class="section" aria-labelledby="workflow-h">
     <div class="wrap">
+      <span class="anchor" id="workflow" aria-hidden="true"></span>
       <p class="eyebrow">不止检索</p>
       <h2 class="h2" id="workflow-h">搜索只是开始。</h2>
       <p class="lede">
-        找回一次会话只是一半。另一半是把工作接着走下去——交给另一个 agent、写进明天的站会——
-        以及把不该再被搜到的东西清理掉。
+        找到会话只是一半。另一半是把活接着做下去：交给另一个 Agent，写进明天的站会，
+        该从索引里拿掉的时候再拿掉。
       </p>
 
       <div class="workflows">
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">01</p>
-          <h3>把会话交接出去。</h3>
+          <h3>把活接着做下去。</h3>
           <p class="workflow__text">
-            每个会话页都会生成一张交接卡：项目、agent、时间范围、恢复命令、最近几次提问、
-            最后一次回答（原文截断）、工具调用涉及的文件、运行过的命令、工具错误，以及项目是
-            Git worktree 时的当前分支。可以粘进草稿区，也可以交给另一个 agent——跨 agent 交接会在
-            对方那里新开一个会话，把这张卡当作上下文，因为会话 id 只对自己的 agent 有意义。
-            卡片按需从本地索引生成，不会上传到任何地方。
+            交接卡把新会话需要的东西一次收齐：项目、恢复命令、最近几次提问、最后一次回答（原文）、
+            工具调用碰过的文件、跑过的命令、遇到的报错，项目是 Git worktree 时还有当前分支。
+            粘进草稿本，或者交给另一个 Agent，活就接着走下去，不用从头再来。跨 Agent 交接会在
+            对方那里开一个新会话，把这张卡当上下文，因为会话 id 只对它自己的 Agent 有意义。
           </p>
           <div class="workflow__key">
             <p><span class="chip">复制交接</span></p>
@@ -318,26 +321,28 @@
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">02</p>
-          <h3>日报与周报。</h3>
+          <h3>日报和周报。</h3>
           <p class="workflow__text">
-            日报是简短的站会，周报把同样的会话汇总起来，两者都由索引确定性推导，不调用模型。
-            可以在应用里查看，也可以下载 Markdown。报告里的章节标题是固定的：
+            日报是当天的站会，周报是一周的汇总，都直接从索引读出来。不调模型，也没有摘要服务：
+            同样的会话，永远生成同样的报告。可以在应用里看，也可以下载 Markdown。
+            章节标题跟着界面语言走：中文界面用下面这几组，英文界面则是 Progress、Decisions、
+            Open threads、First task tomorrow、Overview。
           </p>
           <div class="workflow__key">
             <p><span class="k">standup</span> <code><span>进展</span> · <span>决策</span> · <span>待续</span> · <span>明天第一件事</span> · <span>概览</span></code></p>
-            <p><span class="k">weekly</span> <code><span>亮点</span> · <span>按项目</span> · <span>主题与决策</span> · <span>指标</span> · <span>风险</span> · <span>下周计划</span></code></p>
+            <p><span class="k">weekly</span> <code><span>亮点</span> · <span>按项目</span> · <span>主题与决策</span> · <span>指标</span> · <span>风险 / 阻塞</span> · <span>下周计划</span></code></p>
             <p><span class="chip">bun run brief --week 2026-W46</span></p>
           </div>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">03</p>
-          <h3>让一次会话不再被搜到。</h3>
+          <h3>让一次会话退出索引。</h3>
           <p class="workflow__text">
-            把会话移出索引和删掉它不是一回事。<b>忘记此会话</b>会把它从本地索引中移除，并记下这个
-            id，让之后的扫描都跳过它——agent 自己存储里的原始记录原封不动。<b>撤销</b>会清掉标记，
-            下次扫描重新索引。这不是安全擦除：索引行和全文条目会被清掉，源文件仍然存在。报告是
-            纯 Markdown 副本、从不改写，所以应用会列出仍提到该会话的报告，由你重新生成或删除。
+            点<b>忘记此会话</b>，它就从本地索引里移除，同时记下这个 id，之后的扫描不会再把它加回来。
+            Agent 自己存储里的原始记录原封不动。<b>撤销</b>会清掉标记，下次扫描重新索引。
+            这不是安全擦除：索引行和全文条目会被删掉，源文件还在。日报周报是纯 Markdown，从不改写，
+            所以应用会把仍然提到这次会话的报告列出来，由你决定重新生成还是删除。
           </p>
           <div class="workflow__key">
             <p><span class="chip">忘记此会话</span></p>
@@ -349,11 +354,12 @@
   </section>
 
   <!-- ===================== Install ===================== -->
-  <section class="section" id="install" aria-labelledby="install-h">
+  <section class="section" aria-labelledby="install-h">
     <div class="wrap">
       <div class="panel">
+        <span class="anchor" id="install" aria-hidden="true"></span>
         <p class="eyebrow">安装</p>
-        <h2 class="h2" id="install-h">两分钟，开始第一次搜索。</h2>
+        <h2 class="h2" id="install-h">两分钟，就能搜出第一次结果。</h2>
 
         <ol class="steps">
           <li class="step">
@@ -361,8 +367,8 @@
             <div>
               <h3>下载、解压、拖进“应用程序”。</h3>
               <p>
-                选 Apple 芯片版或 Intel 版都行，它们是同一个 App。打包好的 App 约 67 MB，
-                自带运行时，不需要预先安装别的东西。
+                Apple 芯片版和 Intel 版是同一个 App，装哪个都行。下载约 67 MB，自带运行时，
+                不需要先装别的东西。
               </p>
             </div>
           </li>
@@ -372,9 +378,9 @@
             <div>
               <h3>清除隔离标记。</h3>
               <p>
-                Session Recall 做了 ad-hoc 签名，但没有公证——公证需要付费的 Apple 开发者账号。
-                所以 macOS 会拦下首次启动，并说这个应用已损坏。每份拷贝执行一次下面的命令，
-                之后就能正常打开：
+                Session Recall 是 ad-hoc 签名，没有做公证，而公证要花钱买 Apple 开发者账号。
+                所以 macOS 会拦下第一次启动，提示应用已损坏。每份拷贝跑一次下面的命令，
+                之后打开就正常了：
               </p>
 
               <div class="term">
@@ -395,8 +401,8 @@ bun run mcp</code></pre>
             <div>
               <h3>打开就能搜。</h3>
               <p>
-                App 启动时会扫描 Agent 存储，打开期间每 90 秒刷新一次索引。输入你记得的词；
-                有精确短语就加上引号。
+                App 启动时会扫描 Agent 存储，打开期间每 90 秒刷新一次索引。输入你记得的词就行，
+                要精确短语就加上引号。
               </p>
             </div>
           </li>
@@ -411,14 +417,15 @@ bun run mcp</code></pre>
   </section>
 
   <!-- ===================== MCP ===================== -->
-  <section class="section section--tight" id="mcp" aria-labelledby="mcp-h">
+  <section class="section section--tight" aria-labelledby="mcp-h">
     <div class="wrap band">
       <div>
+        <span class="anchor" id="mcp" aria-hidden="true"></span>
         <p class="eyebrow">给 Agent 用</p>
-        <h2 class="h2" id="mcp-h">你的 Agent 也能搜它。</h2>
+        <h2 class="h2" id="mcp-h">你的 Agent 也能搜。</h2>
         <p class="lede">
-          <code>bun run mcp</code> 通过 stdio 把同一份索引交给任何 MCP 客户端——不开端口，不走网络。
-          把你的客户端指向绝对路径：
+          <code>bun run mcp</code> 用 stdio 把同一份索引交给任何 MCP 客户端：不开端口，不走网络，
+          也不用再养一份要同步的历史。把客户端指向绝对路径就行：
         </p>
         <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
           MCP 服务器文档
@@ -443,43 +450,43 @@ bun run mcp</code></pre>
   </section>
 
   <!-- ===================== FAQ ===================== -->
-  <section class="section" id="faq" aria-labelledby="faq-h">
+  <section class="section" aria-labelledby="faq-h">
     <div class="wrap">
+      <span class="anchor" id="faq" aria-hidden="true"></span>
       <p class="eyebrow">常见问题</p>
-      <h2 class="h2" id="faq-h">安装前大家会问的问题。</h2>
+      <h2 class="h2" id="faq-h">装之前常问的问题。</h2>
 
       <div class="faq">
         <details>
           <summary>会有数据离开我的 Mac 吗？</summary>
           <div class="a">
-            不会。没有账号、没有同步、也没有遥测。会话从 Agent 存储读进本地 SQLite 索引
-            <code>~/Library/Application Support/session-recall/index.db</code>，不会上传到任何地方。
+            不会。没有账号，没有同步，也没有遥测。会话从 Agent 存储读进本地那一个 SQLite 文件
+            <code>~/Library/Application Support/session-recall/index.db</code>，不会有任何东西被上传。
           </div>
         </details>
 
         <details>
           <summary>支持哪些 Agent？</summary>
           <div class="a">
-            八个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code 和 Codex。omp 与官方 pi 共用一套
-            JSONL 格式，其余的从各自的存储读取。每个适配器都是只读的，并且会排除该 Agent 的私密记录。
+            八个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code 和 Codex。omp 和官方 pi 共用一套
+            JSONL 格式，其余的从各自的存储读取。每个适配器都是只读的，也都会跳过该 Agent 的私密记录。
           </div>
         </details>
 
         <details>
           <summary>会改动我的历史记录吗？</summary>
           <div class="a">
-            不会。Agent 存储以只读方式打开，永不写入。Session Recall 只写自己的索引文件；
-            就算删掉索引，代价也只是重新扫描的时间。
+            不会。Agent 存储以只读方式打开，从不写入。Session Recall 只写自己的索引文件；
+            删掉索引的代价，也就是重新扫描那点时间。
           </div>
         </details>
 
         <details>
           <summary>为什么 macOS 首次启动会警告？</summary>
           <div class="a">
-            App 是 ad-hoc 签名而不是公证，所以 Gatekeeper 会把新拷贝当成不可信，并报告为已损坏。
-            每份拷贝执行一次清除隔离属性的命令——
-            <code>xattr -dr com.apple.quarantine "/Applications/Session Recall.app"</code>——
-            macOS 之后就会认它。
+            App 是 ad-hoc 签名，没有公证，所以 Gatekeeper 会把新拷贝当成不可信，提示应用已损坏。
+            每份拷贝清一次隔离属性，macOS 之后就会认它：
+            <code>xattr -dr com.apple.quarantine "/Applications/Session Recall.app"</code>
           </div>
         </details>
 
@@ -494,24 +501,24 @@ bun run mcp</code></pre>
         <details>
           <summary>有 Windows 和 Linux 版吗？</summary>
           <div class="a">
-            没有。Session Recall 是 macOS 应用，检索的是 macOS 上的 Agent 存储位置。
-            CLI 和 MCP 服务器跑在 Bun 上，但目前没有发布 Windows 或 Linux 版本。
+            没有。Session Recall 是 macOS 应用，读的是 macOS 上的 Agent 存储位置。
+            CLI 和 MCP 服务器跑在 Bun 上，但没有 Windows 或 Linux 版本。
           </div>
         </details>
 
         <details>
           <summary>索引有多新？</summary>
           <div class="a">
-            App 启动时扫描，打开期间每 90 秒刷新一次。当索引超过五分钟没更新时，MCP 服务器会在后台
-            刷新，并在每次回复里带上索引的新鲜度。
+            App 启动时扫描，打开期间每 90 秒刷新一次。索引超过五分钟没更新时，MCP 服务器会在后台
+            刷新，并在每次回复里告诉你它有多旧。
           </div>
         </details>
 
         <details>
           <summary>怎么更新？</summary>
           <div class="a">
-            从 Releases 下载新的压缩包，替换“应用程序”里的 App，再为新拷贝清除一次隔离标记。
-            索引在 App 之外，会被继续使用，不用从头重扫。
+            从 Releases 下载新压缩包，替换“应用程序”里的 App，再给新拷贝清一次隔离标记。
+            索引放在 App 外面，会继续用，不用从头重扫。
           </div>
         </details>
       </div>
@@ -569,6 +576,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=5" defer></script>
+<script src="/assets/site.js?v=8" defer></script>
 </body>
 </html>
