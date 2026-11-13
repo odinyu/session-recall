@@ -227,6 +227,18 @@ samp {
   font-variant-numeric: tabular-nums;
 }
 
+/* A long inline token (a path, a shell command) cannot break on its own, so the
+   line it sits on ends early and the paragraph stops short of the column. Only
+   prose is affected: the pre blocks keep their own line breaks. */
+.hero__lede code,
+.lede code,
+.figcap code,
+.workflow__text code,
+.step p code,
+details .a code {
+  overflow-wrap: anywhere;
+}
+
 ::selection {
   background: var(--accent-soft);
   color: var(--ink);
@@ -283,7 +295,7 @@ samp {
   letter-spacing: -0.026em;
   font-weight: 660;
   margin-top: 14px;
-  max-width: 20ch;
+  max-width: 28ch;
 }
 
 .lede {
@@ -291,7 +303,7 @@ samp {
   font-size: var(--fs-lede);
   line-height: 1.55;
   color: var(--muted);
-  max-width: 62ch;
+  max-width: 84ch;
   letter-spacing: -0.005em;
 }
 
@@ -608,7 +620,7 @@ html:not(.js) .theme-btn {
   /* 74ch is ~925px at 1440: three lines, around 68 characters each. The
      961px measure that squeezed it onto two lines read at 102 characters a
      line, which is past any comfortable measure. */
-  max-width: 74ch;
+  max-width: 80ch;
   letter-spacing: -0.006em;
 }
 
@@ -772,6 +784,37 @@ html:not(.js) .theme-btn {
   width: 100%;
 }
 
+/* Each figure carries both a light and a dark screenshot. The dark one is
+   aria-hidden, so only one is announced; CSS decides which is painted.
+   The page's manual switch sets html[data-theme], and an attribute selector
+   beats a media query, so the explicit choice wins over the OS preference —
+   the same order theme-init.js uses. */
+.shot--dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shot--light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .shot--dark {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .shot--light {
+  display: none;
+}
+
+:root[data-theme="dark"] .shot--dark {
+  display: block;
+}
+
+:root[data-theme="light"] .shot--dark {
+  display: none;
+}
+
 .figcap {
   display: block;
   margin-top: 15px;
@@ -779,7 +822,7 @@ html:not(.js) .theme-btn {
   font-size: 0.75rem;
   line-height: 1.6;
   color: var(--muted);
-  max-width: 74ch;
+  max-width: 130ch;
 }
 
 .figcap b {
@@ -883,6 +926,9 @@ html:not(.js) .theme-btn {
 .features {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* the four cards read as one row, so they share a height and their bodies
+     start on the same line */
+  grid-auto-rows: 1fr;
   gap: 1px;
   margin-top: clamp(40px, 5vw, 60px);
   background: var(--line);
@@ -927,26 +973,6 @@ html:not(.js) .theme-btn {
   letter-spacing: -0.003em;
 }
 
-.filterbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 22px;
-  padding: 13px 18px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--muted);
-  overflow-x: auto;
-  white-space: nowrap;
-}
-
-.filterbar b {
-  color: var(--ink);
-  font-weight: 520;
-}
 
 /* ============================================================================
    Screenshots
@@ -974,6 +1000,10 @@ html:not(.js) .theme-btn {
 .workflows {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* one row of three cards: they share a height, and the body copy starts on
+     the same line in each. The key blocks that used to sit at the
+     card foot are gone, so the cards size to their own copy. */
+  grid-auto-rows: 1fr;
   gap: 1px;
   margin-top: clamp(40px, 5vw, 60px);
   background: var(--line);
@@ -1013,49 +1043,6 @@ html:not(.js) .theme-btn {
   letter-spacing: -0.003em;
 }
 
-/* the key detail sits at the card foot so the three cards line up */
-.workflow__key {
-  margin-top: auto;
-  padding-top: 20px;
-  display: grid;
-  gap: 7px;
-  font-family: var(--mono);
-  font-size: 0.71875rem;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.workflow__key p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  margin: 0;
-}
-
-.workflow__key .k {
-  color: var(--ink);
-}
-
-.workflow__key code {
-  font-family: var(--mono);
-  font-size: inherit;
-}
-
-/* keep each section name whole; a CJK list would otherwise break mid-word */
-.workflow__key code span {
-  white-space: nowrap;
-}
-
-.workflow__key .chip {
-  display: inline-block;
-  max-width: 100%;
-  padding: 3px 8px;
-  border-radius: 5px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-}
 
 
 /* ============================================================================
@@ -1128,7 +1115,7 @@ html:not(.js) .theme-btn {
   color: #a9c3b6;
   font-size: 0.9375rem;
   line-height: 1.6;
-  max-width: 68ch;
+  
 }
 
 .term {
@@ -1316,7 +1303,7 @@ html.js .copy {
   color: var(--muted);
   font-size: 0.9375rem;
   line-height: 1.65;
-  max-width: 78ch;
+  max-width: 112ch;
 }
 
 .faq .a code {
@@ -1341,7 +1328,7 @@ html.js .copy {
   line-height: 1.08;
   letter-spacing: -0.028em;
   font-weight: 660;
-  max-width: 22ch;
+  max-width: 28ch;
   margin-inline: auto;
 }
 
@@ -1549,12 +1536,6 @@ html.js .to-top.is-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: normal;
     gap: 14px 18px;
-  }
-  .filterbar {
-    display: block;
-    white-space: normal;
-    line-height: 1.9;
-    overflow-x: visible;
   }
   .term {
     display: flex;

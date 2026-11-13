@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=12"></script>
-<link rel="stylesheet" href="/assets/site.css?v=12">
+<script src="/assets/theme-init.js?v=15"></script>
+<link rel="stylesheet" href="/assets/site.css?v=15">
 
 <script type="application/ld+json">
 {
@@ -151,11 +151,16 @@
           <i></i><i></i><i></i>
           <span class="mac__title">search results — “reconnect backoff”</span>
         </div>
-        <img src="/assets/screenshots/en/search-results-1440.webp"
+        <img class="shot shot--light" src="/assets/screenshots/en/search-results-1440.webp"
              srcset="/assets/screenshots/en/search-results-720.webp 720w, /assets/screenshots/en/search-results-1440.webp 1440w"
              sizes="(max-width: 1200px) 94vw, 1080px"
              width="1440" height="900" fetchpriority="high" decoding="async"
              alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
+        <img class="shot shot--dark" src="/assets/screenshots/en/search-results-dark-1440.webp"
+             srcset="/assets/screenshots/en/search-results-dark-720.webp 720w, /assets/screenshots/en/search-results-dark-1440.webp 1440w"
+             sizes="(max-width: 1200px) 94vw, 1080px"
+             width="1440" height="900" decoding="async"
+             alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit." aria-hidden="true">
       </figure>
       <p class="figcap">
         <b>Actual app UI over a synthetic index of demo sessions.</b>
@@ -198,12 +203,11 @@
     <div class="wrap">
       <span class="anchor" id="how" aria-hidden="true"></span>
       <p class="eyebrow">How it works</p>
-      <h2 class="h2" id="how-h">One index for thirteen agents.</h2>
+      <h2 class="h2" id="how-h">Thirteen agents, one index.</h2>
       <p class="lede">
         The unit is the turn: the question you asked and the answer you got. Tool calls, shell
         commands and errors get a second scope of their own. Both land in one SQLite file you own,
-        <code>~/Library/Application Support/session-recall/index.db</code>, that you can move, back
-        up or delete.
+        that you can move, back up or delete.
       </p>
 
       <div class="features">
@@ -256,8 +260,6 @@
           </p>
         </article>
       </div>
-
-      <p class="filterbar"><b>Filters</b> agent · project · date range · prompt/answer role</p>
     </div>
   </section>
 
@@ -266,7 +268,7 @@
     <div class="wrap">
       <span class="anchor" id="screenshots" aria-hidden="true"></span>
       <p class="eyebrow">Screenshots</p>
-      <h2 class="h2" id="shots-h">Built for a half-remembered query.</h2>
+      <h2 class="h2" id="shots-h">A half-remembered query.</h2>
       <p class="lede">
         Two views of the same index. One opens a session at the turn you found. The other searches
         process output around a failure. Both run over a synthetic index of demo sessions.
@@ -279,11 +281,16 @@
               <i></i><i></i><i></i>
               <span class="mac__title">session detail · turn 02</span>
             </div>
-            <img src="/assets/screenshots/en/session-detail-1440.webp"
+            <img class="shot shot--light" src="/assets/screenshots/en/session-detail-1440.webp"
                  srcset="/assets/screenshots/en/session-detail-720.webp 720w, /assets/screenshots/en/session-detail-1440.webp 1440w"
                  sizes="(max-width: 768px) 94vw, 46vw"
                  width="1440" height="900" loading="lazy" decoding="async"
                  alt="The Session Recall session detail view in dark theme, opened at turn 02 with the matched answer highlighted. A bar above the transcript reads CONTINUE IN Claude Code, followed by the resume command, a Copy button and a Copy handoff button.">
+            <img class="shot shot--dark" src="/assets/screenshots/en/session-detail-dark-1440.webp"
+                 srcset="/assets/screenshots/en/session-detail-dark-720.webp 720w, /assets/screenshots/en/session-detail-dark-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="The Session Recall session detail view in dark theme, opened at turn 02 with the matched answer highlighted. A bar above the transcript reads CONTINUE IN Claude Code, followed by the resume command, a Copy button and a Copy handoff button." aria-hidden="true">
           </div>
           <figcaption class="figcap">
             <b>Session detail.</b> The bar above the transcript carries the resume command, here
@@ -298,11 +305,16 @@
               <i></i><i></i><i></i>
               <span class="mac__title">process search — “timeout”</span>
             </div>
-            <img src="/assets/screenshots/en/process-search-1440.webp"
+            <img class="shot shot--light" src="/assets/screenshots/en/process-search-1440.webp"
                  srcset="/assets/screenshots/en/process-search-720.webp 720w, /assets/screenshots/en/process-search-1440.webp 1440w"
                  sizes="(max-width: 768px) 94vw, 46vw"
                  width="1440" height="900" loading="lazy" decoding="async"
                  alt="The Session Recall process search view in dark theme. A search for timeout returns three sessions and three process rows in 0.7 ms, each showing an extracted error line from a failing test with the matched word highlighted.">
+            <img class="shot shot--dark" src="/assets/screenshots/en/process-search-dark-1440.webp"
+                 srcset="/assets/screenshots/en/process-search-dark-720.webp 720w, /assets/screenshots/en/process-search-dark-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="The Session Recall process search view in dark theme. A search for timeout returns three sessions and three process rows in 0.7 ms, each showing an extracted error line from a failing test with the matched word highlighted." aria-hidden="true">
           </div>
           <figcaption class="figcap">
             <b>Process search.</b> Searching <code>timeout</code> across tool calls, commands and
@@ -337,9 +349,6 @@
             instead of starting over. Cross-agent handoff opens a new session there with the card as
             its context, because a session id only means something to its own agent.
           </p>
-          <div class="workflow__key">
-            <p><span class="chip">Copy handoff</span></p>
-          </div>
         </article>
 
         <article class="workflow">
@@ -348,14 +357,10 @@
           <p class="workflow__text">
             A standup for the day and a rollup for the week, read straight out of the index. No
             model call and no summary service: the same sessions always produce the same report.
-            Read it in the app, or download the Markdown. The list below is what an English
-            interface writes; a Chinese interface produces the same report with Chinese headings:
+            Read it in the app, or download the Markdown. The section headings follow the interface
+            language, so an English app writes the report in English and a Chinese app writes the
+            same report in Chinese.
           </p>
-          <div class="workflow__key">
-            <p><span class="k">standup</span> <code><span>Progress</span> · <span>Decisions</span> · <span>Open threads</span> · <span>First task tomorrow</span> · <span>Overview</span></code></p>
-            <p><span class="k">weekly</span> <code><span>Highlights</span> · <span>By project</span> · <span>Themes and decisions</span> · <span>Metrics</span> · <span>Risks</span> · <span>Next week</span></code></p>
-            <p><span class="chip">bun run brief --week 2026-W46</span></p>
-          </div>
         </article>
 
         <article class="workflow">
@@ -369,10 +374,6 @@
             Generated briefs are plain Markdown that is never rewritten, so the app lists the ones
             still naming that session, for you to regenerate or delete.
           </p>
-          <div class="workflow__key">
-            <p><span class="chip">Forget this session</span></p>
-            <p><span class="chip">Undo</span></p>
-          </div>
         </article>
       </div>
     </div>
@@ -384,7 +385,7 @@
       <div class="panel">
         <span class="anchor" id="install" aria-hidden="true"></span>
         <p class="eyebrow">Install</p>
-        <h2 class="h2" id="install-h">Two minutes to your first search.</h2>
+        <h2 class="h2" id="install-h">Two minutes to your first hit.</h2>
 
         <ol class="steps">
           <li class="step">
@@ -448,7 +449,7 @@ bun run mcp</code></pre>
       <div>
         <span class="anchor" id="mcp" aria-hidden="true"></span>
         <p class="eyebrow">For agents</p>
-        <h2 class="h2" id="mcp-h">Your agent can search it too.</h2>
+        <h2 class="h2" id="mcp-h">Your agent can search too.</h2>
         <p class="lede">
           <code>bun run mcp</code> serves the same index to any MCP client over stdio: no port, no
           network, no second copy of your history to keep in step. Point your client at the
@@ -481,15 +482,14 @@ bun run mcp</code></pre>
     <div class="wrap">
       <span class="anchor" id="faq" aria-hidden="true"></span>
       <p class="eyebrow">Questions</p>
-      <h2 class="h2" id="faq-h">What people ask before installing.</h2>
+      <h2 class="h2" id="faq-h">What people ask first.</h2>
 
       <div class="faq">
         <details>
           <summary>Does anything leave my Mac?</summary>
           <div class="a">
             No. No account, no sync, no telemetry. Sessions are read from agent storage into one
-            local SQLite file, <code>~/Library/Application Support/session-recall/index.db</code>, and
-            nothing is ever uploaded.
+            local SQLite file, and nothing is ever uploaded.
           </div>
         </details>
 
@@ -621,6 +621,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=12" defer></script>
+<script src="/assets/site.js?v=15" defer></script>
 </body>
 </html>

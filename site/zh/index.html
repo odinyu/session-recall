@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=12"></script>
-<link rel="stylesheet" href="/assets/site.css?v=12">
+<script src="/assets/theme-init.js?v=15"></script>
+<link rel="stylesheet" href="/assets/site.css?v=15">
 
 <script type="application/ld+json">
 {
@@ -150,11 +150,16 @@
           <i></i><i></i><i></i>
           <span class="mac__title">搜索结果 — “reconnect backoff”</span>
         </div>
-        <img src="/assets/screenshots/zh/search-results-1440.webp"
+        <img class="shot shot--light" src="/assets/screenshots/zh/search-results-1440.webp"
              srcset="/assets/screenshots/zh/search-results-720.webp 720w, /assets/screenshots/zh/search-results-1440.webp 1440w"
              sizes="(max-width: 1200px) 94vw, 1080px"
              width="1440" height="900" fetchpriority="high" decoding="async"
              alt="Session Recall 的搜索结果窗口。搜索“reconnect backoff”返回 2 次会话、5 个轮次，命中的词以绿色高亮，每条结果都标出 Agent、项目和日期。">
+        <img class="shot shot--dark" src="/assets/screenshots/zh/search-results-dark-1440.webp"
+             srcset="/assets/screenshots/zh/search-results-dark-720.webp 720w, /assets/screenshots/zh/search-results-dark-1440.webp 1440w"
+             sizes="(max-width: 1200px) 94vw, 1080px"
+             width="1440" height="900" decoding="async"
+             alt="Session Recall 的搜索结果窗口。搜索“reconnect backoff”返回 2 次会话、5 个轮次，命中的词以绿色高亮，每条结果都标出 Agent、项目和日期。" aria-hidden="true">
       </figure>
       <p class="figcap">
         <b>真实的 App 界面，索引为合成的演示会话。</b>
@@ -200,8 +205,7 @@
       <h2 class="h2" id="how-h">十三个 Agent，一份索引。</h2>
       <p class="lede">
         索引的最小单位是轮次：你问的问题，和得到的回答。工具调用、命令行和报错另有进程范围。
-        两者都落进同一个 SQLite 文件，归你所有，随时可以搬走、备份或者删掉：
-        <code>~/Library/Application Support/session-recall/index.db</code>。
+        两者都落进同一个 SQLite 文件，归你所有，随时可以搬走、备份或者删掉。
       </p>
 
       <div class="features">
@@ -250,8 +254,6 @@
           </p>
         </article>
       </div>
-
-      <p class="filterbar"><b>筛选</b> Agent · 项目 · 日期范围 · 提问/回答角色</p>
     </div>
   </section>
 
@@ -273,11 +275,16 @@
               <i></i><i></i><i></i>
               <span class="mac__title">会话详情 · 第 02 轮</span>
             </div>
-            <img src="/assets/screenshots/zh/session-detail-1440.webp"
+            <img class="shot shot--light" src="/assets/screenshots/zh/session-detail-1440.webp"
                  srcset="/assets/screenshots/zh/session-detail-720.webp 720w, /assets/screenshots/zh/session-detail-1440.webp 1440w"
                  sizes="(max-width: 768px) 94vw, 46vw"
                  width="1440" height="900" loading="lazy" decoding="async"
                  alt="深色主题下的 Session Recall 会话详情页，打开在第 02 轮，命中的回答已高亮。转写内容上方那条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。">
+            <img class="shot shot--dark" src="/assets/screenshots/zh/session-detail-dark-1440.webp"
+                 srcset="/assets/screenshots/zh/session-detail-dark-720.webp 720w, /assets/screenshots/zh/session-detail-dark-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="深色主题下的 Session Recall 会话详情页，打开在第 02 轮，命中的回答已高亮。转写内容上方那条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。" aria-hidden="true">
           </div>
           <figcaption class="figcap">
             <b>会话详情。</b>转写内容上方那条栏放着恢复命令，这里是
@@ -292,11 +299,16 @@
               <i></i><i></i><i></i>
               <span class="mac__title">进程搜索 — “timeout”</span>
             </div>
-            <img src="/assets/screenshots/zh/process-search-1440.webp"
+            <img class="shot shot--light" src="/assets/screenshots/zh/process-search-1440.webp"
                  srcset="/assets/screenshots/zh/process-search-720.webp 720w, /assets/screenshots/zh/process-search-1440.webp 1440w"
                  sizes="(max-width: 768px) 94vw, 46vw"
                  width="1440" height="900" loading="lazy" decoding="async"
                  alt="深色主题下的 Session Recall 进程搜索页。搜索 timeout 返回 3 次会话、3 条进程记录，用时 0.7 毫秒；每条都显示从失败测试中提取的错误行，命中的词已高亮。">
+            <img class="shot shot--dark" src="/assets/screenshots/zh/process-search-dark-1440.webp"
+                 srcset="/assets/screenshots/zh/process-search-dark-720.webp 720w, /assets/screenshots/zh/process-search-dark-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="深色主题下的 Session Recall 进程搜索页。搜索 timeout 返回 3 次会话、3 条进程记录，用时 0.7 毫秒；每条都显示从失败测试中提取的错误行，命中的词已高亮。" aria-hidden="true">
           </div>
           <figcaption class="figcap">
             <b>进程搜索。</b>用 <code>timeout</code> 搜工具调用、命令和错误输出，返回 3 次会话、
@@ -326,11 +338,8 @@
             交接卡把新会话需要的东西一次收齐：项目、恢复命令、最近几次提问、最后一次回答（原文）、
             工具调用碰过的文件、跑过的命令、遇到的报错，项目是 Git worktree 时还有当前分支。
             粘进草稿本，或者交给另一个 Agent，活就接着走下去，不用从头再来。跨 Agent 交接会在
-            对方那里开一个新会话，把这张卡当上下文，因为会话 id 只对它自己的 Agent 有意义。
+            对方那里开一个新会话，把这张卡当上下文，因为会话 id 只有自己的 Agent 认得。
           </p>
-          <div class="workflow__key">
-            <p><span class="chip">复制交接</span></p>
-          </div>
         </article>
 
         <article class="workflow">
@@ -339,14 +348,8 @@
           <p class="workflow__text">
             日报是当天的站会，周报是一周的汇总，都直接从索引读出来。不调模型，也没有摘要服务：
             同样的会话，永远生成同样的报告。可以在应用里看，也可以下载 Markdown。
-            章节标题跟着界面语言走：中文界面用下面这几组，英文界面则是 Progress、Decisions、
-            Open threads、First task tomorrow、Overview。
+            章节标题跟着界面语言走：中文界面写中文标题，英文界面写英文标题，报告内容一样。
           </p>
-          <div class="workflow__key">
-            <p><span class="k">standup</span> <code><span>进展</span> · <span>决策</span> · <span>待续</span> · <span>明天第一件事</span> · <span>概览</span></code></p>
-            <p><span class="k">weekly</span> <code><span>亮点</span> · <span>按项目</span> · <span>主题与决策</span> · <span>指标</span> · <span>风险 / 阻塞</span> · <span>下周计划</span></code></p>
-            <p><span class="chip">bun run brief --week 2026-W46</span></p>
-          </div>
         </article>
 
         <article class="workflow">
@@ -358,10 +361,6 @@
             这不是安全擦除：索引行和全文条目会被删掉，源文件还在。日报周报是纯 Markdown，从不改写，
             所以应用会把仍然提到这次会话的报告列出来，由你决定重新生成还是删除。
           </p>
-          <div class="workflow__key">
-            <p><span class="chip">忘记此会话</span></p>
-            <p><span class="chip">撤销</span></p>
-          </div>
         </article>
       </div>
     </div>
@@ -373,7 +372,7 @@
       <div class="panel">
         <span class="anchor" id="install" aria-hidden="true"></span>
         <p class="eyebrow">安装</p>
-        <h2 class="h2" id="install-h">两分钟，就能搜出第一次结果。</h2>
+        <h2 class="h2" id="install-h">两分钟，第一次检索。</h2>
 
         <ol class="steps">
           <li class="step">
@@ -474,8 +473,8 @@ bun run mcp</code></pre>
         <details>
           <summary>会有数据离开我的 Mac 吗？</summary>
           <div class="a">
-            不会。没有账号，没有同步，也没有遥测。会话从 Agent 存储读进本地那一个 SQLite 文件
-            <code>~/Library/Application Support/session-recall/index.db</code>，不会有任何东西被上传。
+            不会。没有账号，没有同步，也没有遥测。会话从 Agent 存储读进本地那一个 SQLite 文件，
+            不会有任何东西被上传。
           </div>
         </details>
 
@@ -601,6 +600,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=12" defer></script>
+<script src="/assets/site.js?v=15" defer></script>
 </body>
 </html>

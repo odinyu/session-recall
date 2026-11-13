@@ -9,20 +9,33 @@
 # temporary directory, so even the scan the server runs on boot can only find
 # nothing. The script verifies that before and after it takes the shots.
 #
-# Two sets are produced, one per interface language, each with an index written
-# in that language so the English shots show English session bodies too:
+# Every set holds the same three views, taken from one language-specific index
+# so the English shots show English chrome *and* English session bodies. A run
+# writes into a directory of its own, so the light originals are never touched
+# by a dark run:
 #
-#   docs/screenshots/en/{search-results,session-detail,process-search}.png
-#   docs/screenshots/zh/{search-results,session-detail,process-search}.png
+#   light (default)  docs/screenshots/<lang>/{search-results,session-detail,process-search}.png
+#   dark             docs/screenshots/<lang>-dark/{search-results,session-detail,process-search}.png
+#
+# The theme is a server-side preference, so each theme gets its own server,
+# started after `prefs.json` has been written into the temp app dir: the first
+# paint of every shot is already in the theme being captured. A light run keeps
+# the sequence it has always had — only the search results are light, the
+# session and process shots are dark, so the existing light assets are not
+# silently re-rendered. A dark run is dark throughout.
 #
 # Usage:
-#   bash scripts/capture-screenshots.sh [--lang en|zh|all]   # default all
+#   bash scripts/capture-screenshots.sh [--lang en|zh|all] [--theme light|dark|all]
+#
+#   --lang   default all
+#   --theme  default light (today's behaviour); `all` takes both sets
 #
 # Env overrides:
 #   SR_CHROME    path to a Chrome/Chromium binary (auto-detected by default)
 #   SR_PORT      first port to try for the UI (default 4399)
 #   SR_WIDTH     viewport width, default 1440
 #   SR_HEIGHT    viewport height, default 900
+#   SR_THEME     same as --theme (light, dark or all); default light
 #   SR_KEEP_TMP  1 keeps the temp dir (fixture index, server log) for inspection
 #
 # Requires macOS, Bun 1.3+ and a Chrome/Chromium build. Re-runnable: each
@@ -39,6 +52,7 @@ OUT="$ROOT/docs/screenshots"
 FIXTURE="$ROOT/test/fixtures/screenshot-data.ts"
 
 LANG_ARG="all"
+THEME_ARG="${SR_THEME:-light}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --lang)
@@ -53,12 +67,24 @@ while [[ $# -gt 0 ]]; do
       LANG_ARG="${1#--lang=}"
       shift
       ;;
+    --theme)
+      if [[ $# -lt 2 ]]; then
+        echo "--theme needs a value (light, dark or all)" >&2
+        exit 2
+      fi
+      THEME_ARG="$2"
+      shift 2
+      ;;
+    --theme=*)
+      THEME_ARG="${1#--theme=}"
+      shift
+      ;;
     -h|--help)
-      sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     *)
-      echo "unknown argument: $1 (expected --lang en|zh|all)" >&2
+      echo "unknown argument: $1 (expected --lang en|zh|all, --theme light|dark|all)" >&2
       exit 2
       ;;
   esac
@@ -69,6 +95,15 @@ case "$LANG_ARG" in
   en|zh) LANGS=("$LANG_ARG") ;;
   *)
     echo "invalid --lang value: $LANG_ARG (expected en, zh or all)" >&2
+    exit 2
+    ;;
+esac
+
+case "$THEME_ARG" in
+  all) THEMES=(light dark) ;;
+  light|dark) THEMES=("$THEME_ARG") ;;
+  *)
+    echo "invalid --theme value: $THEME_ARG (expected light, dark or all)" >&2
     exit 2
     ;;
 esac
@@ -154,6 +189,7 @@ echo "temp dir:      $TMP"
 echo "fixture index: $SESSION_RECALL_DB"
 echo "chrome:        $CHROME"
 echo "languages:     ${LANGS[*]}"
+echo "themes:        ${THEMES[*]}"
 
 if [[ ! -f "$SESSION_RECALL_WEB_DIST/index.html" ]]; then
   echo "web/dist is missing; building the UI"
@@ -326,11 +362,29 @@ stop_server() {
   SERVER_PID=""
 }
 
-# Theme and interface language are both server-side preferences, so the shot
-# only has to reload the page for either to take effect.
+# Theme and interface language are both server-side preferences, stored by the
+# sidecar in `<app dir>/prefs.json` — inside the temp dir here, because
+# SESSION_RECALL_HOME points there. Writing that file before the server starts
+# is what makes the very first paint of a run the right theme; the PATCH below
+# is only for changing it mid-run.
+write_prefs() { # write_prefs <theme> <lang>
+  mkdir -p "$SESSION_RECALL_HOME"
+  printf '{\n  "theme": "%s",\n  "language": "%s"\n}\n' "$1" "$2" \
+    > "$SESSION_RECALL_HOME/prefs.json"
+  echo "prefs before boot: theme=$1 language=$2"
+}
+
 set_prefs() { # set_prefs <theme> <lang>
   curl -fsS -X PATCH -H "content-type: application/json" \
     -d "{\"theme\":\"$1\",\"language\":\"$2\"}" "http://127.0.0.1:$PORT/api/prefs" >/dev/null
+}
+
+# A set is captured in exactly one theme: `--theme light` makes every view
+# light and `--theme dark` makes every view dark. The earlier script switched to
+# dark partway through a light run, which left the shipped light set two-thirds
+# dark — the mismatch the site had between its theme and its screenshots.
+view_theme() { # view_theme <run-theme> <view>
+  printf "%s\n" "$1"
 }
 
 shoot() { # shoot <file> <url> <ready-js>
@@ -363,52 +417,63 @@ for LANG in "${LANGS[@]}"; do
     en) QUERY="reconnect%20backoff" ;;
   esac
 
-  PORT="$(first_free_port "${SR_PORT:-4399}")" || { echo "no free port near ${SR_PORT:-4399}; set SR_PORT" >&2; exit 1; }
-  # Per language, so a second run cannot collide with the one just stopped — and
-  # never the real app's port (4319 by default), which may well be in use.
-  export SESSION_RECALL_PORT="$PORT"
-
   echo "seeding synthetic sessions ($LANG)"
   "$BUN" run "$FIXTURE" --lang "$LANG" "$SESSION_RECALL_DB"
   # Before anything photographs this index, prove it holds fixtures only.
   verify_fixture "after seeding"
 
-  DEST="$OUT/$LANG"
-  mkdir -p "$DEST"
+  for THEME in "${THEMES[@]}"; do
+    # A dark run writes beside the light one, never over it.
+    if [[ "$THEME" == "dark" ]]; then DEST="$OUT/$LANG-dark"; else DEST="$OUT/$LANG"; fi
+    mkdir -p "$DEST"
 
-  # One Chrome for the whole run, so its DevTools port is picked once and every
-  # language photographs through the same browser.
-  if [[ -z "$CHROME_PID" ]]; then
-    CDP_PORT="$(first_free_port "$((PORT + 1))")" || { echo "no free DevTools port near $((PORT + 1))" >&2; exit 1; }
-    start_chrome "$CDP_PORT"
-  fi
-  start_server "$PORT" "$LANG"
+    echo
+    echo "--- $LANG / $THEME theme -> ${DEST#"$ROOT"/} ---"
 
-  # The server scans every agent root on boot. Let that settle, then prove it
-  # found nothing: the index may only still hold the sessions this script seeded.
-  sleep 1
-  verify_fixture "after the boot scan"
+    PORT="$(first_free_port "${SR_PORT:-4399}")" || { echo "no free port near ${SR_PORT:-4399}; set SR_PORT" >&2; exit 1; }
+    # Per language and theme, so a second run cannot collide with the one just
+    # stopped — and never the real app's port (4319 by default), which may well
+    # be in use.
+    export SESSION_RECALL_PORT="$PORT"
 
-  BASE="http://127.0.0.1:$PORT"
-  # 1. Search results for the language's own mixed-language query, light theme.
-  set_prefs light "$LANG"
-  shoot "$DEST/search-results.png" "$BASE/#/search?q=$QUERY" \
-    'document.querySelectorAll(".session-block").length > 0'
-  # 2. One session, deep-linked to a question that sits below the fold, so the shot
-  #    shows the ?turn= jump itself with its question and answer side by side.
-  #    Dark theme.
-  set_prefs dark "$LANG"
-  shoot "$DEST/session-detail.png" "$BASE/#/session/claude-code%3Ademo-ws-reconnect?turn=1&hit=user" \
-    'document.querySelectorAll(".turn.is-target .is-hit").length > 0'
-  # 3. Process scope: the tool calls and the errors behind the answers.
-  shoot "$DEST/process-search.png" "$BASE/#/search?q=timeout&scope=process" \
-    'document.querySelectorAll(".session-block").length > 0'
+    # Before the server exists, so the first paint of every shot already has the
+    # theme and language this run is about.
+    write_prefs "$THEME" "$LANG"
 
-  # Nothing the server or the browser did may have added a non-fixture session.
-  verify_fixture "after the shots"
+    # One Chrome for the whole run, so its DevTools port is picked once and every
+    # language and theme photographs through the same browser.
+    if [[ -z "$CHROME_PID" ]]; then
+      CDP_PORT="$(first_free_port "$((PORT + 1))")" || { echo "no free DevTools port near $((PORT + 1))" >&2; exit 1; }
+      start_chrome "$CDP_PORT"
+    fi
+    start_server "$PORT" "$LANG-$THEME"
 
-  stop_server
-  CAPTURED+=("$DEST"/*.png)
+    # The server scans every agent root on boot. Let that settle, then prove it
+    # found nothing: the index may only still hold the sessions this script seeded.
+    sleep 1
+    verify_fixture "after the boot scan ($THEME)"
+
+    BASE="http://127.0.0.1:$PORT"
+    # 1. Search results for the language's own mixed-language query.
+    set_prefs "$(view_theme "$THEME" search-results)" "$LANG"
+    shoot "$DEST/search-results.png" "$BASE/#/search?q=$QUERY" \
+      'document.querySelectorAll(".session-block").length > 0'
+    # 2. One session, deep-linked to a question that sits below the fold, so the shot
+    #    shows the ?turn= jump itself with its question and answer side by side.
+    set_prefs "$(view_theme "$THEME" session-detail)" "$LANG"
+    shoot "$DEST/session-detail.png" "$BASE/#/session/claude-code%3Ademo-ws-reconnect?turn=1&hit=user" \
+      'document.querySelectorAll(".turn.is-target .is-hit").length > 0'
+    # 3. Process scope: the tool calls and the errors behind the answers.
+    set_prefs "$(view_theme "$THEME" process-search)" "$LANG"
+    shoot "$DEST/process-search.png" "$BASE/#/search?q=timeout&scope=process" \
+      'document.querySelectorAll(".session-block").length > 0'
+
+    # Nothing the server or the browser did may have added a non-fixture session.
+    verify_fixture "after the shots ($THEME)"
+
+    stop_server
+    CAPTURED+=("$DEST"/*.png)
+  done
 done
 
 echo

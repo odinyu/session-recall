@@ -159,17 +159,48 @@ behind.
 
 ## Rebuilding the image derivatives
 
-The screenshots in `assets/screenshots/` were generated from the PNGs in `docs/screenshots/`
-at 1440 px and 720 px wide, WebP quality 0.84, via headless Chrome (canvas `toDataURL`).
-`docs/screenshots/` is the source of truth and is never modified.
+The screenshots in `assets/screenshots/` are generated from the PNGs in `docs/screenshots/`
+at 1440 px and 720 px wide, WebP quality 0.84. `docs/screenshots/` is the source of truth
+and is never modified.
 
-On this machine `sips` cannot write WebP and `ffmpeg` has no libwebp, so Chrome is the encoder:
+Two scripts do the work: `scripts/capture-screenshots.sh` photographs the app against a
+throwaway fixture index, and `scripts/webp-encode.sh` turns those PNGs into the WebP files
+this site loads. The encoder is `scripts/webp-encode.html`, driven over the DevTools
+protocol by `scripts/webp-encode-cdp.ts`, because `sips` cannot write WebP on this machine
+and `ffmpeg` has no libwebp — the browser's own encoder is the reliable one here.
+
+**Light set** (the default; also the source of the existing files):
 
 ```sh
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless --disable-gpu --allow-file-access-from-files \
-  --virtual-time-budget=60000 --dump-dom "file:///path/to/encoder.html"
+bash scripts/capture-screenshots.sh --theme light
+bash scripts/webp-encode.sh --src docs/screenshots/en --out site/assets/screenshots/en
+bash scripts/webp-encode.sh --src docs/screenshots/zh --out site/assets/screenshots/zh
 ```
+
+**Dark set.** The dark run captures into `docs/screenshots/<lang>-dark/`, so the light
+originals are never overwritten; the `-dark` suffix keeps the two families of output names
+apart:
+
+```sh
+bash scripts/capture-screenshots.sh --theme dark
+bash scripts/webp-encode.sh --src docs/screenshots/en-dark --out site/assets/screenshots/en --suffix -dark
+bash scripts/webp-encode.sh --src docs/screenshots/zh-dark --out site/assets/screenshots/zh --suffix -dark
+```
+
+Output names are `<view>-<width>.webp` and `<view>-dark-<width>.webp`:
+
+| Light | Dark |
+| --- | --- |
+| `search-results-1440.webp` | `search-results-dark-1440.webp` |
+| `search-results-720.webp` | `search-results-dark-720.webp` |
+| `session-detail-1440.webp` | `session-detail-dark-1440.webp` |
+| `session-detail-720.webp` | `session-detail-dark-720.webp` |
+| `process-search-1440.webp` | `process-search-dark-1440.webp` |
+| `process-search-720.webp` | `process-search-dark-720.webp` |
+
+A file over 120 KiB is re-encoded a little lower in quality; the encoder prints the quality
+it settled on for that shot, and fails the run rather than writing something oversized.
+Everything else stays at 0.84.
 
 `og.png` is the 1200×630 social card. Its source is checked in as **`assets/og.html`** —
 edit the copy there and re-render; nothing else generates this image:

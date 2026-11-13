@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>webp-encode</title>
+<!--
+  The WebP encoder for the site's screenshot derivatives.
+
+  Opened by scripts/webp-encode.sh in headless Chrome; the job list arrives in
+  the URL fragment as base64 JSON, so the page needs no network and no server:
+
+    [{"out":"search-results-1440","src":"file:///…/search-results.png",
+      "width":1440,"quality":0.84}, …]
+
+  Each image is drawn onto a canvas scaled to `width` (the height keeps the
+  aspect ratio) and encoded with canvas.toDataURL("image/webp", quality). The
+  results are exposed on `window.__records` — one
+  `{out, width, height, quality, bytes, b64}` per job — with `window.__done`
+  set once all of them are ready, and also printed into the page for a human
+  looking at it. scripts/webp-encode-cdp.ts reads them over the DevTools
+  protocol and scripts/webp-encode.sh writes the bytes to disk.
+
+  `sips` cannot write WebP here and ffmpeg has no libwebp, so the browser's own
+  encoder is the one that produces the site's assets.
+-->
+<style>
+  body { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #out { white-space: pre; }
+</style>
+</head>
+<body>
+<pre id="out">PENDING</pre>
+<script>
+const out = document.getElementById("out");
+/** Filled in by encode(); read by scripts/webp-encode-cdp.ts. */
+window.__records = [];
+window.__done = false;
+window.__error = null;
+
+function emit(line) {
+  out.textContent = out.textContent === "" ? line : out.textContent + "\n" + line;
+}
+
+function decodeJobs() {
+  const raw = location.hash.replace(/^#/, "");
+  if (!raw) throw new Error("no jobs in the URL fragment");
+  const binary = atob(raw);
+  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+  const jobs = JSON.parse(new TextDecoder().decode(bytes));
+  if (!Array.isArray(jobs) || jobs.length === 0) throw new Error("empty job list");
+  return jobs;
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("could not load " + src));
+    image.src = src;
+  });
+}
+
+async function encode(job) {
+  const image = await loadImage(job.src);
+  const width = Number(job.width);
+  const height = Math.max(1, Math.round((image.naturalHeight * width) / image.naturalWidth));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  // Opaque white under the shot: a transparent pixel in a PNG would otherwise
+  // turn black in the lossy WebP encoder.
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width, height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, 0, 0, width, height);
+
+  const quality = Number(job.quality);
+  const dataUrl = canvas.toDataURL("image/webp", quality);
+  if (!dataUrl.startsWith("data:image/webp")) {
+    throw new Error("this browser cannot encode WebP (got " + dataUrl.slice(0, 20) + ")");
+  }
+  const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const bytes = atob(b64).length;
+  window.__records.push({ out: job.out, width, height, quality, bytes, b64 });
+  // Only the summary is printed; the base64 stays in __records, because a pre
+  // full of it is unreadable and slows the page's own rendering to a crawl.
+  emit(`${job.out}  ${width}x${height}  q=${quality}  ${bytes} bytes`);
+}
+
+window.addEventListener("load", async () => {
+  try {
+    out.textContent = "";
+    const jobs = decodeJobs();
+    for (const job of jobs) await encode(job);
+    window.__done = true;
+  } catch (error) {
+    window.__error = String(error && error.message ? error.message : error);
+    emit("ERROR: " + window.__error);
+  }
+});
+</script>
+</body>
+</html>
