@@ -9,6 +9,7 @@ release workflow builds the macOS app from the tag.
 - Bilingual documentation: README plus USAGE, MCP, DESIGN, POSITIONING, PRODUCT and REPORTS, each with an English original and a `.zh-CN.md` counterpart and a language switch at the top.
 - The long-form docs moved to `doc/`; the repository root now keeps only the README pair, `CHANGELOG.md` and `LICENSE`.
 - Screenshots are generated in matching languages under `docs/screenshots/en/` and `docs/screenshots/zh/` from synthetic English and Chinese sessions; the README links each language to its own set.
+- `test/i18n.test.ts` pins the two dictionaries together: same keys, same `{placeholder}` names per key, and no Chinese text in the English copy, because `bun run build` strips types without checking them.
 
 ## 1.2.2 — 2026-11-13
 

@@ -313,7 +313,7 @@ doc/              长篇文档，每篇都有英文和中文版
 ## 开发
 
 ```bash
-bun test          # 139 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, Alma, Cindy, Claude Code, Codex, pi
+bun test          # 145 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, Alma, Cindy, Claude Code, Codex, pi
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

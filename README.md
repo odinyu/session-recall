@@ -506,7 +506,7 @@ doc/              long-form docs, each in English and zh-CN
 ## Development
 
 ```bash
-bun test          # 139 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, Alma, Cindy, Claude Code, Codex
+bun test          # 145 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, Alma, Cindy, Claude Code, Codex
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

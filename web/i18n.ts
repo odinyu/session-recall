@@ -7,7 +7,11 @@
  * holds them and are never translated.
  *
  * `zh` is the single source of truth for the shape: `Messages` is derived from
- * it, so a key added on one side and forgotten on the other fails the build.
+ * it, so a key added on one side and forgotten on the other is a type error.
+ * Types alone would not gate it — `bun run build` strips types without checking
+ * them — so `test/i18n.test.ts` also pins key parity, placeholder parity and
+ * the absence of Chinese text in the English dictionary. Without those tests a
+ * forgotten key would render as `undefined` instead of failing a gate.
  * Values are plain strings; `{name}` placeholders are filled by `format()`.
  */
 
