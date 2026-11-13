@@ -587,9 +587,10 @@ section[id] {
 }
 
 .agents__grid {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 16px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px 28px;
   margin-top: 20px;
 }
 
@@ -1115,12 +1116,6 @@ html.js .copy {
    Responsive
    ========================================================================= */
 
-@media (max-width: 1024px) {
-  .agents__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
 /* the MCP config line is ~76 characters; stack the band before it would clip */
 @media (max-width: 1150px) {
   .band {
@@ -1155,6 +1150,12 @@ html.js .copy {
 /* Below this width the first code line is wider than the block, so an
    overlaid button would sit on top of the text. Move it into the flow. */
 @media (max-width: 640px) {
+  .agents__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: normal;
+    gap: 14px 18px;
+  }
   .filterbar {
     display: block;
     white-space: normal;
@@ -1181,9 +1182,6 @@ html.js .copy {
 }
 
 @media (max-width: 460px) {
-  .agents__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .step {
     grid-template-columns: 30px minmax(0, 1fr);
     gap: 12px;

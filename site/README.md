@@ -173,3 +173,5 @@ GitHub Releases and the page links out to them.
 - Light and dark themes follow `prefers-color-scheme`.
 - Because this file lives in `site/`, it is published at `/README.md`. That is harmless but
   not intended for visitors; delete it from the deploy if you would rather it were private.
+- `assets/site.css` and `assets/site.js` are cached for a day, so their URLs carry a
+  `?v=N` query. Bump the number in both pages whenever either file changes.
