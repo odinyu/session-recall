@@ -3,7 +3,7 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
-## Unreleased
+## 1.4.0 — 2026-11-13
 
 - Bilingual report templates: daily, weekly and archive reports follow the interface language, the CLI accepts `--lang zh|en`, the front matter records `lang:`, and to-do extraction also recognises `next step`.
 
