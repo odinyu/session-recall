@@ -9,7 +9,8 @@ import {
   parseBriefDate,
   readBrief,
 } from "./brief.ts";
-import type { BriefFormat, BriefResult } from "./brief.ts";
+import type { BriefFormat, BriefLang, BriefResult } from "./brief.ts";
+import { isBriefLang } from "./brief-lang.ts";
 import {
   eventCountsFor,
   eventsForTurn,
@@ -251,6 +252,17 @@ async function api(request: Request, url: URL): Promise<Response> {
     if (!format) {
       return json({ error: `invalid format: ${url.searchParams.get("format") ?? ""}` }, 400);
     }
+    const rawLang = url.searchParams.get("lang");
+    if (rawLang !== null && !isBriefLang(rawLang)) {
+      return json({ error: `invalid language: ${rawLang}` }, 400);
+    }
+    // `auto` follows the browser, which only the page can resolve; the stored
+    // preference is the fallback here, and `auto` keeps the original Chinese.
+    const lang: BriefLang = isBriefLang(rawLang)
+      ? rawLang
+      : readPrefs().language === "en"
+        ? "en"
+        : "zh";
     const date = parseBriefDate(url.searchParams.get("date"));
     let result: BriefResult;
     if (format === "week") {
@@ -258,7 +270,7 @@ async function api(request: Request, url: URL): Promise<Response> {
         url.searchParams.get("week") ??
         isoWeekKey(date?.start ?? Date.now());
       try {
-        result = generateWeekReport(db, week);
+        result = generateWeekReport(db, week, { lang });
       } catch (error) {
         return json(
           { error: error instanceof Error ? error.message : String(error) },
@@ -267,7 +279,7 @@ async function api(request: Request, url: URL): Promise<Response> {
       }
     } else {
       if (!date) return json({ error: "invalid date" }, 400);
-      result = generateBrief(db, date.key, { format });
+      result = generateBrief(db, date.key, { format, lang });
     }
     const download = new URLSearchParams({ format });
     if (result.week) download.set("week", result.week);

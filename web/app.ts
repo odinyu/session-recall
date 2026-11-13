@@ -2370,6 +2370,17 @@ function weekSubtitle(week: string, range: string | null | undefined): string {
 }
 
 /**
+ * The report POST target for both the preview and the "Generate" button.
+ *
+ * The page resolves `auto` itself (it follows this browser), so it sends the
+ * language it is actually showing; the server would only see the stored
+ * preference, which cannot describe `auto`.
+ */
+function briefEndpoint(params: Record<string, string>): string {
+  return `/api/brief?${new URLSearchParams({ ...params, lang }).toString()}`;
+}
+
+/**
  * `kind` is deliberately not called `format`: that name belongs to the
  * dictionary helper imported from `i18n.ts`, and a parameter of the same name
  * shadows it inside this function (the bundler then renames the import, and the
@@ -2383,8 +2394,8 @@ async function renderBrief(ref: string, kind: "day" | "week" = "day"): Promise<v
   content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
   const isWeek = kind === "week";
   const endpoint = isWeek
-    ? `/api/brief?format=week&week=${encodeURIComponent(ref)}`
-    : `/api/brief?date=${encodeURIComponent(ref)}`;
+    ? briefEndpoint({ format: "week", week: ref })
+    : briefEndpoint({ date: ref });
   try {
     const response = await fetch(endpoint, { method: "POST" });
     const data = (await response.json().catch(() => null)) as
@@ -2669,10 +2680,10 @@ async function generateBriefFile(): Promise<void> {
   const isWeek = briefMode === "week";
   if (status) status.innerHTML = `<span class="foot-muted">${t.generating}</span>`;
   try {
-    const query = isWeek
-      ? `format=week&date=${encodeURIComponent(date)}`
-      : `date=${encodeURIComponent(date)}`;
-    const response = await fetch(`/api/brief?${query}`, { method: "POST" });
+    const endpoint = isWeek
+      ? briefEndpoint({ format: "week", date })
+      : briefEndpoint({ date });
+    const response = await fetch(endpoint, { method: "POST" });
     const body = (await response.json().catch(() => null)) as
       | {
           error?: string;

@@ -281,7 +281,7 @@ test("standup carries YAML front-matter and the four movable sections", () => {
   expect(result.turns).toBe(4);
 
   const markdown = result.markdown;
-  expect(markdown.startsWith("---\nkind: daily\ndate: 2026-11-10\n")).toBe(true);
+  expect(markdown.startsWith("---\nkind: daily\nlang: zh\ndate: 2026-11-10\n")).toBe(true);
   expect(markdown).toContain("projects: 3");
   expect(markdown).toContain("sessions: 3");
   expect(markdown).toContain("turns: 4");
@@ -357,7 +357,7 @@ test("weekly aggregates from the DB by range and attributes a session once", () 
   expect(result.path).toBe(join(dir, "weekly", "weekly", "2026-W46.md"));
 
   const markdown = result.markdown;
-  expect(markdown.startsWith("---\nkind: weekly\nweek: 2026-W46\n")).toBe(true);
+  expect(markdown.startsWith("---\nkind: weekly\nlang: zh\nweek: 2026-W46\n")).toBe(true);
   expect(markdown).toContain("range: 2026-11-09..2026-11-15");
   expect(markdown).toContain("active_days: 3");
   for (const heading of ["## 亮点", "## 按项目", "## 主题与决策", "## 指标", "## 风险 / 阻塞", "## 下周计划"]) {

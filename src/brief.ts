@@ -10,7 +10,12 @@ import type { Database } from "bun:sqlite";
 import { AGENT_IDS, AGENT_LABELS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { BRIEF_DIR, PROJECT_ROOT } from "./config.ts";
+import { BRIEF_LABELS, isBriefLang } from "./brief-lang.ts";
+import type { BriefLabels, BriefLang } from "./brief-lang.ts";
 import { resumeCommand, sessionDeepLink } from "./util/resume.ts";
+
+/** The template language; session content is never translated. */
+export type { BriefLang } from "./brief-lang.ts";
 
 const MAX_PROMPT_CHARS = 220;
 const MAX_TITLE_CHARS = 80;
@@ -45,6 +50,15 @@ export interface BriefWeek {
 export interface BriefOptions {
   format?: BriefFormat;
   outDir?: string;
+  /** Template language; omitted means `zh`, the original output. */
+  lang?: BriefLang;
+}
+
+/** Resolve the template language, rejecting anything outside the two tables. */
+function resolveBriefLang(value: BriefLang | undefined): BriefLang {
+  if (value === undefined) return "zh";
+  if (!isBriefLang(value)) throw new Error(`invalid language: ${String(value)}`);
+  return value;
 }
 
 export interface BriefResult {
@@ -141,10 +155,30 @@ function clock(ms: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+/** Local calendar parts of a timestamp; the report title's date label. */
+function dateParts(ms: number): { year: number; monthIndex: number; day: number } {
+  const date = new Date(ms);
+  return {
+    year: date.getFullYear(),
+    monthIndex: date.getMonth(),
+    day: date.getDate(),
+  };
+}
 
-function weekdayLabel(ms: number): string {
-  return WEEKDAYS[new Date(ms).getDay()] ?? "";
+function dateText(labels: BriefLabels, ms: number): string {
+  const { year, monthIndex, day } = dateParts(ms);
+  return labels.date(year, monthIndex, day);
+}
+
+/** The ISO week key plus its Monday..Sunday range, in the template language. */
+function weekText(labels: BriefLabels, week: BriefWeek): string {
+  const first = week.days[0];
+  const last = week.days[6];
+  return labels.weekLabel(
+    week.key,
+    first ? monthDay(first.key) : "",
+    last ? monthDay(last.key) : "",
+  );
 }
 
 /** ISO-8601 week key (`YYYY-Www`) for a local timestamp. */
@@ -237,8 +271,8 @@ function clip(value: string, max: number): string {
   return `${chars.slice(0, max).join("").trimEnd()}…`;
 }
 
-function projectName(path: string): string {
-  if (!path) return "未识别项目";
+function projectName(path: string, labels: BriefLabels): string {
+  if (!path) return labels.unknownProject;
   return basename(path) || path;
 }
 
@@ -348,38 +382,42 @@ function loadSessions(db: Database, range: BriefDate | BriefWeek): BriefSession[
   return sessions;
 }
 
-function timeLabel(session: BriefSession): string {
+function timeLabel(session: BriefSession, labels: BriefLabels): string {
   const times = session.turns.map((turn) => turn.ts).filter((ts) => ts > 0);
   if (times.length > 0) {
     const first = Math.min(...times);
     const last = Math.max(...times);
     return first === last ? clock(first) : `${clock(first)}–${clock(last)}`;
   }
-  return session.updatedAt ? `更新于 ${clock(session.updatedAt)}` : "时间未知";
+  return session.updatedAt
+    ? labels.updatedAt(clock(session.updatedAt))
+    : labels.unknownTime;
 }
 
-function sessionTitle(session: BriefSession): string {
+function sessionTitle(session: BriefSession, labels: BriefLabels): string {
   const title = oneLine(session.title);
   if (title) return clip(title, MAX_TITLE_CHARS);
   const firstPrompt = session.turns.find((turn) => oneLine(turn.user_text));
   return firstPrompt
     ? clip(firstPrompt.user_text, MAX_TITLE_CHARS)
-    : "未命名会话";
+    : labels.untitled;
 }
 
-function sessionBlock(session: BriefSession): string {
-  const lines: string[] = [`### ${sessionTitle(session)}`, ""];
+function sessionBlock(session: BriefSession, labels: BriefLabels): string {
+  const lines: string[] = [`### ${sessionTitle(session, labels)}`, ""];
   const meta = [
     AGENT_LABELS[session.agent],
-    timeLabel(session),
+    timeLabel(session, labels),
     session.hasDayTurn
-      ? `${session.turns.length} 轮`
-      : `最近 ${session.turns.length} 轮`,
+      ? labels.turnsShort(session.turns.length)
+      : labels.recentTurns(session.turns.length),
   ];
   if (session.toolCount || session.reasoningCount) {
     const process: string[] = [];
-    if (session.toolCount) process.push(`工具 ${session.toolCount}`);
-    if (session.reasoningCount) process.push(`思考 ${session.reasoningCount}`);
+    if (session.toolCount) process.push(labels.toolsCount(session.toolCount));
+    if (session.reasoningCount) {
+      process.push(labels.reasoningCount(session.reasoningCount));
+    }
     meta.push(process.join(" / "));
   }
   lines.push(meta.join(" · "), "");
@@ -388,7 +426,7 @@ function sessionBlock(session: BriefSession): string {
     .map((turn) => oneLine(turn.user_text))
     .filter(Boolean);
   if (prompts.length > 0) {
-    lines.push("**提问**", "");
+    lines.push(labels.promptsHeading, "");
     for (const prompt of prompts) {
       lines.push(`- ${clip(prompt, MAX_PROMPT_CHARS)}`);
     }
@@ -401,41 +439,42 @@ function sessionBlock(session: BriefSession): string {
     session.projectPath,
   );
   if (resume) {
-    lines.push(`**继续**：${codeSpan(resume)}`, "");
+    lines.push(labels.resumeLine(codeSpan(resume)), "");
   }
 
   // A stable address for the app itself: `http://127.0.0.1:<port>` would be the
   // port of whichever launch generated the brief, and would die on the next one
   // (and land in a browser when clicked from outside the app).
   const link = sessionDeepLink(session.id);
-  lines.push(`[在 session-recall 打开](${link})`, "");
+  lines.push(labels.openLink(link), "");
   return lines.join("\n");
 }
 
-function projectBlock(project: BriefProject): string {
+function projectBlock(project: BriefProject, labels: BriefLabels): string {
   const lines = [`## ${oneLine(project.name)}`, ""];
   if (project.path) lines.push(codeSpan(project.path), "");
   for (const session of project.sessions) {
-    lines.push(sessionBlock(session));
+    lines.push(sessionBlock(session, labels));
   }
   return lines.join("\n");
 }
 
-function overviewTable(projects: BriefProject[]): string {
+function overviewTable(projects: BriefProject[], labels: BriefLabels): string {
   const rows = projects.map((project) => {
-    const agents = [...new Set(project.sessions.map((session) => AGENT_LABELS[session.agent]))]
-      .join("、");
+    const agents = [
+      ...new Set(project.sessions.map((session) => AGENT_LABELS[session.agent])),
+    ].join(labels.joinList);
     return `| ${oneLine(project.name).replace(/\|/g, "\\|")} | ${project.sessions.length} | ${project.turns} | ${agents} |`;
   });
   return [
-    "| 项目 | 会话 | 问答 | Agent |",
+    labels.projectTableHeader,
     "| --- | ---: | ---: | --- |",
     ...rows,
   ].join("\n");
 }
 
 /** Sessions grouped by project, newest activity first. Shared by all views. */
-function groupProjects(sessions: BriefSession[]): BriefProject[] {
+function groupProjects(sessions: BriefSession[], labels: BriefLabels): BriefProject[] {
   const grouped = new Map<string, BriefProject>();
   for (const session of sessions) {
     const key = session.projectPath || "";
@@ -443,7 +482,7 @@ function groupProjects(sessions: BriefSession[]): BriefProject[] {
     if (!project) {
       project = {
         path: session.projectPath,
-        name: projectName(session.projectPath),
+        name: projectName(session.projectPath, labels),
         sessions: [],
         turns: 0,
       };
@@ -459,31 +498,43 @@ function groupProjects(sessions: BriefSession[]): BriefProject[] {
   });
 }
 
-function buildMarkdown(date: BriefDate, sessions: BriefSession[]): string {
+function buildMarkdown(
+  date: BriefDate,
+  sessions: BriefSession[],
+  labels: BriefLabels,
+): string {
   const sessionsCount = sessions.length;
   const turnsCount = sessions.reduce((sum, session) => sum + session.turns.length, 0);
-  const projects = groupProjects(sessions);
+  const projects = groupProjects(sessions, labels);
 
   const lines = [
-    `# 工作简报 · ${date.label}`,
+    labels.archiveTitle(dateText(labels, date.start)),
     "",
-    `> ${date.key} · ${projects.length} 个项目 · ${sessionsCount} 个会话 · ${turnsCount} 轮问答 · 生成于 ${clock(Date.now())}`,
+    labels.archiveMeta(
+      date.key,
+      projects.length,
+      sessionsCount,
+      turnsCount,
+      clock(Date.now()),
+    ),
     "",
   ];
   if (sessionsCount === 0) {
-    lines.push("当日没有记录到会话。", "");
+    lines.push(labels.noSessionsToday, "");
     return lines.join("\n");
   }
-  lines.push("## 今日概览", "", overviewTable(projects), "");
+  lines.push(`## ${labels.sections.archiveOverview}`, "", overviewTable(projects, labels), "");
   for (const project of projects) {
-    lines.push(projectBlock(project));
+    lines.push(projectBlock(project, labels));
   }
   return lines.join("\n").trimEnd() + "\n";
 }
 
 const COMPLETION =
   /(^|[^未])完成|已(修复|提交|推送|合入|上线|通过)|测试通过|fixed|done|shipped|completed|merged/i;
-const PENDING_MARK = /待办|下一步|TODO/i;
+// Markers are language-independent: both template languages extract the same
+// items from the same sessions. `next step` is the English counterpart of 下一步.
+const PENDING_MARK = /待办|下一步|next step|TODO/i;
 const RISK_MARK = /风险|阻塞|blocked|blocker|risk|未解决/i;
 const UNCHECKED = /^\s*[-*]\s*\[\s*\]\s+(.+?)\s*$/;
 const DECISION_MARK = /<!--\s*decision\s*:\s*([\s\S]*?)-->/gi;
@@ -558,7 +609,7 @@ function isCleanItem(item: string): boolean {
 
 // No \b after CJK: Chinese characters and ASCII punctuation are both non-word
 // characters in JS, so a word boundary never appears between them.
-const STARTS_MARK = /^\s*(?:待办|下一步)/i;
+const STARTS_MARK = /^\s*(?:待办|下一步|next step)/i;
 const STARTS_TODO = /^\s*TODO\b/i;
 
 /** Unchecked boxes and 待办/下一步/TODO list items from one assistant message. */
@@ -639,9 +690,9 @@ function collectRisks(sessions: BriefSession[], cap = 5): string[] {
 }
 
 /** Standup keeps raw prompts out, including the title fallback archive uses. */
-function reportTitle(session: BriefSession): string {
+function reportTitle(session: BriefSession, labels: BriefLabels): string {
   const title = oneLine(session.title);
-  return title ? clip(title, MAX_TITLE_CHARS) : "未命名会话";
+  return title ? clip(title, MAX_TITLE_CHARS) : labels.untitled;
 }
 
 function isCompleted(session: BriefSession): boolean {
@@ -649,8 +700,12 @@ function isCompleted(session: BriefSession): boolean {
   return last ? COMPLETION.test(last) : false;
 }
 
-function buildStandup(date: BriefDate, sessions: BriefSession[]): string {
-  const projects = groupProjects(sessions);
+function buildStandup(
+  date: BriefDate,
+  sessions: BriefSession[],
+  labels: BriefLabels,
+): string {
+  const projects = groupProjects(sessions, labels);
   const turns = sessions.reduce((sum, session) => sum + session.turns.length, 0);
   const agents = agentsFor(sessions);
   const top = projects.reduce<BriefProject | null>(
@@ -663,6 +718,7 @@ function buildStandup(date: BriefDate, sessions: BriefSession[]): string {
   const lines: string[] = [
     frontMatter([
       ["kind", "daily"],
+      ["lang", labels.lang],
       ["date", date.key],
       ["projects", String(projects.length)],
       ["sessions", String(sessions.length)],
@@ -670,21 +726,24 @@ function buildStandup(date: BriefDate, sessions: BriefSession[]): string {
       ["agents", agentsYaml(agents)],
       ["generated_at", generatedAt()],
     ]),
-    `# 日报 · ${date.label} ${weekdayLabel(date.start)}`,
+    labels.dailyTitle(
+      dateText(labels, date.start),
+      labels.weekday(new Date(date.start).getDay()),
+    ),
     "",
   ];
 
   if (sessions.length === 0) {
-    lines.push("**一句话**：当日没有记录到会话。", "");
-    lines.push("## 进展", "", "- （无）", "");
+    lines.push(labels.oneLine(labels.noSessionsToday), "");
+    lines.push(`## ${labels.sections.progress}`, "", `- ${labels.none}`, "");
   } else {
-    const focus = top
-      ? `，主要集中在 ${oneLine(top.name)}（${top.turns} 轮）`
-      : "";
+    const focus = top ? labels.summaryFocus(oneLine(top.name), top.turns) : "";
     lines.push(
-      `**一句话**：${projects.length} 个项目、${sessions.length} 个会话、${turns} 轮问答${focus}。`,
+      labels.oneLine(
+        `${labels.summary(projects.length, sessions.length, turns)}${focus}${labels.sentenceEnd}`,
+      ),
       "",
-      "## 进展",
+      `## ${labels.sections.progress}`,
       "",
     );
     for (const project of projects) {
@@ -692,28 +751,37 @@ function buildStandup(date: BriefDate, sessions: BriefSession[]): string {
       for (const session of project.sessions) {
         // A conclusion, not a dump: the session title and its size. Raw answer
         // text stays out of the standup; open the link for detail.
-        lines.push(`- **${reportTitle(session)}**（${session.turns.length} 轮）`);
+        lines.push(
+          labels.sessionBullet(
+            reportTitle(session, labels),
+            session.turns.length,
+          ),
+        );
       }
       lines.push("");
     }
   }
 
-  lines.push("## 决策", "");
+  lines.push(`## ${labels.sections.decisions}`, "");
   if (decisions.length > 0) {
     for (const decision of decisions) lines.push(`- ${decision}`);
   } else {
-    lines.push("- （没有显式 decision 标记）");
+    lines.push(`- ${labels.noDecision}`);
   }
-  lines.push("", "## 待续", "");
+  lines.push("", `## ${labels.sections.pending}`, "");
   if (pending.length > 0) {
     for (const item of pending) lines.push(`- [ ] ${item}`);
   } else {
-    lines.push("- （没有从最后一条回答里提取到待办）");
+    lines.push(`- ${labels.noPending}`);
   }
-  lines.push("", "## 明天第一件事", "");
-  lines.push(pending[0] ?? (top ? `继续推进 **${oneLine(top.name)}**` : "—"));
-  lines.push("", "## 概览", "");
-  lines.push(projects.length > 0 ? overviewTable(projects) : "（无）");
+  lines.push("", `## ${labels.sections.firstTask}`, "");
+  lines.push(
+    pending[0] ?? (top ? labels.continueProject(oneLine(top.name)) : "—"),
+  );
+  lines.push("", `## ${labels.sections.overview}`, "");
+  lines.push(
+    projects.length > 0 ? overviewTable(projects, labels) : labels.none,
+  );
   return lines.join("\n").trimEnd() + "\n";
 }
 
@@ -729,6 +797,7 @@ function buildWeek(
   sessions: BriefSession[],
   projects: BriefProject[],
   stats: WeekDayStat[],
+  labels: BriefLabels,
 ): string {
   const turns = sessions.reduce((sum, session) => sum + session.turns.length, 0);
   const agents = agentsFor(sessions);
@@ -741,6 +810,7 @@ function buildWeek(
   const lines: string[] = [
     frontMatter([
       ["kind", "weekly"],
+      ["lang", labels.lang],
       ["week", week.key],
       ["range", week.range],
       ["active_days", String(activeDays)],
@@ -750,36 +820,45 @@ function buildWeek(
       ["agents", agentsYaml(agents)],
       ["generated_at", generatedAt()],
     ]),
-    `# 周报 · ${week.label}`,
+    labels.weeklyTitle(weekText(labels, week)),
     "",
   ];
 
   if (sessions.length === 0) {
-    lines.push("**本周一句话**：本周没有记录到会话。", "");
+    lines.push(labels.weekLine(labels.noSessionsWeek), "");
   } else {
     lines.push(
-      `**本周一句话**：${projects.length} 个项目、${sessions.length} 个会话、${turns} 轮问答，跨 ${activeDays} 个活跃日。`,
+      labels.weekLine(
+        `${labels.weekSummary(projects.length, sessions.length, turns, activeDays)}${labels.sentenceEnd}`,
+      ),
       "",
     );
   }
 
-  lines.push("## 亮点", "");
+  lines.push(`## ${labels.sections.highlights}`, "");
   if (top.length === 0) {
-    lines.push("- （无）");
+    lines.push(`- ${labels.none}`);
   } else {
     for (const project of top.slice(0, 3)) {
       const latest = project.sessions[0];
       const when = latest ? monthDay(localDateKey(new Date(latest.updatedAt))) : "";
-      const title = latest ? `；最近 ${when} ${sessionTitle(latest)}` : "";
+      const latestText = latest
+        ? labels.highlightLatest(when, sessionTitle(latest, labels))
+        : "";
       lines.push(
-        `- **${oneLine(project.name)}**：${project.sessions.length} 个会话 / ${project.turns} 轮${title}`,
+        labels.highlightLine(
+          oneLine(project.name),
+          project.sessions.length,
+          project.turns,
+          latestText,
+        ),
       );
     }
   }
 
-  lines.push("", "## 按项目", "");
+  lines.push("", `## ${labels.sections.byProject}`, "");
   if (projects.length === 0) {
-    lines.push("- （无）");
+    lines.push(`- ${labels.none}`);
   } else {
     for (const project of projects) {
       lines.push(`**${oneLine(project.name)}**`, "");
@@ -787,35 +866,39 @@ function buildWeek(
       const ongoing = project.sessions.filter((session) => !isCompleted(session));
       if (completed.length > 0) {
         lines.push(
-          `- 完成：${completed.map((session) => sessionTitle(session)).join("、")}`,
+          labels.doneLine(
+            completed.map((session) => sessionTitle(session, labels)),
+          ),
         );
       }
       if (ongoing.length > 0) {
         lines.push(
-          `- 进行中：${ongoing.map((session) => sessionTitle(session)).join("、")}`,
+          labels.ongoingLine(
+            ongoing.map((session) => sessionTitle(session, labels)),
+          ),
         );
       }
       const next = collectPending(project.sessions, 3, 2);
       if (next.length > 0) {
-        lines.push(`- 下周：${next.join("；")}`);
+        lines.push(labels.nextLine(next));
       }
       lines.push("");
     }
   }
 
-  lines.push("## 主题与决策", "");
+  lines.push(`## ${labels.sections.themes}`, "");
   if (decisions.length > 0) {
     for (const decision of decisions) lines.push(`- ${decision}`);
   } else {
-    lines.push("- （本周没有显式 decision 标记）");
+    lines.push(`- ${labels.noWeekDecision}`);
   }
 
-  lines.push("", "## 指标", "");
+  lines.push("", `## ${labels.sections.metrics}`, "");
   const active = stats.filter((stat) => stat.sessions > 0);
   if (active.length === 0) {
-    lines.push("（本周没有记录到会话）");
+    lines.push(labels.metricsEmpty);
   } else {
-    lines.push("| 日期 | 会话 | 问答 | 活跃项目 |", "| --- | ---: | ---: | ---: |");
+    lines.push(labels.weekTableHeader, "| --- | ---: | ---: | ---: |");
     for (const stat of active) {
       lines.push(
         `| ${monthDay(stat.day.key)} | ${stat.sessions} | ${stat.turns} | ${stat.projects} |`,
@@ -823,18 +906,18 @@ function buildWeek(
     }
   }
 
-  lines.push("", "## 风险 / 阻塞", "");
+  lines.push("", `## ${labels.sections.risks}`, "");
   if (risks.length > 0) {
     for (const risk of risks) lines.push(`- ${risk}`);
   } else {
-    lines.push("- （未从最后一条回答中提取到风险）");
+    lines.push(`- ${labels.noRisk}`);
   }
 
-  lines.push("", "## 下周计划", "");
+  lines.push("", `## ${labels.sections.nextWeek}`, "");
   if (pending.length > 0) {
     for (const item of pending) lines.push(`- [ ] ${item}`);
   } else {
-    lines.push("- （没有从最后一条回答里提取到待办）");
+    lines.push(`- ${labels.noPending}`);
   }
   return lines.join("\n").trimEnd() + "\n";
 }
@@ -852,9 +935,10 @@ function writeText(path: string, markdown: string): void {
 /** Keep `brief/index.md` as a short, newest-first entry list. */
 function updateBriefIndex(outDir: string): void {
   const sections: string[] = [];
+  // Language-neutral: one cumulative list may mix reports from both templates.
   const groups = [
-    ["daily", "日报", 14],
-    ["weekly", "周报", 8],
+    ["daily", "Daily", 14],
+    ["weekly", "Weekly", 8],
   ] as const;
   for (const [dir, title, limit] of groups) {
     let names: string[];
@@ -874,10 +958,13 @@ function updateBriefIndex(outDir: string): void {
   writeText(join(outDir, "index.md"), ["# Briefs", "", ...sections].join("\n").trimEnd() + "\n");
 }
 
-function dailyTotals(sessions: BriefSession[]): { turns: number; projects: number } {
+function dailyTotals(
+  sessions: BriefSession[],
+  labels: BriefLabels,
+): { turns: number; projects: number } {
   return {
     turns: sessions.reduce((sum, session) => sum + session.turns.length, 0),
-    projects: groupProjects(sessions).length,
+    projects: groupProjects(sessions, labels).length,
   };
 }
 
@@ -886,6 +973,8 @@ export function generateBrief(
   dateInput?: string,
   options: BriefOptions = {},
 ): BriefResult {
+  const lang = resolveBriefLang(options.lang);
+  const labels = BRIEF_LABELS[lang];
   const format = options.format ?? "standup";
   if (format === "week") {
     throw new Error("weekly reports are generated with generateWeekReport");
@@ -894,9 +983,11 @@ export function generateBrief(
   const date = parseBriefDate(dateInput);
   if (!date) throw new Error(`invalid date: ${dateInput ?? ""}`);
   const sessions = loadSessions(db, date);
-  const totals = dailyTotals(sessions);
+  const totals = dailyTotals(sessions, labels);
   const markdown =
-    format === "archive" ? buildMarkdown(date, sessions) : buildStandup(date, sessions);
+    format === "archive"
+      ? buildMarkdown(date, sessions, labels)
+      : buildStandup(date, sessions, labels);
   // Archive keeps the legacy `<date>.md` path; standup gets its own daily tree.
   const path =
     format === "archive"
@@ -922,6 +1013,8 @@ export function generateBrief(
 
 export interface WeekReportOptions {
   outDir?: string;
+  /** Template language; omitted means `zh`, the original output. */
+  lang?: BriefLang;
 }
 
 export function generateWeekReport(
@@ -929,11 +1022,13 @@ export function generateWeekReport(
   weekInput?: string,
   options: WeekReportOptions = {},
 ): BriefResult {
+  const lang = resolveBriefLang(options.lang);
+  const labels = BRIEF_LABELS[lang];
   const outDir = options.outDir ?? BRIEF_DIR;
   const week = parseBriefWeek(weekInput);
   if (!week) throw new Error(`invalid week: ${weekInput ?? ""}`);
   const sessions = loadSessions(db, week);
-  const projects = groupProjects(sessions);
+  const projects = groupProjects(sessions, labels);
   const stats: WeekDayStat[] = week.days.map((day) => ({
     day,
     sessions: 0,
@@ -957,7 +1052,7 @@ export function generateWeekReport(
   for (const stat of stats) {
     stat.projects = perDayProjects.get(stat.day.key)?.size ?? 0;
   }
-  const markdown = buildWeek(week, sessions, projects, stats);
+  const markdown = buildWeek(week, sessions, projects, stats, labels);
   const path = join(outDir, "weekly", `${week.key}.md`);
   writeText(path, markdown);
   updateBriefIndex(outDir);

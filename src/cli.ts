@@ -7,30 +7,52 @@ import {
   parseBriefDate,
   parseBriefWeek,
 } from "./brief.ts";
-import type { BriefFormat } from "./brief.ts";
+import type { BriefFormat, BriefLang } from "./brief.ts";
 import { runSearchCli } from "./cli-search.ts";
 import { forgetSession, openDb, splitSessionId, unforgetSession } from "./db.ts";
 import { runMcpServer } from "./mcp.ts";
+import { readPrefs } from "./prefs.ts";
 import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
 import { acquireScanLock, scanLockPath } from "./scan-lock.ts";
 import { serve } from "./server.ts";
 
 
-type BriefCli =
-  | { kind: "run"; format: BriefFormat; date: string | null; week: string | null }
+export type BriefCli =
+  | {
+      kind: "run";
+      format: BriefFormat;
+      date: string | null;
+      week: string | null;
+      /** `null` means "use the stored preference" (`en` -> English, else zh). */
+      lang: BriefLang | null;
+    }
   | { kind: "help" }
   | { kind: "error"; message: string };
 
-function parseBriefArgs(argv: string[]): BriefCli {
+export function parseBriefArgs(argv: string[]): BriefCli {
   let format: BriefFormat = "standup";
   let formatGiven = false;
   let date: string | null = null;
   let week: string | null = null;
+  let lang: BriefLang | null = null;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index] as string;
     if (arg === "-h" || arg === "--help") return { kind: "help" };
+    if (arg === "--lang" || arg.startsWith("--lang=")) {
+      const inline = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : null;
+      const value = inline ?? argv[index + 1];
+      if (inline === null) index += 1;
+      if (value !== "zh" && value !== "en") {
+        return {
+          kind: "error",
+          message: `invalid --lang "${value ?? ""}": expected zh or en`,
+        };
+      }
+      lang = value;
+      continue;
+    }
     if (arg === "--format" || arg.startsWith("--format=")) {
       const inline = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : null;
       const value = inline ?? argv[index + 1];
@@ -84,7 +106,7 @@ function parseBriefArgs(argv: string[]): BriefCli {
     return { kind: "error", message: `invalid date "${date}"` };
   }
 
-  return { kind: "run", format, date, week };
+  return { kind: "run", format, date, week, lang };
 }
 
 /** Scans under the shared lock; the app or MCP may be scanning right now. */
@@ -115,7 +137,10 @@ if (command === "scan") {
   const parsed = parseBriefArgs(process.argv.slice(3));
   if (parsed.kind === "help") {
     console.log(
-      "usage: bun run src/cli.ts brief [YYYY-MM-DD] [--format standup|archive|week] [--week YYYY-Www]",
+      "usage: bun run src/cli.ts brief [YYYY-MM-DD] [--format standup|archive|week] [--week YYYY-Www] [--lang zh|en]",
+    );
+    console.log(
+      "  --lang zh|en   report template language (default: stored preference; auto -> zh)",
     );
   } else if (parsed.kind === "error") {
     console.error(parsed.message);
@@ -132,10 +157,17 @@ if (command === "scan") {
     }
     const db = openDb(DB_PATH);
     try {
+      // `auto` follows the browser, which a CLI run cannot know; `en` is the
+      // only stored value that means English, matching the server fallback.
+      const lang =
+        parsed.lang ?? (readPrefs().language === "en" ? "en" : "zh");
       const result =
         parsed.format === "week"
-          ? generateWeekReport(db, parsed.week ?? undefined)
-          : generateBrief(db, parsed.date ?? undefined, { format: parsed.format });
+          ? generateWeekReport(db, parsed.week ?? undefined, { lang })
+          : generateBrief(db, parsed.date ?? undefined, {
+              format: parsed.format,
+              lang,
+            });
       console.log(`brief → ${result.path}`);
     } finally {
       db.close();
