@@ -202,6 +202,15 @@ A file over 120 KiB is re-encoded a little lower in quality; the encoder prints 
 it settled on for that shot, and fails the run rather than writing something oversized.
 Everything else stays at 0.84.
 
+**Every screenshot URL must carry the page's `?v=` version.** `site/_headers` serves images
+with `max-age=86400`, so a browser keeps the bytes it cached for a day — and re-encoding a
+screenshot under the same URL leaves every visitor on the old image. The pages therefore
+request `/assets/screenshots/.../<view>-<width>.webp?v=N` (both the `src` and every
+candidate in the `srcset`), where `N` is the same number as the `?v=` on `site.css`,
+`site.js` and `theme-init.js`. **Bump that number whenever the image bytes change**, even
+though the file names stay the same — it is the only thing that invalidates a cached
+screenshot. `scripts/deploy-site.sh` bumps the `?v=` in both pages before deploying.
+
 `og.png` is the 1200×630 social card. Its source is checked in as **`assets/og.html`** —
 edit the copy there and re-render; nothing else generates this image:
 

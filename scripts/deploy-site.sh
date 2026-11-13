@@ -79,6 +79,17 @@ for path, text in zip(files, texts):
         ),
         encoding="utf-8",
     )
+    # The screenshots are served with a long cache lifetime, so their URLs
+    # carry the same version. Without this they would keep pointing at the
+    # bytes cached before the last re-encode.
+    path.write_text(
+        re.sub(
+            r"(/assets/screenshots/[^\"'\s]+?\.webp)(\?v=\d+)?",
+            rf"\1?v={next_version}",
+            path.read_text(encoding="utf-8"),
+        ),
+        encoding="utf-8",
+    )
 print(current, next_version)
 PY
 )"
@@ -91,6 +102,8 @@ PY
     grep -q "site.css?v=$NEXT" "$page" || { echo "FAIL: version bump missing in $page" >&2; exit 1; }
     grep -q "site.js?v=$NEXT" "$page" || { echo "FAIL: version bump missing in $page" >&2; exit 1; }
     grep -q "theme-init.js?v=$NEXT" "$page" || { echo "FAIL: version bump missing in $page" >&2; exit 1; }
+    grep -q "screenshots/en/search-results-1440.webp?v=$NEXT" "$page" || { echo "FAIL: screenshot version bump missing in $page" >&2; exit 1; }
+    grep -q "screenshots/zh/session-detail-dark-720.webp?v=$NEXT" "$page" || { echo "FAIL: screenshot version bump missing in $page" >&2; exit 1; }
   done
 fi
 

@@ -26,6 +26,13 @@
   --code-bg: #ecefe7;
   --code-ink: #262b26;
 
+  /* the terminal block: a light slab in the light theme, a dark one in the
+     dark theme. Paired with the dark values below. */
+  --term-bg: #ecefe7;
+  --term-border: #c3c8bd;
+  --term-ink: #262b26;
+  --term-comment: #55604f;
+
   --shadow-frame: 0 22px 60px -28px rgba(20, 30, 24, 0.32),
     0 2px 6px -2px rgba(20, 30, 24, 0.1);
 
@@ -82,6 +89,11 @@
   --code-bg: #101311;
   --code-ink: #d8e2da;
 
+  --term-bg: #0c1a15;
+  --term-border: #274638;
+  --term-ink: #d6e6dc;
+  --term-comment: #8fae9f;
+
   --shadow-frame: 0 26px 70px -30px rgba(0, 0, 0, 0.72),
     0 2px 8px -2px rgba(0, 0, 0, 0.4);
 
@@ -127,7 +139,10 @@
 
     --code-bg: #101311;
     --code-ink: #d8e2da;
-
+    --term-bg: #0c1a15;
+    --term-border: #274638;
+    --term-ink: #d6e6dc;
+    --term-comment: #8fae9f;
     --shadow-frame: 0 26px 70px -30px rgba(0, 0, 0, 0.72),
       0 2px 8px -2px rgba(0, 0, 0, 0.4);
 
@@ -1046,15 +1061,62 @@ html:not(.js) .theme-btn {
 
 
 /* ============================================================================
-   Install panel — deliberately the same in light and dark
+   Install panel — follows the theme
    ========================================================================= */
 
+/* The panel is a raised card: in the light theme it is one step off the
+   paper background, in the dark theme it stays the deep green it has always
+   been. The tokens below are the panel's own palette; the light values are
+   the page's, so nothing inside has to be re-coloured per theme. */
 .panel {
-  background: #12241d;
-  color: #e9f1ec;
+  background: #eaede5;
+  color: var(--ink);
   border-radius: 18px;
   padding: clamp(22px, 4.5vw, 60px);
   margin-top: clamp(40px, 5vw, 60px);
+  --ink: #1d201d;
+  --muted: #5f665e;
+  --line: #d9dcd3;
+  --line-strong: #c3c8bd;
+  --accent: #2f6b58;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0ebe5;
+  --code-bg: #ecefe7;
+  --code-ink: #262b26;
+  --surface: #fbfbf8;
+  --surface-2: #eaede5;
+  /* the terminal sits on the card, so it needs its own tone to separate:
+     a hair lighter than the card, with a visible border */
+  --term-bg: #f2f3ef;
+  --term-border: #c3c8bd;
+  --term-ink: #262b26;
+  --term-comment: #55604f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .panel {
+    background: #12241d;
+    color: #e9f1ec;
+    --ink: #e9f1ec;
+    --muted: #a9c3b6;
+    --line: #274638;
+    --line-strong: #356050;
+    --accent: #7cc4a7;
+    --accent-ink: #0d1f18;
+    --code-bg: #0c1a15;
+    --code-ink: #d6e6dc;
+    --surface: #173026;
+    --surface-2: #1c3a2e;
+    --term-bg: #0c1a15;
+    --term-border: #274638;
+    --term-ink: #d6e6dc;
+    --term-comment: #8fae9f;
+  }
+}
+
+:root[data-theme="dark"] .panel {
+  background: #12241d;
+  color: #e9f1ec;
   --ink: #e9f1ec;
   --muted: #a9c3b6;
   --line: #274638;
@@ -1065,10 +1127,14 @@ html:not(.js) .theme-btn {
   --code-ink: #d6e6dc;
   --surface: #173026;
   --surface-2: #1c3a2e;
+  --term-bg: #0c1a15;
+  --term-border: #274638;
+  --term-ink: #d6e6dc;
+  --term-comment: #8fae9f;
 }
 
 .panel .eyebrow {
-  color: #7cc4a7;
+  color: var(--accent);
 }
 
 .panel .h2 {
@@ -1087,18 +1153,18 @@ html:not(.js) .theme-btn {
   grid-template-columns: 44px minmax(0, 1fr);
   gap: 18px;
   padding-block: 22px;
-  border-top: 1px solid #274638;
+  border-top: 1px solid var(--line);
 }
 
 .step:last-child {
-  border-bottom: 1px solid #274638;
+  border-bottom: 1px solid var(--line);
 }
 
 .step__n {
   font-family: var(--mono);
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #7cc4a7;
+  color: var(--accent);
   letter-spacing: 0.06em;
   padding-top: 2px;
 }
@@ -1112,7 +1178,7 @@ html:not(.js) .theme-btn {
 
 .step p {
   margin-top: 9px;
-  color: #a9c3b6;
+  color: var(--muted);
   font-size: 0.9375rem;
   line-height: 1.6;
   
@@ -1121,9 +1187,9 @@ html:not(.js) .theme-btn {
 .term {
   position: relative;
   margin-top: 18px;
-  border: 1px solid #274638;
+  border: 1px solid var(--term-border);
   border-radius: 11px;
-  background: #0c1a15;
+  background: var(--term-bg);
   overflow: hidden;
 }
 
@@ -1131,13 +1197,13 @@ html:not(.js) .theme-btn {
   margin: 0;
   padding: 20px 22px;
   overflow-x: auto;
-  color: #d6e6dc;
+  color: var(--term-ink);
   line-height: 1.85;
   font-size: 0.8125rem;
 }
 
 .term .c {
-  color: #8fae9f;
+  color: var(--term-comment);
 }
 
 /* copy button — progressive enhancement, hidden without JS */
@@ -1151,9 +1217,9 @@ html:not(.js) .theme-btn {
   min-height: 40px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid #356050;
-  background: #173026;
-  color: #cfe4d8;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
   font-family: var(--mono);
   font-size: 0.6875rem;
   letter-spacing: 0.04em;
@@ -1165,13 +1231,13 @@ html.js .copy {
 }
 
 .copy:hover {
-  background: #1c3a2e;
-  color: #e9f1ec;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }
 
 .copy[data-done="1"] {
-  border-color: #7cc4a7;
-  color: #7cc4a7;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* off-screen scratch input for the copy fallback — kept in CSS so the
@@ -1189,8 +1255,8 @@ html.js .copy {
   font-family: var(--mono);
   font-size: 0.75rem;
   line-height: 1.7;
-  color: #a9c3b6;
-  border-left: 2px solid #356050;
+  color: var(--muted);
+  border-left: 2px solid var(--line-strong);
   padding-left: 14px;
 }
 
