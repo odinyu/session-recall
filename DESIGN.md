@@ -26,6 +26,7 @@ Mode: **Operate**. Precision and restraint over expression.
 | `--agent-cursor` | `#2f5f9e` | `#8ab4f8` | Cursor |
 | `--agent-opencode` | `#276b45` | `#7cc9a0` | OpenCode |
 | `--agent-omp` | `#63499c` | `#b9a4ff` | omp |
+| `--agent-pi` | `#8a6a1f` | `#e2c06a` | pi |
 
 Color strategy: restrained. Neutral ground, one green accent, agent hues only
 on dots and labels.
@@ -96,7 +97,7 @@ instead of adding another.
   so a jumped-to answer cannot push them out of view. The top offset follows the
   measured topbar height.
 - Resume command: a bordered mono row in the action bar with a copy button;
-  shown only when the agent has a local resume command (omp, OpenCode).
+  shown only when the agent has a local resume command (omp, pi, OpenCode, Claude Code, Codex).
 - Handoff button: a small mono button beside the resume row; it is disabled
   while the card is prefetched, then copies the Markdown card on click.
 - Daily brief: a date input plus `生成简报` in the rail footer; success becomes

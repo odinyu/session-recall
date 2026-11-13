@@ -5,6 +5,18 @@
   "type": "module",
   "description": "Local, read-only full-text recall across coding-agent sessions.",
   "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/odinyu/session-recall.git" },
+  "homepage": "https://github.com/odinyu/session-recall#readme",
+  "bugs": { "url": "https://github.com/odinyu/session-recall/issues" },
+  "keywords": [
+    "coding-agents",
+    "session-search",
+    "local-first",
+    "claude-code",
+    "codex",
+    "cursor",
+    "macos"
+  ],
   "scripts": {
     "build": "bun run scripts/build.ts",
     "scan": "bun run src/cli.ts scan",

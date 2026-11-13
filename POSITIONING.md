@@ -8,7 +8,7 @@
 
 Not another session browser. The value is the combination:
 
-1. **One index across agents.** omp, OpenCode, Cursor, Alma, and Cindy sessions
+1. **One index across agents.** omp, pi, OpenCode, Cursor, Alma, and Cindy sessions
    land in the same turn-level index. Each agent can only search its own
    history; almost nobody can search across all of them.
 2. **Local, read-only, offline.** No network, no telemetry, no accounts. Agent

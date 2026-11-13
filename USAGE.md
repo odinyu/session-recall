@@ -22,7 +22,7 @@ Override it with `SESSION_RECALL_DB=/path/to/index.db`.
 ## Quick start
 
 ```bash
-bun run sr "tvbox" --limit 3        # `sr` is an alias of the search subcommand
+bun run sr "websocket" --limit 3        # `sr` is an alias of the search subcommand
 bun run sr "websocket" --agent omp --json
 bun run sr "ENOENT" --scope process
 ```
@@ -37,7 +37,7 @@ the packaged app, the same logic is available through the sidecar binary as
 | --- | --- |
 | `<query>` | One or more bare terms (ANDed), or `"an exact phrase"`. Omit → exit 2. |
 | `--limit <n>` | Max **sessions** returned (not turns). 1–5000, default 10. |
-| `--agent <id>` | Restrict to agents: `omp`, `opencode`, `cursor`, `alma`, `cindy`, `claude-code`, `codex`. Repeatable or comma-separated (`--agent omp,cursor`). |
+| `--agent <id>` | Restrict to agents: `omp`, `pi`, `opencode`, `cursor`, `alma`, `cindy`, `claude-code`, `codex`. Repeatable or comma-separated (`--agent omp,pi`). |
 | `--scope qa\|process` | `qa` (default) searches prompts and answers; `process` searches tool inputs, tool outputs, and extracted error lines. |
 | `--json` | Machine-readable output (see below). |
 | `-h`, `--help` | Print usage and exit 0. |
@@ -48,12 +48,12 @@ the packaged app, the same logic is available through the sidecar binary as
 ## Text output
 
 ```
-query "tvbox" · 50 hit(s) in 3 session(s) · 14.6 ms · scope: qa · mode: fts
+query "websocket" · 50 hit(s) in 3 session(s) · 14.6 ms · scope: qa · mode: fts
 
 1. cindy:a3764542-066a-4e16-9a64-ce173d1b9325  [cindy]  2026-11-11
-   ~/projects/ai_projects/omp
-   · Q  看一下 tvbox 里的 readme
-     A  读完了 `/Users/odin/projects/ai_projects/omp/tvbox-app/README.md`，这是 **TVBox…**
+   ~/projects/example
+   · Q  看一下 websocket 重连的实现
+     A  读完了 `/Users/you/projects/example/README.md`，重连逻辑在 `src/socket.ts`…
 ```
 
 - One block per session; sessions sort by last activity (newest first), matching
@@ -79,7 +79,7 @@ query "tvbox" · 50 hit(s) in 3 session(s) · 14.6 ms · scope: qa · mode: fts
     {
       "sessionId": "omp:2026-11-11T07-24-53-192Z_01a1c97e-…",
       "agent": "omp",
-      "project": "/Users/odin/projects/ai_projects/omp/blog-desk",
+      "project": "/Users/you/projects/example",
       "date": "2026-11-11",
       "updatedAt": 1794384516436,
       "title": "📰 ART: Investigate inconsistent article display in app",
@@ -132,7 +132,7 @@ bun run sr "ENOENT" --scope process --limit 20
 
 # error lines from a specific project's recent work
 bun run sr "Cannot find module" --scope process --json \
-  | jq '.results[] | select(.project|contains("blog-desk"))'
+  | jq '.results[] | select(.project|contains("example"))'
 
 # feed the top answer into a new prompt
 bun run sr "setext heading" --json --limit 1 | jq -r '.results[0].hits[0].answer'

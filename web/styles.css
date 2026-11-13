@@ -18,6 +18,7 @@
   --agent-cursor: #2f5f9e;
   --agent-opencode: #276b45;
   --agent-omp: #63499c;
+  --agent-pi: #8a6a1f;
   --agent-alma: #9c5a2f;
   --agent-cindy: #a8446b;
   --agent-claude-code: #b3552b;
@@ -48,6 +49,7 @@
   --agent-cursor: #8ab4f8;
   --agent-opencode: #7cc9a0;
   --agent-omp: #b9a4ff;
+  --agent-pi: #e2c06a;
   --agent-alma: #e0a878;
   --agent-cindy: #e79ab3;
   --agent-claude-code: #e8a184;
@@ -253,6 +255,10 @@ button {
 
 .agent-dot.agent-omp {
   background: var(--agent-omp);
+}
+
+.agent-dot.agent-pi {
+  background: var(--agent-pi);
 }
 
 .agent-dot.agent-alma {
@@ -886,6 +892,10 @@ button {
 
 .agent-omp {
   color: var(--agent-omp);
+}
+
+.agent-pi {
+  color: var(--agent-pi);
 }
 
 .agent-cindy {

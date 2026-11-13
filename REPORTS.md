@@ -51,14 +51,14 @@ generated_at: 2026-11-11T19:30:00+08:00
 
 # 日报 · 2026-11-11 周二
 
-**一句话**：给 session-recall 加了 MCP server 与跨进程扫描锁，修好 blog-desk 的 front-matter 高亮。
+**一句话**：给 session-recall 加了 MCP server 与跨进程扫描锁，修好 demo-app 的 front-matter 高亮。
 
 ## 进展
 **session-recall**
 - 新增 stdio MCP server（5 工具）+ 扫描锁；测试 59→80
 - CLI `search`/`sr` 与 USAGE.md 已提交推送
 
-**blog-desk**
+**demo-app**
 - 修 front-matter 被当成 setext 标题；已提交推送
 
 ## 决策
@@ -91,7 +91,7 @@ active_days: 4
 projects: 8
 sessions: 23
 turns: 210
-agents: [cindy, omp, alma, opencode, cursor]
+agents: [cindy, omp, pi, alma, opencode, cursor]
 ---
 
 # 周报 · 2026-W46（11-09 ~ 11-15）

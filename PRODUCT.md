@@ -13,7 +13,7 @@ Bun + TypeScript, zero runtime dependencies: `Bun.serve` for HTTP, `bun:sqlite` 
 
 ## Users
 
-The owner: a developer on macOS who runs several coding agents (omp, OpenCode,
+The owner: a developer on macOS who runs several coding agents (omp, pi, OpenCode,
 Cursor, Alma, Cindy, Claude Code, Codex) across many projects, often in Chinese
 and English. The job is to find a past task — "where did I solve this?" — when the only memory left is a phrase from a prompt or an answer.
 
@@ -34,7 +34,7 @@ A recall tool, not an agent dashboard or usage meter. It persists a turn-level f
 
 ## Capabilities and Constraints
 
-- Adapters: omp, OpenCode (v1 and v2 tables), Cursor (transcripts + composer/bubble KV), Alma, Cindy, Claude Code, Codex.
+- Adapters: omp, pi, OpenCode (v1 and v2 tables), Cursor (transcripts + composer/bubble KV), Alma, Cindy, Claude Code, Codex.
 - Search across prompts, answers and process events (tool calls, commands, errors), with agent, project, date, scope, and role filters.
 - Session view pairs each prompt with the answer that followed it; the 过程 disclosure opens the tool/reasoning trail.
 - Read-only: agent databases are opened read-only; the index lives under `~/Library/Application Support/session-recall`.

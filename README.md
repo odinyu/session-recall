@@ -19,7 +19,7 @@ Requires macOS and Bun 1.3+.
 git clone https://github.com/odinyu/session-recall.git
 cd session-recall
 bun run scan      # build the index (first run: a few seconds)
-bun run sr "tvbox" --limit 3   # search from the shell (see Search)
+bun run sr "websocket" --limit 3   # search from the shell (see Search)
 bun run start     # build the UI and serve http://127.0.0.1:4319
 ```
 
@@ -138,7 +138,7 @@ followed it before the next prompt. Tool calls and reasoning traces are stored
 separately as process events (see below); their inputs, outputs, and errors are
 searchable in the **过程** scope, while reasoning text stays out of search.
 Each turn also stores the model that produced its answer when the agent
-records one. omp, OpenCode, Alma, Cindy, Claude Code and Codex record it per turn; Cursor
+records one. omp, pi, OpenCode, Alma, Cindy, Claude Code and Codex record it per turn; Cursor
 records only a session-level selection (`composerData.modelConfig.modelName`),
 which is stamped on every turn of that session — transcripts and KV bubbles carry no
 per-turn model, and Cursor's placeholder `default` stays blank. The session
@@ -155,7 +155,7 @@ plain text.
 - Limits keep the index bounded: 30 events per turn, 1,200 per session;
   reasoning is capped at 2,000 characters, tool input at 1,000, and tool output
   at 2,000. Long values keep a head and a tail and are marked truncated.
-- omp attaches `toolResult` messages to their `toolCall` by id; OpenCode reads
+- omp and pi attach `toolResult` messages to their `toolCall` by id; OpenCode reads
   the tool state's `input`/`output`; Cursor transcripts expose tool calls but
   usually not their results.
 - Alma reads each `tool-<Name>` part directly: `input` is serialized as JSON and
@@ -467,7 +467,7 @@ forget tool.
 
 ```text
 src/
-  adapters/       omp, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex parsers
+  adapters/       omp/pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex parsers
   brief.ts        daily standup / archive / weekly report generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
