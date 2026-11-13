@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Session Recall — social card</title>
+<!--
+  Source for site/assets/og.png (1200x630, the social card).
+
+  Re-render:
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless --disable-gpu --hide-scrollbars \
+      --window-size=1200,630 --force-device-scale-factor=1 \
+      --screenshot=site/assets/og.png \
+      "site://ABSOLUTE/PATH/site/assets/og.html"
+
+  It must stay exactly 1200x630, so the window size and the device scale
+  factor are both pinned. To change the copy, edit the strings in this file
+  and re-run the command above — nothing else generates this image.
+
+  Colours come from site/assets/site.css (dark theme): bg #141715, ink
+  #e6eae3, muted #a2aaa0, accent #7cc4a7, line #2c322d, surface #1b1f1c.
+-->
+<style>
+  :root {
+    --bg: #141715;
+    --surface: #1b1f1c;
+    --surface-2: #222723;
+    --ink: #e6eae3;
+    --muted: #a2aaa0;
+    --line: #2c322d;
+    --line-strong: #3a413b;
+    --accent: #7cc4a7;
+    --accent-soft: #22352c;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    padding: 56px 60px;
+  }
+
+  /* --- top row --- */
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 21px;
+    font-weight: 620;
+    letter-spacing: -0.017em;
+  }
+
+  .brand__mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--accent);
+    display: grid;
+    place-items: center;
+  }
+
+  .brand__mark svg { display: block; }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* --- headline --- */
+  h1 {
+    margin-top: 56px;
+    font-size: 76px;
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    font-weight: 680;
+  }
+
+  h1 .hl { color: var(--accent); }
+
+  .lede {
+    margin-top: 26px;
+    max-width: 440px;
+    font-size: 25px;
+    line-height: 1.42;
+    color: var(--muted);
+    letter-spacing: -0.006em;
+  }
+
+  /* --- the mock app window, floating to the right --- */
+  .panel {
+    position: absolute;
+    top: 246px;
+    left: 509px;
+    width: 660px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: var(--surface);
+    overflow: hidden;
+    box-shadow: 0 26px 70px -30px rgba(0, 0, 0, 0.72);
+  }
+
+  .panel__bar {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .panel__bar i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--line-strong);
+  }
+
+  .panel__bar span {
+    margin-left: 10px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .panel__body { padding: 20px 22px 28px; }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    background: var(--bg);
+    font-size: 15px;
+    color: var(--ink);
+  }
+
+  .search svg { flex: none; color: var(--muted); }
+
+  .kbd {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+
+  .chips {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    padding: 5px 10px;
+  }
+
+  .chip--on {
+    background: var(--accent-soft);
+    border-color: #3c5a4c;
+    color: var(--accent);
+  }
+
+  .resume {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 16px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .resume b {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .resume code { color: var(--accent); }
+
+  .resume__btn {
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    padding: 4px 9px;
+    margin-left: auto;
+  }
+
+  .bullet {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: var(--muted);
+  }
+
+  .bullet li { list-style: none; }
+  .bullet li::before { content: "· "; color: var(--line-strong); }
+
+  .more {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="top">
+      <div class="brand">
+        <span class="brand__mark">
+          <svg width="17" height="17" viewBox="0 0 22 22" fill="none">
+            <circle cx="9.4" cy="9.4" r="6.1" stroke="#141715" stroke-width="2.3"/>
+            <path d="M13.9 13.9 18.4 18.4" stroke="#141715" stroke-width="2.3" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span>session recall</span>
+      </div>
+      <div class="tag">Local-first · Read-only · macOS</div>
+    </div>
+
+    <h1>Find that<br><span class="hl">session</span> again.</h1>
+
+    <p class="lede">
+      Full-text search across thirteen coding agents' sessions. On your Mac.
+    </p>
+
+    <div class="panel">
+      <div class="panel__bar">
+        <i></i><i></i><i></i>
+        <span>session detail · turn 02</span>
+      </div>
+      <div class="panel__body">
+        <div class="search">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.6"/>
+            <path d="m10.6 10.6 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>Search questions and answers…</span>
+          <span class="kbd">⌘K</span>
+        </div>
+
+        <div class="chips">
+          <span class="chip chip--on">Q&amp;A</span>
+          <span class="chip">Process</span>
+          <span class="chip">All</span>
+          <span class="chip">Questions</span>
+          <span class="chip">Answers</span>
+        </div>
+
+        <div class="resume">
+          <b>CONTINUE IN</b>
+          <span>Claude Code</span>
+          <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>
+          <span class="resume__btn">Copy</span>
+          <span class="resume__btn">Copy handoff</span>
+          <span class="resume__btn">Forget this session</span>
+        </div>
+
+        <ul class="bullet">
+          <li>Give every reconnect a fresh socket, and off the old one before close;</li>
+          <li>onMessage must be a stable reference — an anonymous function cannot be detached;</li>
+          <li>Assert socket.listenerCount("message") === 1 around the reconnect, so a duplicate subscription fails in the test.</li>
+        </ul>
+
+        <div class="more">+ Process 2 items</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

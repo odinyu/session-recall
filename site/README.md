@@ -123,25 +123,27 @@ grep -rn "session-recall.pages.dev" site/ || echo "no placeholder domain left"
 grep -rn "070801.top" site/ | wc -l
 ```
 
-### 2. Refresh the versioned download URLs on each release
+### 2. Bump the visible version on each release
 
-Every download link is a direct GitHub Releases URL with the version in the path, so a new
-release means editing them by hand. Find them all with:
+Download links are version-less, so a new release needs no URL edit:
+
+```
+https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip
+https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-intel.zip
+```
+
+The release workflow copies each versioned asset to those stable names and writes a matching
+`.sha256` beside it, so the `/releases/latest/download/…` links keep working. Every release
+must carry those aliases: with `fail_on_unmatched_files: true`, a missing alias fails the
+release instead of leaving the site pointing at a 404.
+
+The only per-release edit is the visible version, in three places per page: the hero meta line
+(`v1.5.0 · macOS 11+ · 26.8 MB · MIT`), the footer, and the FAQ answer that quotes the build
+sizes. Find them with:
 
 ```sh
-grep -rn "1\.4\.0" site/index.html site/zh/index.html
+grep -rn "1\.5\.0" site/index.html site/zh/index.html
 ```
-
-Per page the version appears in **three** places: the hero buttons, the final call to action,
-and the JSON-LD `downloadUrl`. Also bump the visible version in the header/footer meta lines
-(`v1.4.0 · macOS 11+ · 26.7 MB · MIT`) and in the FAQ answer that quotes the two build sizes.
-
-```
-https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip
-https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-intel.zip
-```
-
-Each zip has a matching `.sha256` asset beside it on the release.
 
 ### 3. Re-run the self-check
 
@@ -169,8 +171,23 @@ On this machine `sips` cannot write WebP and `ffmpeg` has no libwebp, so Chrome 
   --virtual-time-budget=60000 --dump-dom "file:///path/to/encoder.html"
 ```
 
-`og.png` is a 1200×630 headless-Chrome screenshot of a small HTML layout, rendered with
-`--window-size=1200,630 --force-device-scale-factor=1`.
+`og.png` is the 1200×630 social card. Its source is checked in as **`assets/og.html`** —
+edit the copy there and re-render; nothing else generates this image:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless --disable-gpu --hide-scrollbars \
+  --window-size=1200,630 --force-device-scale-factor=1 \
+  --screenshot=site/assets/og.png \
+  "file://$PWD/site/assets/og.html"
+```
+
+The window size and the device scale factor are both pinned, because the card must stay
+exactly 1200×630. Its colours are the dark-theme tokens from `assets/site.css` (bg `#141715`,
+ink `#e6eae3`, muted `#a2aaa0`, accent `#7cc4a7`); keep them in step if the palette changes.
+
+The card is referenced by absolute URL from `og:image` / `twitter:image`, so its file name
+never changes and it carries no cache-busting query — social scrapers do not send one.
 
 ## Cloudflare Pages limits, and why the zips are not in here
 
@@ -180,7 +197,7 @@ On this machine `sips` cannot write WebP and `ffmpeg` has no libwebp, so Chrome 
 | Max files per deployment | 20,000 |
 | Builds per month (Pages Free) | 500 |
 
-The release zips are **26.7 MB** (Apple silicon) and **29.5 MB** (Intel) — both above the
+The release zips are **26.8 MB** (Apple silicon) and **29.5 MB** (Intel) — both above the
 25 MiB per-file ceiling, so a deployment containing them would be rejected. They stay on
 GitHub Releases and the page links out to them.
 

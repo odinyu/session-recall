@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Session Recall — 在你 Mac 上检索所有编码 Agent 的会话</title>
-<meta name="description" content="八个编码 Agent，一份本地索引。凭你还记得的几个字，找回那次会话，跳到确切的那一轮，直接在那个 Agent 里接着做。只读，无需账号，MIT。">
+<meta name="description" content="十三个编码 Agent，一份本地索引。凭你还记得的几个字，找回那次会话，跳到确切的那一轮，直接在那个 Agent 里接着做。只读，无需账号，MIT。">
 
 <link rel="canonical" href="https://070801.top/zh/">
 <link rel="alternate" hreflang="en" href="https://070801.top/">
@@ -15,18 +15,18 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Session Recall">
 <meta property="og:title" content="Session Recall — 把那次会话找回来。">
-<meta property="og:description" content="八个编码 Agent，一份本地索引。搜你还记得的那几个字，打开确切的那一轮，把活交回给你的 Agent。数据不出这台 Mac。">
+<meta property="og:description" content="十三个编码 Agent，一份本地索引。搜你还记得的那几个字，打开确切的那一轮，把活交回给你的 Agent。数据不出这台 Mac。">
 <meta property="og:url" content="https://070801.top/zh/">
 <meta property="og:image" content="https://070801.top/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Session Recall — 把那次会话找回来。八个编码 Agent 的会话，全在一份本机只读索引里。">
+<meta property="og:image:alt" content="Session Recall — 把那次会话找回来。十三个编码 Agent 的会话，全在一份本机只读索引里。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:locale:alternate" content="en_US">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Session Recall — 把那次会话找回来。">
-<meta name="twitter:description" content="八个编码 Agent，一份本地索引。搜你还记得的那几个字，打开确切的那一轮，把活交回给你的 Agent。数据不出这台 Mac。">
+<meta name="twitter:description" content="十三个编码 Agent，一份本地索引。搜你还记得的那几个字，打开确切的那一轮，把活交回给你的 Agent。数据不出这台 Mac。">
 <meta name="twitter:image" content="https://070801.top/assets/og.png">
 
 <meta name="theme-color" content="#f2f3ef" media="(prefers-color-scheme: light)">
@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=9"></script>
-<link rel="stylesheet" href="/assets/site.css?v=9">
+<script src="/assets/theme-init.js?v=12"></script>
+<link rel="stylesheet" href="/assets/site.css?v=12">
 
 <script type="application/ld+json">
 {
@@ -46,12 +46,12 @@
   "name": "Session Recall",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS 11 或更高版本",
-  "softwareVersion": "1.4.0",
+  "softwareVersion": "1.5.0",
   "inLanguage": "zh-CN",
-  "description": "八个编码 Agent，一份本地索引。凭你还记得的几个字，找回那次会话，跳到确切的那一轮，直接在那个 Agent 里接着做。",
+  "description": "十三个编码 Agent，一份本地索引。凭你还记得的几个字，找回那次会话，跳到确切的那一轮，直接在那个 Agent 里接着做。",
   "license": "https://opensource.org/licenses/MIT",
   "codeRepository": "https://github.com/odinyu/session-recall",
-  "downloadUrl": "https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip",
+  "downloadUrl": "https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip",
   "url": "https://070801.top/zh/",
   "isAccessibleForFree": true,
   "author": { "@type": "Person", "name": "odinyu" },
@@ -116,31 +116,34 @@
     <div class="wrap">
       <p class="eyebrow hero__eyebrow">本地优先 · 只读 · macOS</p>
 
-      <h1>把那次<span class="hl">会话</span>找回来。</h1>
+      <h1><span class="h1__kicker">十三个编码 Agent，一份本地索引。</span>把那次<span class="hl">会话</span>找回来。</h1>
 
       <p class="hero__lede">
-        八个编码 Agent，一份本地索引。输入你还记得的那几个字，Session Recall 就打开确切的那一轮，
-        恢复命令已经附好，随时交回给你的 Agent。答案从来没有丢，它一直在这台 Mac 上。
+        输入你还记得的那几个字，Session Recall 就打开确切的那一轮，恢复命令已经附好，
+        随时交回给你的 Agent。答案从来没有丢，它一直在这台 Mac 上。
       </p>
 
       <div class="hero__cta">
-        <!-- Update these download URLs when a new release ships. -->
-        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip">
+        <!-- 不带版本号的别名：走 /releases/latest，发新版本时这里不用改。 -->
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          下载 Apple 芯片版
+          下载 macOS 版
         </a>
-        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-intel.zip">
-          Intel 版
-        </a>
+
+        <details class="dl">
+          <summary class="btn btn--ghost">所有版本</summary>
+          <div class="dl__menu">
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">Apple 芯片版（.zip，26.8 MB）</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-intel.zip">Intel 版（.zip，29.5 MB）</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest" target="_blank" rel="noopener">校验和</a>
+            <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">所有发行版</a>
+          </div>
+        </details>
       </div>
 
-      <p class="meta hero__meta">v1.4.0 · macOS 11+ · 26.7 MB · MIT</p>
+      <p class="hero__facts"><b>13</b> 个 Agent 来源 · <b>1</b> 个索引文件 · <b>0</b> 次上传</p>
 
-      <ul class="hero__assure">
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>无需账号</li>
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>无遥测</li>
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>不写入 Agent 存储</li>
-      </ul>
+      <p class="meta hero__meta">v1.5.0 · macOS 11+ · 26.8 MB · MIT</p>
 
       <figure class="mac">
         <div class="mac__bar" aria-hidden="true">
@@ -158,6 +161,12 @@
         查询“reconnect backoff”1.2 毫秒返回 2 次会话、5 个轮次，命中的词全部高亮。
         侧边栏放着 Agent 列表、项目筛选和日期范围。
       </p>
+
+      <ul class="hero__assure">
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>无需账号</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>无遥测</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>不写入 Agent 存储</li>
+      </ul>
     </div>
   </section>
 
@@ -174,6 +183,11 @@
         <li class="agent agent--cindy"><i></i><span>Cindy</span></li>
         <li class="agent agent--claude-code"><i></i><span>Claude Code</span></li>
         <li class="agent agent--codex"><i></i><span>Codex</span></li>
+        <li class="agent agent--gemini-cli"><i></i><span>Gemini CLI</span></li>
+        <li class="agent agent--qwen-code"><i></i><span>Qwen Code</span></li>
+        <li class="agent agent--kimi-code"><i></i><span>Kimi Code</span></li>
+        <li class="agent agent--copilot-cli"><i></i><span>Copilot CLI</span></li>
+        <li class="agent agent--goose"><i></i><span>Goose</span></li>
       </ul>
     </div>
   </section>
@@ -183,7 +197,7 @@
     <div class="wrap">
       <span class="anchor" id="how" aria-hidden="true"></span>
       <p class="eyebrow">工作原理</p>
-      <h2 class="h2" id="how-h">八个 Agent，一份索引。</h2>
+      <h2 class="h2" id="how-h">十三个 Agent，一份索引。</h2>
       <p class="lede">
         索引的最小单位是轮次：你问的问题，和得到的回答。工具调用、命令行和报错另有进程范围。
         两者都落进同一个 SQLite 文件，归你所有，随时可以搬走、备份或者删掉：
@@ -367,7 +381,7 @@
             <div>
               <h3>下载、解压、拖进“应用程序”。</h3>
               <p>
-                Apple 芯片版和 Intel 版是同一个 App，装哪个都行。下载约 67 MB，自带运行时，
+                Apple 芯片版和 Intel 版是同一个 App，装哪个都行。解压后约 68 MB，自带运行时，
                 不需要先装别的东西。
               </p>
             </div>
@@ -468,8 +482,10 @@ bun run mcp</code></pre>
         <details>
           <summary>支持哪些 Agent？</summary>
           <div class="a">
-            八个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code 和 Codex。omp 和官方 pi 共用一套
-            JSONL 格式，其余的从各自的存储读取。每个适配器都是只读的，也都会跳过该 Agent 的私密记录。
+            十三个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、Gemini CLI、
+            Qwen Code、Kimi Code、Copilot CLI 和 Goose。omp 和官方 pi 共用一套 JSONL 格式；
+            Gemini CLI、Qwen Code、Kimi Code 各自一种格式，其余的从各自的存储读取。
+            每个适配器都是只读的，也都会跳过该 Agent 的私密记录。
           </div>
         </details>
 
@@ -493,7 +509,7 @@ bun run mcp</code></pre>
         <details>
           <summary>选 Apple 芯片版还是 Intel 版？</summary>
           <div class="a">
-            Apple 芯片版 26.7 MB，Intel 版 29.5 MB，都是 v1.4.0，都需要 macOS 11 或更高版本。
+            Apple 芯片版 26.8 MB，Intel 版 29.5 MB，都是 v1.5.0，都需要 macOS 11 或更高版本。
             不确定自己是哪台 Mac，点开苹果菜单里的“关于本机”就能看到。
           </div>
         </details>
@@ -530,11 +546,20 @@ bun run mcp</code></pre>
     <div class="wrap">
       <h2 id="cta-h">别再丢掉那些好会话。</h2>
       <div class="cta__btns">
-        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip">
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          下载 Apple 芯片版
+          下载 macOS 版
         </a>
-        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-intel.zip">Intel 版</a>
+
+        <details class="dl">
+          <summary class="btn btn--ghost">所有版本</summary>
+          <div class="dl__menu">
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">Apple 芯片版（.zip，26.8 MB）</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-intel.zip">Intel 版（.zip，29.5 MB）</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest" target="_blank" rel="noopener">校验和</a>
+            <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">所有发行版</a>
+          </div>
+        </details>
       </div>
       <p class="cta__gh">
         <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">在 GitHub 上查看源码</a>
@@ -567,7 +592,7 @@ bun run mcp</code></pre>
       <span>MIT 许可证。</span>
       <span>与所索引的 Agent 无隶属关系。</span>
       <span>由 odinyu 构建。</span>
-      <span class="foot__mono">v1.4.0</span>
+      <span class="foot__mono">v1.5.0</span>
     </div>
   </div>
 </footer>
@@ -576,6 +601,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=9" defer></script>
+<script src="/assets/site.js?v=12" defer></script>
 </body>
 </html>

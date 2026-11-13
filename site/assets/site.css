@@ -38,6 +38,11 @@
   --agent-cindy: #a8446b;
   --agent-claude-code: #b3552b;
   --agent-codex: #2f6f5e;
+  --agent-gemini-cli: #0f6f7a;
+  --agent-qwen-code: #7a4bb5;
+  --agent-kimi-code: #a03a5a;
+  --agent-copilot-cli: #4a5568;
+  --agent-goose: #7a6a12;
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
@@ -88,6 +93,11 @@
   --agent-cindy: #e79ab3;
   --agent-claude-code: #e8a184;
   --agent-codex: #7fc7b3;
+  --agent-gemini-cli: #6fc7d6;
+  --agent-qwen-code: #b9a0f0;
+  --agent-kimi-code: #e58aa6;
+  --agent-copilot-cli: #a9b4c6;
+  --agent-goose: #d6c46a;
 }
 
 /* An explicit light choice must beat the OS preference. */
@@ -129,6 +139,11 @@
     --agent-cindy: #e79ab3;
     --agent-claude-code: #e8a184;
     --agent-codex: #7fc7b3;
+    --agent-gemini-cli: #6fc7d6;
+    --agent-qwen-code: #b9a0f0;
+    --agent-kimi-code: #e58aa6;
+    --agent-copilot-cli: #a9b4c6;
+    --agent-goose: #d6c46a;
   }
 }
 
@@ -553,7 +568,7 @@ html:not(.js) .theme-btn {
    ========================================================================= */
 
 .hero {
-  padding-top: clamp(48px, 6vw, 84px);
+  padding-top: clamp(48px, 6vw, 56px);
   padding-bottom: clamp(48px, 6vw, 80px);
 }
 
@@ -564,7 +579,7 @@ html:not(.js) .theme-btn {
 }
 
 .hero h1 {
-  margin-top: 22px;
+  margin-top: 16px;
   font-size: var(--fs-h1);
   line-height: 1.02;
   letter-spacing: -0.035em;
@@ -572,12 +587,28 @@ html:not(.js) .theme-btn {
   max-width: 16ch;
 }
 
+/* two-tier headline: a muted lead-in line above the payoff line. Sized in
+   rem, not relative to the h1, so it stays a readable deck while the h1
+   scales up — at 1440 it is 21px, at 375 it is 17px. */
+.h1__kicker {
+  display: block;
+  margin-bottom: 12px;
+  font-size: clamp(1.0625rem, 0.85rem + 0.55vw, 1.3125rem);
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+  color: var(--muted);
+}
+
 .hero__lede {
-  margin-top: 26px;
+  margin-top: 20px;
   font-size: var(--fs-lede);
   line-height: 1.52;
   color: var(--muted);
-  max-width: 54ch;
+  /* 74ch is ~925px at 1440: three lines, around 68 characters each. The
+     961px measure that squeezed it onto two lines read at 102 characters a
+     line, which is past any comfortable measure. */
+  max-width: 74ch;
   letter-spacing: -0.006em;
 }
 
@@ -586,7 +617,7 @@ html:not(.js) .theme-btn {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-top: 34px;
+  margin-top: 26px;
 }
 
 .hero__meta {
@@ -616,6 +647,87 @@ html:not(.js) .theme-btn {
   flex: none;
 }
 
+/* hero stats: the numbers carry the weight, the labels stay quiet */
+.hero__facts {
+  margin-top: 18px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  letter-spacing: -0.004em;
+}
+
+.hero__facts b {
+  margin-right: 1px;
+  font-size: 1.1875rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+/* one primary download plus a disclosure for the rest. Native <details>, so
+   it is focusable and toggles with Enter/Space without JS. */
+.dl {
+  position: relative;
+}
+
+.dl > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.dl > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dl > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  margin-left: 2px;
+  border-right: 1.7px solid currentColor;
+  border-bottom: 1.7px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.16s ease;
+}
+
+.dl[open] > summary::after {
+  transform: rotate(-135deg);
+  margin-top: 3px;
+}
+
+.dl__menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  /* anchored to the right edge of the disclosure, which is always the side
+     nearer the viewport edge: left-anchored, the popover ran 82px past the
+     viewport at 700px and 97px past it at 375px. */
+  right: 0;
+  left: auto;
+  z-index: 30;
+  min-width: 240px;
+  max-width: min(320px, calc(100vw - 2 * var(--pad)));
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow-frame);
+}
+
+.dl__menu a {
+  display: block;
+  min-height: 40px;
+  padding: 10px 11px;
+  border-radius: 7px;
+  font-size: 0.875rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.dl__menu a:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* mac-style frame: real screenshot, restrained chrome */
 .mac {
   border: 1px solid var(--line-strong);
@@ -623,7 +735,7 @@ html:not(.js) .theme-btn {
   overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow-frame);
-  margin-top: clamp(42px, 5vw, 64px);
+  margin-top: clamp(42px, 5vw, 54px);
 }
 
 .mac__bar {
@@ -688,7 +800,9 @@ html:not(.js) .theme-btn {
 .agents__grid {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  /* thirteen items: space-between spread the last row to both edges and left
+     it ragged, so the rows start from the same left edge */
+  justify-content: flex-start;
   gap: 14px 28px;
   margin-top: 20px;
 }
@@ -740,6 +854,21 @@ html:not(.js) .theme-btn {
 }
 .agent--codex {
   color: var(--agent-codex);
+}
+.agent--gemini-cli {
+  color: var(--agent-gemini-cli);
+}
+.agent--qwen-code {
+  color: var(--agent-qwen-code);
+}
+.agent--kimi-code {
+  color: var(--agent-kimi-code);
+}
+.agent--copilot-cli {
+  color: var(--agent-copilot-cli);
+}
+.agent--goose {
+  color: var(--agent-goose);
 }
 
 /* label legible at body contrast; dot carries the agent colour */
@@ -1457,7 +1586,12 @@ html.js .to-top.is-visible {
   .brand__name {
     display: none;
   }
-  .hero__cta .btn {
+  /* primary and disclosure each take a full row, so the popover always has a
+     full-width container to grow leftwards inside */
+  .hero__cta .btn,
+  .hero__cta .dl,
+  .cta__btns .btn,
+  .cta__btns .dl {
     flex: 1 1 100%;
   }
 }

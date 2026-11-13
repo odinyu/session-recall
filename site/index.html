@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Session Recall — search every coding agent session on your Mac</title>
-<meta name="description" content="One local index for all eight coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Read-only, no account, MIT.">
+<meta name="description" content="One local index for all thirteen coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Read-only, no account, MIT.">
 
 <link rel="canonical" href="https://070801.top/">
 <link rel="alternate" hreflang="en" href="https://070801.top/">
@@ -15,18 +15,18 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Session Recall">
 <meta property="og:title" content="Session Recall — find that session again.">
-<meta property="og:description" content="Eight coding agents, one local index. Search the half-remembered phrase, open the exact turn, and hand the work back to your agent. Nothing leaves your Mac.">
+<meta property="og:description" content="Thirteen coding agents, one local index. Search the half-remembered phrase, open the exact turn, and hand the work back to your agent. Nothing leaves your Mac.">
 <meta property="og:url" content="https://070801.top/">
 <meta property="og:image" content="https://070801.top/assets/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Session Recall — Find that session again. A local, read-only index over eight coding agents' sessions on your Mac.">
+<meta property="og:image:alt" content="Session Recall — Find that session again. A local, read-only index over thirteen coding agents' sessions on your Mac.">
 <meta property="og:locale" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Session Recall — find that session again.">
-<meta name="twitter:description" content="Eight coding agents, one local index. Search the half-remembered phrase, open the exact turn, and hand the work back to your agent. Nothing leaves your Mac.">
+<meta name="twitter:description" content="Thirteen coding agents, one local index. Search the half-remembered phrase, open the exact turn, and hand the work back to your agent. Nothing leaves your Mac.">
 <meta name="twitter:image" content="https://070801.top/assets/og.png">
 
 <meta name="theme-color" content="#f2f3ef" media="(prefers-color-scheme: light)">
@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=9"></script>
-<link rel="stylesheet" href="/assets/site.css?v=9">
+<script src="/assets/theme-init.js?v=12"></script>
+<link rel="stylesheet" href="/assets/site.css?v=12">
 
 <script type="application/ld+json">
 {
@@ -46,11 +46,11 @@
   "name": "Session Recall",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS 11 or later",
-  "softwareVersion": "1.4.0",
-  "description": "One local index for all eight coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it.",
+  "softwareVersion": "1.5.0",
+  "description": "One local index for all thirteen coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it.",
   "license": "https://opensource.org/licenses/MIT",
   "codeRepository": "https://github.com/odinyu/session-recall",
-  "downloadUrl": "https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip",
+  "downloadUrl": "https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip",
   "url": "https://070801.top/",
   "isAccessibleForFree": true,
   "author": { "@type": "Person", "name": "odinyu" },
@@ -115,32 +115,36 @@
     <div class="wrap">
       <p class="eyebrow hero__eyebrow">Local-first · Read-only · macOS</p>
 
-      <h1>Find that <span class="hl">session</span> again.</h1>
+      <h1><span class="h1__kicker">Thirteen coding agents, one local index.</span>Find that <span class="hl">session</span> again.</h1>
 
       <p class="hero__lede">
-        Eight coding agents, one local index. Type the few words you still remember and Session
-        Recall opens the exact turn, resume command attached, ready to hand back to your agent.
-        The answer was never lost. It has been on this Mac the whole time.
+        Type the few words you still remember and Session Recall opens the exact turn, resume
+        command attached, ready to hand back to your agent. The answer was never lost. It has
+        been on this Mac the whole time.
       </p>
 
       <div class="hero__cta">
-        <!-- Update these download URLs when a new release ships. -->
-        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip">
+        <!-- Version-less aliases: these resolve through /releases/latest and keep
+             working across releases, so a new tag needs no edit here. -->
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Download for Apple silicon
+          Download for macOS
         </a>
-        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-intel.zip">
-          Intel build
-        </a>
+
+        <details class="dl">
+          <summary class="btn btn--ghost">All builds</summary>
+          <div class="dl__menu">
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">Apple silicon (.zip, 26.8 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-intel.zip">Intel (.zip, 29.5 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest" target="_blank" rel="noopener">Checksums</a>
+            <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">All releases</a>
+          </div>
+        </details>
       </div>
 
-      <p class="meta hero__meta">v1.4.0 · macOS 11+ · 26.7 MB · MIT</p>
+      <p class="hero__facts"><b>13</b> agent sources · <b>1</b> index file · <b>0</b> uploads</p>
 
-      <ul class="hero__assure">
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No account</li>
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No telemetry</li>
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Never writes to agent storage</li>
-      </ul>
+      <p class="meta hero__meta">v1.5.0 · macOS 11+ · 26.8 MB · MIT</p>
 
       <figure class="mac">
         <div class="mac__bar" aria-hidden="true">
@@ -158,6 +162,12 @@
         The query “reconnect backoff” returns 2 sessions and 5 turns in 1.2 ms, every matched term
         highlighted. The sidebar holds the agents, the project filter and the date range.
       </p>
+
+      <ul class="hero__assure">
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No account</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No telemetry</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Never writes to agent storage</li>
+      </ul>
     </div>
   </section>
 
@@ -174,6 +184,11 @@
         <li class="agent agent--cindy"><i></i><span>Cindy</span></li>
         <li class="agent agent--claude-code"><i></i><span>Claude Code</span></li>
         <li class="agent agent--codex"><i></i><span>Codex</span></li>
+        <li class="agent agent--gemini-cli"><i></i><span>Gemini CLI</span></li>
+        <li class="agent agent--qwen-code"><i></i><span>Qwen Code</span></li>
+        <li class="agent agent--kimi-code"><i></i><span>Kimi Code</span></li>
+        <li class="agent agent--copilot-cli"><i></i><span>Copilot CLI</span></li>
+        <li class="agent agent--goose"><i></i><span>Goose</span></li>
       </ul>
     </div>
   </section>
@@ -183,7 +198,7 @@
     <div class="wrap">
       <span class="anchor" id="how" aria-hidden="true"></span>
       <p class="eyebrow">How it works</p>
-      <h2 class="h2" id="how-h">One index for eight agents.</h2>
+      <h2 class="h2" id="how-h">One index for thirteen agents.</h2>
       <p class="lede">
         The unit is the turn: the question you asked and the answer you got. Tool calls, shell
         commands and errors get a second scope of their own. Both land in one SQLite file you own,
@@ -377,7 +392,7 @@
             <div>
               <h3>Download, unzip, drag to Applications.</h3>
               <p>
-                The Apple silicon and Intel builds are the same app. The download is about 67 MB and
+                The Apple silicon and Intel builds are the same app. Once unzipped it is about 68 MB and
                 carries its own runtime, so there is nothing to install first.
               </p>
             </div>
@@ -481,9 +496,11 @@ bun run mcp</code></pre>
         <details>
           <summary>Which agents does it index?</summary>
           <div class="a">
-            Eight: omp, pi, OpenCode, Cursor, Alma, Cindy, Claude Code and Codex. omp and the official
-            pi share a JSONL format; the rest are read from their own stores. Every adapter is
-            read-only, and each one excludes its agent's private records.
+            Thirteen: omp, pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex, Gemini CLI,
+            Qwen Code, Kimi Code, Copilot CLI and Goose. omp and the official pi share a JSONL
+            format; Gemini CLI, Qwen Code and Kimi Code each bring a format of their own, and the
+            rest are read from their own stores. Every adapter is read-only, and each one excludes
+            its agent's private records.
           </div>
         </details>
 
@@ -509,7 +526,7 @@ bun run mcp</code></pre>
         <details>
           <summary>Apple silicon or Intel?</summary>
           <div class="a">
-            The Apple silicon build is 26.7 MB and the Intel build is 29.5 MB. Both are v1.4.0 and
+            The Apple silicon build is 26.8 MB and the Intel build is 29.5 MB. Both are v1.5.0 and
             both need macOS 11 or later. If you are not sure which Mac you have, open the Apple menu
             and choose “About This Mac”.
           </div>
@@ -549,11 +566,20 @@ bun run mcp</code></pre>
     <div class="wrap">
       <h2 id="cta-h">Stop losing the good sessions.</h2>
       <div class="cta__btns">
-        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-arm64.zip">
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Download for Apple silicon
+          Download for macOS
         </a>
-        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.4.0/session-recall_1.4.0_macos-intel.zip">Intel build</a>
+
+        <details class="dl">
+          <summary class="btn btn--ghost">All builds</summary>
+          <div class="dl__menu">
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip">Apple silicon (.zip, 26.8 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-intel.zip">Intel (.zip, 29.5 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest" target="_blank" rel="noopener">Checksums</a>
+            <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">All releases</a>
+          </div>
+        </details>
       </div>
       <p class="cta__gh">
         <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">Browse the source on GitHub</a>
@@ -586,7 +612,7 @@ bun run mcp</code></pre>
       <span>MIT licensed.</span>
       <span>Not affiliated with the agents it indexes.</span>
       <span>Built by odinyu.</span>
-      <span class="foot__mono">v1.4.0</span>
+      <span class="foot__mono">v1.5.0</span>
     </div>
   </div>
 </footer>
@@ -595,6 +621,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=9" defer></script>
+<script src="/assets/site.js?v=12" defer></script>
 </body>
 </html>
