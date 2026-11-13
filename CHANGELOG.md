@@ -3,11 +3,12 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
-## Unreleased
+## 1.3.0 — 2026-11-13
 
 - UI language switch: 中文 / English, persisted in `prefs.json` alongside the theme; `auto` follows the browser language. All interface chrome is localized while session content stays verbatim.
-- Bilingual documentation: README, USAGE, MCP, DESIGN, POSITIONING, PRODUCT and REPORTS now have English originals and `.zh-CN.md` counterparts, with language switches.
-- Screenshots are generated in matching languages under `docs/screenshots/en/` and `docs/screenshots/zh/` from synthetic English and Chinese sessions.
+- Bilingual documentation: README plus USAGE, MCP, DESIGN, POSITIONING, PRODUCT and REPORTS, each with an English original and a `.zh-CN.md` counterpart and a language switch at the top.
+- The long-form docs moved to `doc/`; the repository root now keeps only the README pair, `CHANGELOG.md` and `LICENSE`.
+- Screenshots are generated in matching languages under `docs/screenshots/en/` and `docs/screenshots/zh/` from synthetic English and Chinese sessions; the README links each language to its own set.
 
 ## 1.2.2 — 2026-11-13
 
