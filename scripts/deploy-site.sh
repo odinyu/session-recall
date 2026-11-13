@@ -72,7 +72,11 @@ current = max(
 next_version = current + 1
 for path, text in zip(files, texts):
     path.write_text(
-        re.sub(r"(/assets/site\.(?:css|js))\?v=\d+", rf"\1?v={next_version}", text),
+        re.sub(
+            r"(/assets/(?:site\.(?:css|js)|theme-init\.js))\?v=\d+",
+            rf"\1?v={next_version}",
+            text,
+        ),
         encoding="utf-8",
     )
 print(current, next_version)
@@ -86,6 +90,7 @@ PY
   for page in site/index.html site/zh/index.html; do
     grep -q "site.css?v=$NEXT" "$page" || { echo "FAIL: version bump missing in $page" >&2; exit 1; }
     grep -q "site.js?v=$NEXT" "$page" || { echo "FAIL: version bump missing in $page" >&2; exit 1; }
+    grep -q "theme-init.js?v=$NEXT" "$page" || { echo "FAIL: version bump missing in $page" >&2; exit 1; }
   done
 fi
 

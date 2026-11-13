@@ -54,8 +54,51 @@
   --fs-lede: clamp(1.0625rem, 1rem + 0.45vw, 1.25rem);
 }
 
+/* An explicit choice. Keep this block identical to the OS block below — the
+   two dark declarations are deliberate, so a stored preference and a
+   prefers-color-scheme visitor resolve to exactly the same tokens. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #141715;
+  --surface: #1b1f1c;
+  --surface-2: #232824;
+  --surface-3: #2a302b;
+  --ink: #e6eae3;
+  --muted: #a2aaa0;
+  --line: #2c322d;
+  --line-strong: #3b433c;
+
+  --accent: #7cc4a7;
+  --accent-ink: #10231a;
+  --accent-soft: #22352c;
+  --mark: #2f4a3d;
+
+  --code-bg: #101311;
+  --code-ink: #d8e2da;
+
+  --shadow-frame: 0 26px 70px -30px rgba(0, 0, 0, 0.72),
+    0 2px 8px -2px rgba(0, 0, 0, 0.4);
+
+  --agent-omp: #b9a4ff;
+  --agent-pi: #e2c06a;
+  --agent-opencode: #7cc9a0;
+  --agent-cursor: #8ab4f8;
+  --agent-alma: #e0a878;
+  --agent-cindy: #e79ab3;
+  --agent-claude-code: #e8a184;
+  --agent-codex: #7fc7b3;
+}
+
+/* An explicit light choice must beat the OS preference. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Auto — no data-theme attribute — follows the OS. The :not() guard is what
+   lets an explicit light choice win on a dark OS. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
 
     --bg: #141715;
@@ -447,6 +490,47 @@ section[id] {
 .hdr__gh:hover {
   color: var(--ink);
   border-color: var(--line-strong);
+}
+
+/* theme switch — one compact button that cycles auto -> light -> dark */
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  transition: color 0.16s ease, border-color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+/* Without JS the switch cannot cycle; the page still follows the OS. */
+html:not(.js) .theme-btn {
+  display: none;
+}
+
+.theme-btn:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.theme-btn svg {
+  display: none;
+  width: 17px;
+  height: 17px;
+}
+
+/* one glyph per state; "auto" shows whenever no explicit theme is set, which
+   is also the no-JS state */
+:root:not([data-theme]) .theme-btn .ti-auto,
+:root[data-theme="light"] .theme-btn .ti-light,
+:root[data-theme="dark"] .theme-btn .ti-dark {
+  display: block;
 }
 
 /* ============================================================================
@@ -1113,6 +1197,56 @@ html.js .copy {
 }
 
 /* ============================================================================
+   Back to top — a quiet utility control, never a second primary CTA
+   ========================================================================= */
+
+.to-top {
+  position: fixed;
+  right: clamp(14px, 2.4vw, 24px);
+  bottom: clamp(14px, 2.4vw, 24px);
+  z-index: 35;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: 0 6px 18px -8px rgba(20, 30, 24, 0.4);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease,
+    color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.to-top svg {
+  width: 17px;
+  height: 17px;
+}
+
+.to-top:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+/* With JS the control waits until the page has been scrolled. Without JS this
+   block never applies, so the plain <a href="#top"> stays visible and usable. */
+html.js .to-top {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+html.js .to-top.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* ============================================================================
    Responsive
    ========================================================================= */
 
@@ -1123,7 +1257,22 @@ html.js .copy {
   }
 }
 
-@media (max-width: 900px) {
+/* Six nav links need more room than four: tighten before the row collides
+   with the language switch and the Download button. */
+@media (max-width: 1180px) {
+  .nav {
+    gap: 2px;
+    margin-left: 4px;
+  }
+  .nav a {
+    padding: 0 8px;
+    font-size: 0.8125rem;
+  }
+}
+
+/* Hide the nav a little earlier than before, so six links never crowd the
+   right-hand controls on a narrow laptop. */
+@media (max-width: 1010px) {
   .nav {
     display: none;
   }
@@ -1206,6 +1355,15 @@ html.js .copy {
   .hdr__dl {
     padding: 0 11px;
     min-width: 40px;
+  }
+}
+
+/* At the narrowest widths the theme switch matters more than a second GitHub
+   link — that one still lives in the footer. Measured: with the icon the row
+   needs 316px, so it keeps fitting down to 375 and goes at 360. */
+@media (max-width: 360px) {
+  .hdr__gh {
+    display: none;
   }
 }
 
