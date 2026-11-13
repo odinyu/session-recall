@@ -3,6 +3,10 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.2.2 — 2026-11-13
+
+- 修复筛选栏的「清除筛选」按钮：选中 Agent、项目或时长后，按钮不再被滚动区域和滚动条裁切，改为固定在筛选列表下方并显示当前筛选数量。
+
 ## 1.2.1 — 2026-11-13
 
 - Codex sessions now come from Cindy's own home too: the adapter scans
