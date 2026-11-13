@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Session Recall — 在你所有编码 Agent 的会话里做全文检索</title>
+<meta name="description" content="Session Recall 在本机为你的编码 Agent 会话建立只读全文索引。一次检索八个 Agent，直接跳到那一轮对话，再交回给你的 Agent。免费、MIT、无需账号，数据不出本机。">
+
+<link rel="canonical" href="https://070801.top/zh/">
+<link rel="alternate" hreflang="en" href="https://070801.top/">
+<link rel="alternate" hreflang="zh-CN" href="https://070801.top/zh/">
+<link rel="alternate" hreflang="x-default" href="https://070801.top/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Session Recall">
+<meta property="og:title" content="Session Recall — 把那次会话找回来。">
+<meta property="og:description" content="在本机为八个编码 Agent 的会话建立只读全文索引。无需账号，不做同步，数据不出这台 Mac。">
+<meta property="og:url" content="https://070801.top/zh/">
+<meta property="og:image" content="https://070801.top/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Session Recall — 把那次会话找回来。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Session Recall — 把那次会话找回来。">
+<meta name="twitter:description" content="在本机为八个编码 Agent 的会话建立只读全文索引。无需账号，不做同步，数据不出这台 Mac。">
+<meta name="twitter:image" content="https://070801.top/assets/og.png">
+
+<meta name="theme-color" content="#f2f3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141715" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/site.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Session Recall",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS 11 或更高版本",
+  "softwareVersion": "1.3.0",
+  "inLanguage": "zh-CN",
+  "description": "在本机为你的编码 Agent 会话建立只读全文索引。一次检索八个 Agent，直接跳到那一轮对话，再交回给你的 Agent。",
+  "license": "https://opensource.org/licenses/MIT",
+  "codeRepository": "https://github.com/odinyu/session-recall",
+  "downloadUrl": "https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip",
+  "url": "https://070801.top/zh/",
+  "isAccessibleForFree": true,
+  "author": { "@type": "Person", "name": "odinyu" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+
+<body>
+<a class="skip" href="#main">跳到主要内容</a>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="/zh/">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 22 22" fill="none"><circle cx="9.4" cy="9.4" r="6.1" stroke="#f2f3ef" stroke-width="2.3"/><path d="M13.9 13.9 18.4 18.4" stroke="#f2f3ef" stroke-width="2.3" stroke-linecap="round"/></svg>
+      </span>
+      <span class="brand__name">session recall</span>
+    </a>
+
+    <nav class="nav" aria-label="页面导航">
+      <a href="#how">工作原理</a>
+      <a href="#screenshots">界面截图</a>
+      <a href="#install">安装</a>
+      <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+
+    <div class="hdr__right">
+      <div class="lang" role="group" aria-label="语言">
+        <a href="/" hreflang="en" lang="en">EN</a>
+        <span aria-current="true">中文</span>
+      </div>
+      <a class="hdr__gh" href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener" aria-label="Session Recall 的 GitHub 仓库">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+      <a class="btn btn--primary btn--sm hdr__dl" href="#install" aria-label="下载">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>下载</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ===================== Hero ===================== -->
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow hero__eyebrow">本地优先 · 只读 · macOS</p>
+
+      <h1>把那次<span class="hl">会话</span>找回来。</h1>
+
+      <p class="hero__lede">
+        Session Recall 在你 Mac 上为所有编码 Agent 的会话维护一份本地全文索引。八个 Agent，一个搜索框。
+        找到你只记得一半的那一轮，精确打开它，再交回给你的 Agent。
+      </p>
+
+      <div class="hero__cta">
+        <!-- Update these download URLs when a new release ships. -->
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          下载 Apple 芯片版
+        </a>
+        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-intel.zip">
+          Intel 版
+        </a>
+      </div>
+
+      <p class="meta hero__meta">v1.3.0 · macOS 11+ · 26.7 MB · MIT</p>
+
+      <ul class="hero__assure">
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>无需账号</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>无遥测</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>不写入 Agent 存储</li>
+      </ul>
+
+      <figure class="mac">
+        <div class="mac__bar" aria-hidden="true">
+          <i></i><i></i><i></i>
+          <span class="mac__title">搜索结果 — “reconnect backoff”</span>
+        </div>
+        <img src="/assets/screenshots/zh/search-results-1440.webp"
+             srcset="/assets/screenshots/zh/search-results-720.webp 720w, /assets/screenshots/zh/search-results-1440.webp 1440w"
+             sizes="(max-width: 1200px) 94vw, 1080px"
+             width="1440" height="900" fetchpriority="high" decoding="async"
+             alt="Session Recall 的搜索结果窗口。搜索“reconnect backoff”返回 2 次会话、5 个轮次，命中的词以绿色高亮，每条结果都标出 Agent、项目和日期。">
+      </figure>
+      <p class="figcap">
+        <b>真实的 App 界面，索引为合成的演示会话。</b>
+        查询“reconnect backoff”在 1.2 毫秒内返回 2 次会话、5 个轮次，命中的词全部高亮。
+        侧边栏是 Agent 列表、项目筛选和日期范围。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== Agents ===================== -->
+  <section class="agents" aria-labelledby="agents-label">
+    <div class="wrap">
+      <p class="eyebrow" id="agents-label">可检索以下 Agent 的会话</p>
+      <ul class="agents__grid">
+        <li class="agent agent--omp"><i></i><span>omp</span></li>
+        <li class="agent agent--pi"><i></i><span>pi</span></li>
+        <li class="agent agent--opencode"><i></i><span>OpenCode</span></li>
+        <li class="agent agent--cursor"><i></i><span>Cursor</span></li>
+        <li class="agent agent--alma"><i></i><span>Alma</span></li>
+        <li class="agent agent--cindy"><i></i><span>Cindy</span></li>
+        <li class="agent agent--claude-code"><i></i><span>Claude Code</span></li>
+        <li class="agent agent--codex"><i></i><span>Codex</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== How it works ===================== -->
+  <section class="section" id="how" aria-labelledby="how-h">
+    <div class="wrap">
+      <p class="eyebrow">工作原理</p>
+      <h2 class="h2" id="how-h">八个 Agent，一份索引。</h2>
+      <p class="lede">
+        每次会话都被拆成轮次——你问的问题和得到的回答——再加上第二层范围里的进程事件。
+        这些都存在一个 SQLite 文件里，你可以随时移动、备份或删除：
+        <code>~/Library/Application Support/session-recall/index.db</code>。
+      </p>
+
+      <div class="features">
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"/><path d="M15.6 15.6 20.5 20.5"/></svg>
+          </div>
+          <h3>搜你记得的那几个词。</h3>
+          <p>
+            对提问和回答做全文检索，底层是 SQLite FTS5；三元组（trigram）分词器负责中文短语、子串和
+            代码标识符，英文回退到 porter。精确短语加引号，多个词之间是 AND 关系。
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.4" width="18" height="15.2" rx="2.6"/><path d="M7.6 10.1 10.2 12.7 7.6 15.3"/><path d="M12.8 15.3h4"/></svg>
+          </div>
+          <h3>搜过程，不只是回复。</h3>
+          <p>
+            切到进程范围，可以搜工具调用、命令行、stdout 和 stderr，以及从里面提取出来的错误行。
+            推理内容被排除在外，所以留下来的都是真正发生过的事。
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="7.9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4"/></svg>
+          </div>
+          <h3>直接跳到那一轮。</h3>
+          <p>
+            每条结果都深链到 <code>sessionrecall://session/&lt;id&gt;?turn=N</code>，并高亮你搜的词。
+            会话页面带着精确的恢复命令，以及一张可复制的 Markdown 交接卡片。
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.1 19 6v6.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6z"/><path d="M9.2 12.2l2 2 3.7-4"/></svg>
+          </div>
+          <h3>设计上就是只读。</h3>
+          <p>
+            索引是一份独立的 SQLite 文件。Agent 的存储以只读方式打开，永不写入；会话也不会离开这台
+            Mac——没有同步，也没有账号。
+          </p>
+        </article>
+      </div>
+
+      <p class="filterbar"><b>筛选</b> Agent · 项目 · 日期范围 · 提问/回答角色</p>
+    </div>
+  </section>
+
+  <!-- ===================== Screenshots ===================== -->
+  <section class="section" id="screenshots" aria-labelledby="shots-h">
+    <div class="wrap">
+      <p class="eyebrow">界面截图</p>
+      <h2 class="h2" id="shots-h">为半个模糊的查询而做。</h2>
+      <p class="lede">
+        同一份索引的两个视图：跳到找到的那一轮，以及围绕一次失败检索进程输出。
+        两者都跑在合成的演示会话索引上。
+      </p>
+
+      <div class="figs">
+        <figure class="fig">
+          <div class="mac">
+            <div class="mac__bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span class="mac__title">会话详情 · 第 02 轮</span>
+            </div>
+            <img src="/assets/screenshots/zh/session-detail-1440.webp"
+                 srcset="/assets/screenshots/zh/session-detail-720.webp 720w, /assets/screenshots/zh/session-detail-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="深色主题下的 Session Recall 会话详情页，停在并高亮了第 02 轮。转写内容上方的一条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。">
+          </div>
+          <figcaption class="figcap">
+            <b>会话详情。</b>转写内容上方那条栏给出 <b>Continue in</b> 命令——这里是
+            <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>——旁边是
+            <b>Copy</b> 和 <b>Copy handoff</b>，下一次提问就能接着你找到的那次会话走。
+          </figcaption>
+        </figure>
+
+        <figure class="fig">
+          <div class="mac">
+            <div class="mac__bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span class="mac__title">进程搜索 — “timeout”</span>
+            </div>
+            <img src="/assets/screenshots/zh/process-search-1440.webp"
+                 srcset="/assets/screenshots/zh/process-search-720.webp 720w, /assets/screenshots/zh/process-search-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="深色主题下的 Session Recall 进程搜索页。搜索 timeout 返回 3 次会话、3 条进程记录，用时 0.7 毫秒；每条都显示从失败测试中提取的错误行，命中的词已高亮。">
+          </div>
+          <figcaption class="figcap">
+            <b>进程搜索。</b>用 <code>timeout</code> 搜工具调用、命令和错误输出——3 次会话、3 条进程记录、
+            0.7 毫秒。每条记录都标出 Agent、项目和日期。
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Install ===================== -->
+  <section class="section" id="install" aria-labelledby="install-h">
+    <div class="wrap">
+      <div class="panel">
+        <p class="eyebrow">安装</p>
+        <h2 class="h2" id="install-h">两分钟，开始第一次搜索。</h2>
+
+        <ol class="steps">
+          <li class="step">
+            <span class="step__n" aria-hidden="true">01</span>
+            <div>
+              <h3>下载、解压、拖进“应用程序”。</h3>
+              <p>
+                选 Apple 芯片版或 Intel 版都行，它们是同一个 App。打包好的 App 约 67 MB，
+                自带运行时，不需要预先安装别的东西。
+              </p>
+            </div>
+          </li>
+
+          <li class="step">
+            <span class="step__n" aria-hidden="true">02</span>
+            <div>
+              <h3>清除隔离标记。</h3>
+              <p>
+                Session Recall 做了 ad-hoc 签名，但没有公证——公证需要付费的 Apple 开发者账号。
+                所以 macOS 会拦下首次启动，并说这个应用已损坏。每份拷贝执行一次下面的命令，
+                之后就能正常打开：
+              </p>
+
+              <div class="term">
+                <button class="copy" type="button" data-copy data-copied="已复制" aria-label="复制命令">复制</button>
+                <pre><code>xattr -dr com.apple.quarantine \
+  "/Applications/Session Recall.app"
+open -a "Session Recall"
+<span class="c"># 从克隆的仓库出发，使用 CLI 与 MCP 服务器</span>
+bun run scan
+bun run sr "websocket" --limit 3
+bun run mcp</code></pre>
+              </div>
+            </div>
+          </li>
+
+          <li class="step">
+            <span class="step__n" aria-hidden="true">03</span>
+            <div>
+              <h3>打开就能搜。</h3>
+              <p>
+                App 启动时会扫描 Agent 存储，打开期间每 90 秒刷新一次索引。输入你记得的词；
+                有精确短语就加上引号。
+              </p>
+            </div>
+          </li>
+        </ol>
+
+        <p class="note">
+          需要 macOS 11 或更高版本。打包的 App 自带运行时；只有使用 CLI、MCP 服务器或从源码构建时才需要 Bun 1.3+。<br>
+          索引位置：~/Library/Application Support/session-recall/index.db
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MCP ===================== -->
+  <section class="section section--tight" id="mcp" aria-labelledby="mcp-h">
+    <div class="wrap band">
+      <div>
+        <p class="eyebrow">给 Agent 用</p>
+        <h2 class="h2" id="mcp-h">你的 Agent 也能搜它。</h2>
+        <p class="lede">
+          <code>bun run mcp</code> 通过 stdio 把同一份索引交给任何 MCP 客户端——不开端口，不走网络。
+          把你的客户端指向绝对路径：
+        </p>
+        <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
+          MCP 服务器文档
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8m0 0-3.2-3.2M12 8l-3.2 3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+
+      <div class="band__code">
+        <div class="term">
+          <button class="copy" type="button" data-copy data-copied="已复制" aria-label="复制 JSON 配置">复制</button>
+          <pre><code>{
+  "mcpServers": {
+    "session-recall": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/session-recall/src/cli.ts", "mcp"]
+    }
+  }
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section class="section" id="faq" aria-labelledby="faq-h">
+    <div class="wrap">
+      <p class="eyebrow">常见问题</p>
+      <h2 class="h2" id="faq-h">安装前大家会问的问题。</h2>
+
+      <div class="faq">
+        <details>
+          <summary>会有数据离开我的 Mac 吗？</summary>
+          <div class="a">
+            不会。没有账号、没有同步、也没有遥测。会话从 Agent 存储读进本地 SQLite 索引
+            <code>~/Library/Application Support/session-recall/index.db</code>，不会上传到任何地方。
+          </div>
+        </details>
+
+        <details>
+          <summary>支持哪些 Agent？</summary>
+          <div class="a">
+            八个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code 和 Codex。omp 与官方 pi 共用一套
+            JSONL 格式，其余的从各自的存储读取。每个适配器都是只读的，并且会排除该 Agent 的私密记录。
+          </div>
+        </details>
+
+        <details>
+          <summary>会改动我的历史记录吗？</summary>
+          <div class="a">
+            不会。Agent 存储以只读方式打开，永不写入。Session Recall 只写自己的索引文件；
+            就算删掉索引，代价也只是重新扫描的时间。
+          </div>
+        </details>
+
+        <details>
+          <summary>为什么 macOS 首次启动会警告？</summary>
+          <div class="a">
+            App 是 ad-hoc 签名而不是公证，所以 Gatekeeper 会把新拷贝当成不可信，并报告为已损坏。
+            每份拷贝执行一次清除隔离属性的命令——
+            <code>xattr -dr com.apple.quarantine "/Applications/Session Recall.app"</code>——
+            macOS 之后就会认它。
+          </div>
+        </details>
+
+        <details>
+          <summary>选 Apple 芯片版还是 Intel 版？</summary>
+          <div class="a">
+            Apple 芯片版 26.7 MB，Intel 版 29.5 MB，都是 v1.3.0，都需要 macOS 11 或更高版本。
+            不确定自己是哪台 Mac，点开苹果菜单里的“关于本机”就能看到。
+          </div>
+        </details>
+
+        <details>
+          <summary>有 Windows 和 Linux 版吗？</summary>
+          <div class="a">
+            没有。Session Recall 是 macOS 应用，检索的是 macOS 上的 Agent 存储位置。
+            CLI 和 MCP 服务器跑在 Bun 上，但目前没有发布 Windows 或 Linux 版本。
+          </div>
+        </details>
+
+        <details>
+          <summary>索引有多新？</summary>
+          <div class="a">
+            App 启动时扫描，打开期间每 90 秒刷新一次。当索引超过五分钟没更新时，MCP 服务器会在后台
+            刷新，并在每次回复里带上索引的新鲜度。
+          </div>
+        </details>
+
+        <details>
+          <summary>怎么更新？</summary>
+          <div class="a">
+            从 Releases 下载新的压缩包，替换“应用程序”里的 App，再为新拷贝清除一次隔离标记。
+            索引在 App 之外，会被继续使用，不用从头重扫。
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Final CTA ===================== -->
+  <section class="cta" aria-labelledby="cta-h">
+    <div class="wrap">
+      <h2 id="cta-h">别再丢掉那些好会话。</h2>
+      <div class="cta__btns">
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          下载 Apple 芯片版
+        </a>
+        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-intel.zip">Intel 版</a>
+      </div>
+      <p class="cta__gh">
+        <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">在 GitHub 上查看源码</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div class="foot__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 22 22" fill="none"><circle cx="9.4" cy="9.4" r="6.1" stroke="#f2f3ef" stroke-width="2.3"/><path d="M13.9 13.9 18.4 18.4" stroke="#f2f3ef" stroke-width="2.3" stroke-linecap="round"/></svg>
+        </span>
+        <span>session recall</span>
+      </div>
+
+      <nav class="foot__links" aria-label="项目链接">
+        <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/odinyu/session-recall/blob/main/CHANGELOG.md" target="_blank" rel="noopener">更新日志</a>
+        <a href="https://github.com/odinyu/session-recall/blob/main/LICENSE" target="_blank" rel="noopener">许可证</a>
+        <a href="https://github.com/odinyu/session-recall/blob/main/README.md" target="_blank" rel="noopener">README</a>
+      </nav>
+    </div>
+
+    <div class="foot__legal">
+      <span>MIT 许可证。</span>
+      <span>与所索引的 Agent 无隶属关系。</span>
+      <span>由 odinyu 构建。</span>
+      <span class="foot__mono">v1.3.0</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/site.js" defer></script>
+</body>
+</html>

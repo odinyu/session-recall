@@ -1,0 +1,25 @@
+# Cloudflare Pages header rules.
+# Docs: https://developers.cloudflare.com/pages/configuration/headers/
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), usb=(), payment=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Filenames are not content-hashed, so assets get a short TTL: a re-deploy is
+# picked up within a day without needing a cache purge.
+/assets/*
+  Cache-Control: public, max-age=86400
+
+/*.txt
+  Cache-Control: public, max-age=86400
+
+/*.xml
+  Cache-Control: public, max-age=86400

@@ -1,0 +1,5 @@
+# Cloudflare Pages redirect rules.
+# Docs: https://developers.cloudflare.com/pages/configuration/redirects/
+
+# 302 (not 301): "latest release" moves with every version.
+/download  https://github.com/odinyu/session-recall/releases  302

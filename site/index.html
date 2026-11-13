@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Session Recall — full-text search across your coding agents' sessions</title>
+<meta name="description" content="Session Recall is a local, read-only full-text index over the sessions your coding agents ran on this Mac. Search eight agents at once, land on the exact turn, and hand it back to your agent. Free, MIT, no account.">
+
+<link rel="canonical" href="https://070801.top/">
+<link rel="alternate" hreflang="en" href="https://070801.top/">
+<link rel="alternate" hreflang="zh-CN" href="https://070801.top/zh/">
+<link rel="alternate" hreflang="x-default" href="https://070801.top/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Session Recall">
+<meta property="og:title" content="Session Recall — find that session again.">
+<meta property="og:description" content="A local, read-only full-text index over eight coding agents' sessions on your Mac. No account, no sync, nothing leaves the machine.">
+<meta property="og:url" content="https://070801.top/">
+<meta property="og:image" content="https://070801.top/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Session Recall — Find that session again.">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Session Recall — find that session again.">
+<meta name="twitter:description" content="A local, read-only full-text index over eight coding agents' sessions on your Mac. No account, no sync, nothing leaves the machine.">
+<meta name="twitter:image" content="https://070801.top/assets/og.png">
+
+<meta name="theme-color" content="#f2f3ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141715" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/site.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Session Recall",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS 11 or later",
+  "softwareVersion": "1.3.0",
+  "description": "A local, read-only full-text index over the sessions your coding agents ran on this Mac. Search eight agents at once, land on the exact turn, and hand it back to your agent.",
+  "license": "https://opensource.org/licenses/MIT",
+  "codeRepository": "https://github.com/odinyu/session-recall",
+  "downloadUrl": "https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip",
+  "url": "https://070801.top/",
+  "isAccessibleForFree": true,
+  "author": { "@type": "Person", "name": "odinyu" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="/">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 22 22" fill="none"><circle cx="9.4" cy="9.4" r="6.1" stroke="#f2f3ef" stroke-width="2.3"/><path d="M13.9 13.9 18.4 18.4" stroke="#f2f3ef" stroke-width="2.3" stroke-linecap="round"/></svg>
+      </span>
+      <span class="brand__name">session recall</span>
+    </a>
+
+    <nav class="nav" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+
+    <div class="hdr__right">
+      <div class="lang" role="group" aria-label="Language">
+        <span aria-current="true">EN</span>
+        <a href="/zh/" hreflang="zh-CN" lang="zh-CN">中文</a>
+      </div>
+      <a class="hdr__gh" href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener" aria-label="Session Recall on GitHub">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+      <a class="btn btn--primary btn--sm hdr__dl" href="#install" aria-label="Download">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Download</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ===================== Hero ===================== -->
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow hero__eyebrow">Local-first · Read-only · macOS</p>
+
+      <h1>Find that <span class="hl">session</span> again.</h1>
+
+      <p class="hero__lede">
+        Session Recall keeps one local full-text index of every coding-agent session on your Mac.
+        Eight agents, one search box. Find the turn you half-remember, open it exactly, and hand it
+        back to your agent.
+      </p>
+
+      <div class="hero__cta">
+        <!-- Update these download URLs when a new release ships. -->
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download for Apple silicon
+        </a>
+        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-intel.zip">
+          Intel build
+        </a>
+      </div>
+
+      <p class="meta hero__meta">v1.3.0 · macOS 11+ · 26.7 MB · MIT</p>
+
+      <ul class="hero__assure">
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No account</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No telemetry</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Never writes to agent storage</li>
+      </ul>
+
+      <figure class="mac">
+        <div class="mac__bar" aria-hidden="true">
+          <i></i><i></i><i></i>
+          <span class="mac__title">search results — “reconnect backoff”</span>
+        </div>
+        <img src="/assets/screenshots/en/search-results-1440.webp"
+             srcset="/assets/screenshots/en/search-results-720.webp 720w, /assets/screenshots/en/search-results-1440.webp 1440w"
+             sizes="(max-width: 1200px) 94vw, 1080px"
+             width="1440" height="900" fetchpriority="high" decoding="async"
+             alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
+      </figure>
+      <p class="figcap">
+        <b>Actual app UI over a synthetic index of demo sessions.</b>
+        The query “reconnect backoff” returns 2 sessions and 5 turns in 1.2 ms; every matched term is
+        highlighted. The sidebar carries the agents, the project filter and the date range.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===================== Agents ===================== -->
+  <section class="agents" aria-labelledby="agents-label">
+    <div class="wrap">
+      <p class="eyebrow" id="agents-label">Indexes sessions from</p>
+      <ul class="agents__grid">
+        <li class="agent agent--omp"><i></i><span>omp</span></li>
+        <li class="agent agent--pi"><i></i><span>pi</span></li>
+        <li class="agent agent--opencode"><i></i><span>OpenCode</span></li>
+        <li class="agent agent--cursor"><i></i><span>Cursor</span></li>
+        <li class="agent agent--alma"><i></i><span>Alma</span></li>
+        <li class="agent agent--cindy"><i></i><span>Cindy</span></li>
+        <li class="agent agent--claude-code"><i></i><span>Claude Code</span></li>
+        <li class="agent agent--codex"><i></i><span>Codex</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== How it works ===================== -->
+  <section class="section" id="how" aria-labelledby="how-h">
+    <div class="wrap">
+      <p class="eyebrow">How it works</p>
+      <h2 class="h2" id="how-h">One index for eight agents.</h2>
+      <p class="lede">
+        Each session is stored as turns — the question you asked and the answer you got — plus, in a
+        second scope, the process events around them. All of it lives in a single SQLite file you can
+        move, back up or delete: <code>~/Library/Application Support/session-recall/index.db</code>.
+      </p>
+
+      <div class="features">
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"/><path d="M15.6 15.6 20.5 20.5"/></svg>
+          </div>
+          <h3>Search the words you remember.</h3>
+          <p>
+            Full text over prompts and answers, backed by SQLite FTS5 with a trigram tokenizer for
+            Chinese phrases, substrings and code identifiers, falling back to porter for English.
+            Wrap an exact phrase in quotes; multiple terms are AND-ed.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.4" width="18" height="15.2" rx="2.6"/><path d="M7.6 10.1 10.2 12.7 7.6 15.3"/><path d="M12.8 15.3h4"/></svg>
+          </div>
+          <h3>Search the run, not just the reply.</h3>
+          <p>
+            Switch to the process scope and search tool calls, shell commands, stdout and stderr, and
+            the error lines extracted from them. Reasoning is excluded, so results stay about what
+            actually happened.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="7.9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4"/></svg>
+          </div>
+          <h3>Land on the exact turn.</h3>
+          <p>
+            Every result deep-links to <code>sessionrecall://session/&lt;id&gt;?turn=N</code> with your
+            terms highlighted. The session page carries the exact resume command and a copyable
+            Markdown handoff card.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.1 19 6v6.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6z"/><path d="M9.2 12.2l2 2 3.7-4"/></svg>
+          </div>
+          <h3>Read-only by design.</h3>
+          <p>
+            The index is a separate SQLite file. Agent stores are opened read-only and never written
+            to, and sessions never leave the Mac — there is no sync and no account.
+          </p>
+        </article>
+      </div>
+
+      <p class="filterbar"><b>Filters</b> agent · project · date range · prompt/answer role</p>
+    </div>
+  </section>
+
+  <!-- ===================== Screenshots ===================== -->
+  <section class="section" id="screenshots" aria-labelledby="shots-h">
+    <div class="wrap">
+      <p class="eyebrow">Screenshots</p>
+      <h2 class="h2" id="shots-h">Built for a half-remembered query.</h2>
+      <p class="lede">
+        Two views of the same index: opening a session at the turn you found, and searching the
+        process output around a failure. Both run over a synthetic index of demo sessions.
+      </p>
+
+      <div class="figs">
+        <figure class="fig">
+          <div class="mac">
+            <div class="mac__bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span class="mac__title">session detail · turn 02</span>
+            </div>
+            <img src="/assets/screenshots/en/session-detail-1440.webp"
+                 srcset="/assets/screenshots/en/session-detail-720.webp 720w, /assets/screenshots/en/session-detail-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="The Session Recall session detail view in dark theme, opened at turn 02 with the matched answer highlighted. A bar above the transcript reads CONTINUE IN Claude Code, followed by the resume command, a Copy button and a Copy handoff button.">
+          </div>
+          <figcaption class="figcap">
+            <b>Session detail.</b> The bar above the transcript holds the <b>Continue in</b> command —
+            here <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code> — next to
+            <b>Copy</b> and <b>Copy handoff</b>, so the next prompt starts from the session you found.
+          </figcaption>
+        </figure>
+
+        <figure class="fig">
+          <div class="mac">
+            <div class="mac__bar" aria-hidden="true">
+              <i></i><i></i><i></i>
+              <span class="mac__title">process search — “timeout”</span>
+            </div>
+            <img src="/assets/screenshots/en/process-search-1440.webp"
+                 srcset="/assets/screenshots/en/process-search-720.webp 720w, /assets/screenshots/en/process-search-1440.webp 1440w"
+                 sizes="(max-width: 768px) 94vw, 46vw"
+                 width="1440" height="900" loading="lazy" decoding="async"
+                 alt="The Session Recall process search view in dark theme. A search for timeout returns three sessions and three process rows in 0.7 ms, each showing an extracted error line from a failing test with the matched word highlighted.">
+          </div>
+          <figcaption class="figcap">
+            <b>Process search.</b> A search for <code>timeout</code> against tool calls, commands and
+            error output — 3 sessions, 3 process rows, 0.7 ms. Each row names the agent, the project
+            and the date.
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Install ===================== -->
+  <section class="section" id="install" aria-labelledby="install-h">
+    <div class="wrap">
+      <div class="panel">
+        <p class="eyebrow">Install</p>
+        <h2 class="h2" id="install-h">Two minutes to your first search.</h2>
+
+        <ol class="steps">
+          <li class="step">
+            <span class="step__n" aria-hidden="true">01</span>
+            <div>
+              <h3>Download, unzip, drag to Applications.</h3>
+              <p>
+                Take the Apple silicon build or the Intel build — both are the same app. The packaged
+                app is about 67 MB and ships its own runtime, so nothing else needs installing first.
+              </p>
+            </div>
+          </li>
+
+          <li class="step">
+            <span class="step__n" aria-hidden="true">02</span>
+            <div>
+              <h3>Clear the quarantine flag.</h3>
+              <p>
+                Session Recall is ad-hoc signed but not notarized, because notarization needs a paid
+                Apple Developer account. macOS therefore stops the first launch and claims the app is
+                damaged. Run this once per copy and it opens normally from then on:
+              </p>
+
+              <div class="term">
+                <button class="copy" type="button" data-copy aria-label="Copy commands">Copy</button>
+                <pre><code>xattr -dr com.apple.quarantine \
+  "/Applications/Session Recall.app"
+open -a "Session Recall"
+<span class="c"># from a clone, for the CLI and MCP server</span>
+bun run scan
+bun run sr "websocket" --limit 3
+bun run mcp</code></pre>
+              </div>
+            </div>
+          </li>
+
+          <li class="step">
+            <span class="step__n" aria-hidden="true">03</span>
+            <div>
+              <h3>Open it and search.</h3>
+              <p>
+                The app scans agent storage on boot and refreshes the index every 90 seconds while it
+                is open. Type the words you remember — quote an exact phrase if you have one.
+              </p>
+            </div>
+          </li>
+        </ol>
+
+        <p class="note">
+          macOS 11 or later. The packaged app includes its own runtime; Bun 1.3+ is only needed for
+          the CLI, the MCP server, or building from source.<br>
+          Index: ~/Library/Application Support/session-recall/index.db
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MCP ===================== -->
+  <section class="section section--tight" id="mcp" aria-labelledby="mcp-h">
+    <div class="wrap band">
+      <div>
+        <p class="eyebrow">For agents</p>
+        <h2 class="h2" id="mcp-h">Your agent can search it too.</h2>
+        <p class="lede">
+          <code>bun run mcp</code> serves the same index to any MCP client over stdio — no port, no
+          network. Point your client at the absolute path:
+        </p>
+        <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
+          MCP server docs
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8m0 0-3.2-3.2M12 8l-3.2 3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+
+      <div class="band__code">
+        <div class="term">
+          <button class="copy" type="button" data-copy aria-label="Copy JSON configuration">Copy</button>
+          <pre><code>{
+  "mcpServers": {
+    "session-recall": {
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/session-recall/src/cli.ts", "mcp"]
+    }
+  }
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== FAQ ===================== -->
+  <section class="section" id="faq" aria-labelledby="faq-h">
+    <div class="wrap">
+      <p class="eyebrow">Questions</p>
+      <h2 class="h2" id="faq-h">What people ask before installing.</h2>
+
+      <div class="faq">
+        <details>
+          <summary>Does anything leave my Mac?</summary>
+          <div class="a">
+            No. There is no account, no sync and no telemetry. Sessions are read from agent storage
+            into a local SQLite index at <code>~/Library/Application Support/session-recall/index.db</code>
+            and are never uploaded anywhere.
+          </div>
+        </details>
+
+        <details>
+          <summary>Which agents does it index?</summary>
+          <div class="a">
+            Eight: omp, pi, OpenCode, Cursor, Alma, Cindy, Claude Code and Codex. omp and the official
+            pi share a JSONL format; the others are read from their own stores. Each adapter is
+            read-only and each one excludes its agent's private records.
+          </div>
+        </details>
+
+        <details>
+          <summary>Does it modify my history?</summary>
+          <div class="a">
+            No. Agent stores are opened read-only and never written to. The only file Session Recall
+            writes is its own index, and deleting that index only costs you the time to rebuild it.
+          </div>
+        </details>
+
+        <details>
+          <summary>Why does macOS warn on first launch?</summary>
+          <div class="a">
+            The app is ad-hoc signed rather than notarized, so Gatekeeper treats a fresh copy as
+            untrusted and reports it as damaged. Clearing the quarantine attribute once per copy —
+            <code>xattr -dr com.apple.quarantine "/Applications/Session Recall.app"</code> — tells
+            macOS to trust it from then on.
+          </div>
+        </details>
+
+        <details>
+          <summary>Apple silicon or Intel?</summary>
+          <div class="a">
+            The Apple silicon build is 26.7 MB and the Intel build is 29.5 MB; both are v1.3.0 and both
+            need macOS 11 or later. If you are not sure which Mac you have, open the Apple menu and
+            choose “About This Mac”.
+          </div>
+        </details>
+
+        <details>
+          <summary>What about Windows and Linux?</summary>
+          <div class="a">
+            No. Session Recall is a macOS app and indexes agent storage in macOS locations. The CLI
+            and the MCP server run under Bun, but no Windows or Linux build is published.
+          </div>
+        </details>
+
+        <details>
+          <summary>How current is the index?</summary>
+          <div class="a">
+            The app scans on boot and refreshes every 90 seconds while it is open. The MCP server
+            refreshes in the background when the index is more than five minutes old, and reports how
+            stale it is with every reply.
+          </div>
+        </details>
+
+        <details>
+          <summary>How do I update?</summary>
+          <div class="a">
+            Download the newer zip from Releases, replace the app in Applications, and clear the
+            quarantine flag again for the new copy. Your index lives outside the app and is reused, so
+            there is nothing to re-scan from scratch.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Final CTA ===================== -->
+  <section class="cta" aria-labelledby="cta-h">
+    <div class="wrap">
+      <h2 id="cta-h">Stop losing the good sessions.</h2>
+      <div class="cta__btns">
+        <a class="btn btn--primary" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-arm64.zip">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.4v8.2m0 0 3.3-3.3M8 10.6 4.7 7.3M2.7 13.2h10.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download for Apple silicon
+        </a>
+        <a class="btn btn--ghost" href="https://github.com/odinyu/session-recall/releases/download/v1.3.0/session-recall_1.3.0_macos-intel.zip">Intel build</a>
+      </div>
+      <p class="cta__gh">
+        <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">Browse the source on GitHub</a>
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__grid">
+      <div class="foot__brand">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 22 22" fill="none"><circle cx="9.4" cy="9.4" r="6.1" stroke="#f2f3ef" stroke-width="2.3"/><path d="M13.9 13.9 18.4 18.4" stroke="#f2f3ef" stroke-width="2.3" stroke-linecap="round"/></svg>
+        </span>
+        <span>session recall</span>
+      </div>
+
+      <nav class="foot__links" aria-label="Project links">
+        <a href="https://github.com/odinyu/session-recall" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/odinyu/session-recall/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/odinyu/session-recall/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+        <a href="https://github.com/odinyu/session-recall/blob/main/README.md" target="_blank" rel="noopener">README</a>
+      </nav>
+    </div>
+
+    <div class="foot__legal">
+      <span>MIT licensed.</span>
+      <span>Not affiliated with the agents it indexes.</span>
+      <span>Built by odinyu.</span>
+      <span class="foot__mono">v1.3.0</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/site.js" defer></script>
+</body>
+</html>

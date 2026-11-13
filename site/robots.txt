@@ -1,0 +1,5 @@
+# Session Recall — https://github.com/odinyu/session-recall
+User-agent: *
+Allow: /
+
+Sitemap: https://070801.top/sitemap.xml
