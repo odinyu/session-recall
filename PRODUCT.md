@@ -1,5 +1,7 @@
 # Product
 
+[English](PRODUCT.md) | [简体中文](PRODUCT.zh-CN.md)
+
 <!-- impeccable:product-schema 1 -->
 
 ## Platform
@@ -48,7 +50,7 @@ A recall tool, not an agent dashboard or usage meter. It persists a turn-level f
 
 - Live local data: 89 omp sessions, 181 OpenCode v2 sessions, 425 Cursor composers, 256 Cursor transcripts.
 - A throwaway feasibility run produced 3,141 turns / 6.6 MB of text; Chinese trigram queries returned in 0.3 ms and a two-character LIKE fallback in 7 ms.
-- Screenshots live in `docs/screenshots/`, generated from synthetic sessions by
+- Screenshots live in `docs/screenshots/en/` and `docs/screenshots/zh/`, generated from synthetic sessions by
   `scripts/capture-screenshots.sh` (the real index is never opened). No
   testimonials or brand assets exist; none should be fabricated.
 

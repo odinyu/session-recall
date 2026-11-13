@@ -13,15 +13,24 @@ import { APP_DIR } from "./config.ts";
 
 export type ThemeMode = "auto" | "light" | "dark";
 
+/**
+ * Interface language. `auto` follows the browser (see `web/i18n.ts`, which is
+ * the only place the resolution rule lives); `zh`/`en` pin it.
+ */
+export type LanguagePref = "auto" | "zh" | "en";
+
 export const THEME_MODES: readonly ThemeMode[] = ["auto", "light", "dark"];
+
+export const LANGUAGE_PREFS: readonly LanguagePref[] = ["auto", "zh", "en"];
 
 /** Shape of the file; unknown keys are kept so an older build cannot eat them. */
 export interface Prefs {
   theme: ThemeMode;
+  language: LanguagePref;
   [key: string]: unknown;
 }
 
-export const DEFAULT_PREFS: Prefs = { theme: "auto" };
+export const DEFAULT_PREFS: Prefs = { theme: "auto", language: "auto" };
 
 /** Raised for a patch we refuse to store; the API turns it into a 400. */
 export class InvalidPrefsError extends Error {}
@@ -36,16 +45,30 @@ export function isThemeMode(value: unknown): value is ThemeMode {
   );
 }
 
+export function isLanguagePref(value: unknown): value is LanguagePref {
+  return (
+    typeof value === "string" &&
+    (LANGUAGE_PREFS as readonly string[]).includes(value)
+  );
+}
+
 /**
  * Coerce anything read from disk into usable prefs: a non-object (or an
- * unusable `theme`) falls back to the defaults, and every other key survives.
+ * unusable `theme`/`language`) falls back to the defaults, and every other key
+ * survives. An older `prefs.json` without `language` therefore reads as `auto`.
  */
 function normalize(value: unknown): Prefs {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { ...DEFAULT_PREFS };
   }
   const raw = value as Record<string, unknown>;
-  return { ...raw, theme: isThemeMode(raw.theme) ? raw.theme : DEFAULT_PREFS.theme };
+  return {
+    ...raw,
+    theme: isThemeMode(raw.theme) ? raw.theme : DEFAULT_PREFS.theme,
+    language: isLanguagePref(raw.language)
+      ? raw.language
+      : DEFAULT_PREFS.language,
+  };
 }
 
 /**
@@ -80,6 +103,11 @@ export function updatePrefs(
   if ("theme" in patch && !isThemeMode(patch.theme)) {
     throw new InvalidPrefsError(
       `invalid theme: ${JSON.stringify(patch.theme)} (expected auto, light or dark)`,
+    );
+  }
+  if ("language" in patch && !isLanguagePref(patch.language)) {
+    throw new InvalidPrefsError(
+      `invalid language: ${JSON.stringify(patch.language)} (expected auto, zh or en)`,
     );
   }
   const merged: Prefs = { ...readPrefs(dir), ...patch } as Prefs;

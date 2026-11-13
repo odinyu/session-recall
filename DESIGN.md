@@ -1,5 +1,7 @@
 # Design
 
+[English](DESIGN.md) | [简体中文](DESIGN.zh-CN.md)
+
 ## Direction
 
 A working archive, not a chat dashboard. The interface behaves like a card
@@ -65,7 +67,10 @@ instead of adding another.
   accent, arrows navigate months, PageUp/PageDown jump months, Home/End go to the
   week's ends, Enter picks, Escape closes and returns focus to the button.
 - Theme switch: a three-state segmented control (Auto / Light / Dark) in the
-  rail footer. Auto follows the system; the choice persists server-side in
+  rail footer.
+- Language switch: a two-state segmented control (中文 / EN) next to the theme
+  switch; Auto follows the browser language, and the choice persists server-side
+  in `<app dir>/prefs.json`. Auto follows the system; the choice persists server-side in
   `<app dir>/prefs.json`, so it survives the port changing between launches
   (`localStorage` is only a first-paint cache for the current origin).
 - Segmented control: 1px border, 2px inner padding, active fill `--surface-3`.

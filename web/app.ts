@@ -1,3 +1,16 @@
+import {
+  DATE_LOCALE,
+  DOC_LANG,
+  LANG_LABELS,
+  MESSAGES,
+  WEEKDAY_SHORT,
+  format,
+  isLangPref,
+  resolveLang,
+  type Lang,
+  type LangPref,
+  type Messages,
+} from "./i18n.ts";
 import { inAppRoute } from "./links.ts";
 import { renderMarkdown } from "./markdown.ts";
 
@@ -160,33 +173,40 @@ const AGENTS: AgentId[] = [
   "alma",
   "cindy",
 ];
-const RANGES: { id: Range; label: string }[] = [
-  { id: "all", label: "全部" },
-  { id: "7d", label: "7 天" },
-  { id: "30d", label: "30 天" },
-  { id: "90d", label: "90 天" },
-];
-const ROLES: { id: Role; label: string }[] = [
-  { id: "all", label: "全部" },
-  { id: "user", label: "提问" },
-  { id: "assistant", label: "回答" },
-];
-const SCOPES: { id: Scope; label: string }[] = [
-  { id: "qa", label: "问答" },
-  { id: "process", label: "过程" },
-];
-const THEMES: { id: ThemeMode; label: string }[] = [
-  { id: "auto", label: "自动" },
-  { id: "light", label: "浅色" },
-  { id: "dark", label: "深色" },
-];
+/** Filter ids; their labels come from the dictionary at render time. */
+const RANGES: Range[] = ["all", "7d", "30d", "90d"];
+const ROLES: Role[] = ["all", "user", "assistant"];
+const SCOPES: Scope[] = ["qa", "process"];
+const THEMES: ThemeMode[] = ["auto", "light", "dark"];
+
+function rangeLabel(id: Range): string {
+  return id === "all"
+    ? t.rangeAll
+    : id === "7d"
+      ? t.range7d
+      : id === "30d"
+        ? t.range30d
+        : t.range90d;
+}
+
+function roleLabel(id: Role): string {
+  return id === "user" ? t.roleUser : id === "assistant" ? t.roleAssistant : t.roleAll;
+}
+
+function scopeLabel(id: Scope): string {
+  return id === "process" ? t.scopeProcess : t.scopeQa;
+}
+
+function themeLabel(id: ThemeMode): string {
+  return id === "light" ? t.themeLight : id === "dark" ? t.themeDark : t.themeAuto;
+}
 /**
  * Same-launch cache for the first paint only (see `applyTheme`): the packaged
  * app's origin carries a fresh random port on every launch, so this value only
  * survives a reload. The server's `prefs.json` is the authority.
  */
 const THEME_KEY = "session-recall-theme";
-/** Scroll distance after which the floating "回到顶部" control appears. */
+/** Scroll distance after which the floating "back to top" control appears. */
 const TO_TOP_THRESHOLD = 400;
 /** Deep-linked search terms are capped before they reach the DOM. */
 const MAX_HASH_Q = 300;
@@ -207,6 +227,12 @@ let resultLimit = INITIAL_RESULT_LIMIT;
 // otherwise every later search keeps fetching hundreds of rows.
 let lastSearchKey = "";
 let themeMode: ThemeMode = cachedTheme();
+// Interface language: `langPref` is what the server stores ("auto" follows the
+// browser), `lang` is what that resolves to, and `t` is the dictionary every
+// renderer paints from.
+let langPref: LangPref = "auto";
+let lang: Lang = "zh";
+let t: Messages = MESSAGES.zh;
 let briefDate = localDateKey();
 // Which report the footer generates: a single day, or the ISO week that the
 // chosen day falls in.
@@ -266,7 +292,21 @@ interface DatePicker {
 }
 let datePicker: DatePicker | null = null;
 
-const CAL_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
+/** Month heading and the aria-label of a day, in the current language. */
+function monthLabel(date: Date): string {
+  return date.toLocaleDateString(DATE_LOCALE[lang], {
+    year: "numeric",
+    month: "long",
+  });
+}
+
+function dayLabel(date: Date): string {
+  return date.toLocaleDateString(DATE_LOCALE[lang], {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 
 function openDatePicker(trigger: HTMLElement): void {
   closeDatePicker(false);
@@ -275,7 +315,7 @@ function openDatePicker(trigger: HTMLElement): void {
   el.className = "date-picker";
   el.setAttribute("role", "dialog");
   el.setAttribute("aria-modal", "false");
-  el.setAttribute("aria-label", "选择日期");
+  el.setAttribute("aria-label", t.pickDate);
   document.body.appendChild(el);
   const picker: DatePicker = {
     el,
@@ -347,19 +387,20 @@ function renderDatePicker(): void {
       if (key === briefDate) classes.push("is-selected");
       if (key === focusKey) classes.push("is-focus");
       cells.push(
-        `<button type="button" class="${classes.join(" ")}" data-date="${key}" role="gridcell" aria-selected="${key === briefDate}" aria-label="${day.getFullYear()}年${day.getMonth() + 1}月${day.getDate()}日" tabindex="${key === focusKey ? 0 : -1}">${day.getDate()}</button>`,
+        `<button type="button" class="${classes.join(" ")}" data-date="${key}" role="gridcell" aria-selected="${key === briefDate}" aria-label="${escapeAttr(dayLabel(day))}" tabindex="${key === focusKey ? 0 : -1}">${day.getDate()}</button>`,
       );
     }
     rows.push(`<div class="date-row" role="row">${cells.join("")}</div>`);
   }
+  const heading = escapeHtml(monthLabel(new Date(year, month, 1)));
   datePicker.el.innerHTML = `
     <div class="date-head">
-      <button type="button" class="date-nav" data-date-nav="-1" aria-label="上个月">‹</button>
-      <span class="date-title" aria-live="polite">${year}年${month + 1}月</span>
-      <button type="button" class="date-nav" data-date-nav="1" aria-label="下个月">›</button>
+      <button type="button" class="date-nav" data-date-nav="-1" aria-label="${escapeAttr(t.monthPrev)}">‹</button>
+      <span class="date-title" aria-live="polite">${heading}</span>
+      <button type="button" class="date-nav" data-date-nav="1" aria-label="${escapeAttr(t.monthNext)}">›</button>
     </div>
-    <div class="date-grid" role="grid" aria-label="${year}年${month + 1}月">
-      <div class="date-week" role="row">${CAL_WEEKDAYS.map((label) => `<span role="columnheader">${label}</span>`).join("")}</div>
+    <div class="date-grid" role="grid" aria-label="${heading}">
+      <div class="date-week" role="row">${WEEKDAY_SHORT[lang].map((label) => `<span role="columnheader">${label}</span>`).join("")}</div>
       ${rows.join("")}
     </div>`;
 }
@@ -720,7 +761,7 @@ function ensureSearchView(): void {
 }
 
 function formatCount(value: number): string {
-  return value.toLocaleString("zh-CN");
+  return value.toLocaleString(DATE_LOCALE[lang]);
 }
 
 function isThemeMode(value: unknown): value is ThemeMode {
@@ -758,19 +799,64 @@ function applyTheme(mode: ThemeMode, persist = true): void {
   }
 }
 
+/** The browser's language list, with the single-language fallback. */
+function browserLanguages(): string[] {
+  const list = navigator.languages;
+  return list && list.length > 0 ? [...list] : [navigator.language];
+}
+
 /**
- * The server owns the theme: it is served by the sidecar out of
- * `<app dir>/prefs.json`, so it outlives the port (and the origin) the packaged
- * app picks on every launch. Run before the first paint, so nothing renders in
- * the wrong theme.
+ * Paint a language choice: `<html lang>` and the title, plus the dictionary and
+ * locale every later render reads. Callers re-render whatever is on screen;
+ * nothing here touches the DOM the renderers own.
+ */
+function applyLanguage(pref: LangPref): void {
+  langPref = pref;
+  lang = resolveLang(pref, browserLanguages());
+  t = MESSAGES[lang];
+  document.documentElement.lang = DOC_LANG[lang];
+  document.title = t.appTitle;
+  document
+    .querySelector('meta[name="description"]')
+    ?.setAttribute("content", t.appDescription);
+  if (datePicker) renderDatePicker();
+}
+
+/** Persist a language choice; the local switch already applied, so failures only log. */
+async function saveLanguage(pref: LangPref): Promise<void> {
+  try {
+    const prefs = await api<{ language?: unknown }>("/api/prefs", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language: pref }),
+    });
+    if (isLangPref(prefs.language) && prefs.language !== langPref) {
+      // The server rejected or rewrote the value; its answer wins.
+      applyLanguage(prefs.language);
+      renderControls();
+      route();
+    }
+  } catch (error) {
+    console.error("language preference not saved", error);
+  }
+}
+
+/**
+ * The server owns the theme and the language: they are served by the sidecar out
+ * of `<app dir>/prefs.json`, so they outlive the port (and the origin) the
+ * packaged app picks on every launch. Run before the first paint, so nothing
+ * renders in the wrong theme or the wrong language.
  */
 async function loadPrefs(): Promise<void> {
   try {
-    const prefs = await api<{ theme?: unknown }>("/api/prefs");
+    const prefs = await api<{ theme?: unknown; language?: unknown }>("/api/prefs");
     applyTheme(isThemeMode(prefs.theme) ? prefs.theme : "auto");
+    applyLanguage(isLangPref(prefs.language) ? prefs.language : "auto");
   } catch {
-    // No server to ask: the cache is the best available guess.
+    // No server to ask: the cache is the best available guess for the theme,
+    // and `auto` (the browser) for the language.
     applyTheme(cachedTheme(), false);
+    applyLanguage("auto");
   }
 }
 
@@ -793,18 +879,37 @@ async function saveTheme(mode: ThemeMode): Promise<void> {
 
 function themeSwitchHtml(): string {
   return `<div class="theme-row">
-    <span class="foot-muted">主题</span>
-    <div class="segmented theme-switch" id="theme-switch" role="group" aria-label="明暗主题">
+    <span class="foot-muted">${t.themeLabel}</span>
+    <div class="segmented theme-switch" id="theme-switch" role="group" aria-label="${escapeAttr(t.themeAria)}">
       ${THEMES.map(
         (theme) =>
-          `<button class="seg${themeMode === theme.id ? " is-active" : ""}" data-theme-mode="${theme.id}" aria-pressed="${themeMode === theme.id}">${theme.label}</button>`,
+          `<button class="seg${themeMode === theme ? " is-active" : ""}" type="button" data-theme-mode="${theme}" aria-pressed="${themeMode === theme}">${themeLabel(theme)}</button>`,
       ).join("")}
     </div>
   </div>`;
 }
 
+/**
+ * The language switch, next to the theme switch. Each option is written in its
+ * own language and stays put; only the row label follows the UI.
+ */
+function langSwitchHtml(): string {
+  const options: Lang[] = ["zh", "en"];
+  return `<div class="lang-row">
+    <span class="foot-muted">${t.langLabel}</span>
+    <div class="segmented lang-switch" id="lang-switch" role="group" aria-label="${escapeAttr(t.langAria)}">
+      ${options
+        .map(
+          (code) =>
+            `<button class="seg${lang === code ? " is-active" : ""}" type="button" data-lang="${code}" aria-pressed="${lang === code}">${LANG_LABELS[code]}</button>`,
+        )
+        .join("")}
+    </div>
+  </div>`;
+}
+
 function formatDate(ms: number): string {
-  if (!ms) return "时间未知";
+  if (!ms) return t.unknownTime;
   const date = new Date(ms);
   const now = new Date();
   const sameDay =
@@ -812,7 +917,12 @@ function formatDate(ms: number): string {
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
   if (sameDay) {
-    return `今天 ${date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`;
+    return format(t.todayAt, {
+      time: date.toLocaleTimeString(DATE_LOCALE[lang], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    });
   }
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
@@ -820,9 +930,16 @@ function formatDate(ms: number): string {
     date.getFullYear() === yesterday.getFullYear() &&
     date.getMonth() === yesterday.getMonth() &&
     date.getDate() === yesterday.getDate();
-  if (isYesterday) return "昨天";
-  if (now.getTime() - ms < 7 * 864e5) return `${Math.floor((now.getTime() - ms) / 864e5)} 天前`;
-  return date.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  if (isYesterday) return t.yesterday;
+  // Only 2..6 days reach this branch: same-day and yesterday were handled above.
+  if (now.getTime() - ms < 7 * 864e5) {
+    return format(t.daysAgo, { n: Math.floor((now.getTime() - ms) / 864e5) });
+  }
+  return date.toLocaleDateString(DATE_LOCALE[lang], {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 function plainPreview(value: string): string {
@@ -841,7 +958,7 @@ function plainPreview(value: string): string {
 }
 
 function projectLabel(path: string): string {
-  if (!path) return "未识别项目";
+  if (!path) return t.unknownProject;
   const parts = path.split("/").filter(Boolean);
   return parts.at(-1) ?? path;
 }
@@ -856,11 +973,11 @@ function continuationDetail(continuation: Continuation): string {
     return `<a class="resume-link" href="${escapeAttr(continuation.command)}" title="${escapeAttr(continuation.note)}">
       <code class="resume-code">${escapeHtml(continuation.command)}</code>
     </a>
-    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">复制链接</button>`;
+    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">${t.copyLink}</button>`;
   }
   if (continuation.command) {
     return `<code class="resume-code">${escapeHtml(continuation.command)}</code>
-    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">复制</button>`;
+    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">${t.copy}</button>`;
   }
   return `<span class="resume-note">${escapeHtml(continuation.note)}</span>`;
 }
@@ -883,8 +1000,8 @@ function resumeBlock(session: SessionDetail["session"]): string {
     )
     .join("");
   return `<div class="resume" data-resume>
-    <span class="resume-label">继续到</span>
-    <select class="resume-target" aria-label="在哪个 agent 中继续">${options}</select>
+    <span class="resume-label">${t.resumeLabel}</span>
+    <select class="resume-target" aria-label="${escapeAttr(t.resumeTargetAria)}">${options}</select>
     <span class="resume-detail" data-resume-detail>${selected ? continuationDetail(selected) : ""}</span>
   </div>`;
 }
@@ -916,10 +1033,10 @@ async function copyText(text: string): Promise<boolean> {
 async function copyCommand(button: HTMLButtonElement): Promise<void> {
   const command = button.dataset.command ?? "";
   const copied = await copyText(command);
-  button.textContent = copied ? "已复制" : "复制失败";
+  button.textContent = copied ? t.copied : t.copyFailed;
   button.classList.toggle("is-copied", copied);
   window.setTimeout(() => {
-    button.textContent = "复制";
+    button.textContent = t.copy;
     button.classList.remove("is-copied");
   }, 1400);
 }
@@ -932,18 +1049,18 @@ async function copyHandoff(button: HTMLButtonElement): Promise<void> {
       .closest(".session-actionbar")
       ?.querySelector<HTMLSelectElement>(".resume-target")?.value ?? null;
   button.disabled = true;
-  button.textContent = "准备中…";
+  button.textContent = t.handoffPreparing;
   try {
     const handoff = await loadHandoff(id, target);
     const copied = await copyText(handoff);
-    button.textContent = copied ? "已复制" : "复制失败";
+    button.textContent = copied ? t.copied : t.copyFailed;
     button.classList.toggle("is-copied", copied);
   } catch {
-    button.textContent = "交接不可用";
-    button.title = "生成交接卡失败";
+    button.textContent = t.handoffUnavailable;
+    button.title = t.handoffBuildFailed;
   } finally {
     window.setTimeout(() => {
-      button.textContent = "复制交接";
+      button.textContent = t.handoffCopy;
       button.disabled = false;
       button.classList.remove("is-copied");
     }, 1600);
@@ -961,7 +1078,7 @@ async function loadHandoff(id: string, targetAgent: string | null): Promise<stri
     `/api/session/${encodeURIComponent(id)}/handoff${query}`,
     { cache: "no-store" },
   );
-  if (!response.ok) throw new Error(`请求失败 (${response.status})`);
+  if (!response.ok) throw new Error(format(t.requestFailed, { status: response.status }));
   const handoff = await response.text();
   handoffCache.set(key, handoff);
   return handoff;
@@ -977,12 +1094,10 @@ async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
   const id = button.dataset.forget ?? "";
   if (!id) return;
   const title = button.closest(".session-page-head")?.querySelector("h1")?.textContent ?? id;
-  const confirmed = window.confirm(
-    `忘记此会话？\n\n${title}\n\n它会被永久移出本机索引，之后的扫描也不会再索引它。`,
-  );
+  const confirmed = window.confirm(format(t.forgetConfirm, { title }));
   if (!confirmed) return;
   button.disabled = true;
-  button.textContent = "正在忘记…";
+  button.textContent = t.forgetting;
   try {
     const result = await api<{ briefs?: string[] }>(
       `/api/session/${encodeURIComponent(id)}/forget`,
@@ -1006,9 +1121,7 @@ async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
     if (status) {
       const stale = result.briefs?.length ?? 0;
       const note =
-        stale > 0
-          ? `已忘记该会话；${stale} 个已生成的简报仍引用它，可重新生成或删除`
-          : "已忘记该会话，后续扫描不会再索引它";
+        stale > 0 ? format(t.forgotWithBriefs, { n: stale }) : t.forgot;
       // Forgetting is permanent by design, but a misclick should still be
       // recoverable without dropping to a terminal. The undo calls the same
       // /unforget endpoint as the CLI, then re-scans so the session returns.
@@ -1018,18 +1131,18 @@ async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
       const undo = document.createElement("button");
       undo.type = "button";
       undo.className = "status-undo";
-      undo.textContent = "撤销";
-      undo.title = "恢复该会话，之后的扫描会重新索引它";
+      undo.textContent = t.undo;
+      undo.title = t.undoTitle;
       undo.addEventListener("click", () => void unforgetFromUi(undo, id));
       status.append(text, undo);
     }
   } catch (error) {
     button.disabled = false;
-    button.textContent = "忘记失败";
+    button.textContent = t.forgetFailed;
     button.title = error instanceof Error ? error.message : String(error);
     window.setTimeout(() => {
-      button.textContent = "忘记此会话";
-      button.title = "从本机索引中永久移除该会话，之后扫描不会再索引它";
+      button.textContent = t.forgetButton;
+      button.title = t.forgetButtonTitle;
     }, 2400);
   }
 }
@@ -1037,23 +1150,23 @@ async function forgetSessionFromUi(button: HTMLButtonElement): Promise<void> {
 /** Undo a forget from the status line; the next scan re-indexes the session. */
 async function unforgetFromUi(button: HTMLButtonElement, id: string): Promise<void> {
   button.disabled = true;
-  button.textContent = "正在恢复…";
+  button.textContent = t.undoing;
   try {
     await api(`/api/session/${encodeURIComponent(id)}/unforget`, { method: "POST" });
     const status = byId<HTMLDivElement>("search-status");
-    if (status) status.textContent = "已恢复该会话，正在重新索引…";
+    if (status) status.textContent = t.undoneIndexing;
     // The marker is gone; a scan is what actually puts the rows back.
     await fetch("/api/scan", { method: "POST" }).catch(() => null);
     await loadFacets();
     await runSearch();
-    if (status) status.textContent = "已恢复该会话";
+    if (status) status.textContent = t.undone;
   } catch (error) {
     button.disabled = false;
-    button.textContent = "撤销";
+    button.textContent = t.undo;
     button.title = error instanceof Error ? error.message : String(error);
     const status = byId<HTMLDivElement>("search-status");
     if (status) {
-      status.textContent = `恢复失败：${button.title}。可在终端运行 bun run src/cli.ts unforget ${id}`;
+      status.textContent = format(t.undoFailed, { message: button.title, id });
     }
   }
 }
@@ -1062,7 +1175,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? `请求失败 (${response.status})`);
+    throw new Error(body?.error ?? format(t.requestFailed, { status: response.status }));
   }
   return (await response.json()) as T;
 }
@@ -1071,42 +1184,42 @@ function renderShell(): void {
   const root = byId<HTMLDivElement>("app");
   if (!root) return;
   root.innerHTML = `
-    <a class="skip" href="#content">跳到结果</a>
+    <a class="skip" href="#content">${t.skipToResults}</a>
     <div class="shell">
-      <aside class="rail" id="rail" aria-label="筛选">
+      <aside class="rail" id="rail" aria-label="${escapeAttr(t.railAria)}">
         <div class="brand-row">
           <a class="brand" href="#/search">session<span>recall</span></a>
-          <button class="icon-btn rail-close" id="rail-close" aria-label="关闭筛选">
+          <button class="icon-btn rail-close" id="rail-close" aria-label="${escapeAttr(t.closeFilters)}">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9M14.5 5.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </button>
         </div>
-        <p class="rail-sub">本机 agent 会话 · 只读索引</p>
+        <p class="rail-sub">${t.railSub}</p>
         <div class="rail-scroll">
           <section class="filter-block">
-            <h2>Agent <span class="filter-hint">未选 = 全部</span></h2>
+            <h2>${t.agentHeading} <span class="filter-hint">${t.agentHint}</span></h2>
             <div class="agent-filters" id="agent-filters"></div>
           </section>
           <section class="filter-block">
-            <h2>项目</h2>
+            <h2>${t.projectsHeading}</h2>
             <div class="project-combobox" id="project-combobox">
               <button class="project-trigger" id="project-select" type="button"
                 role="combobox" aria-haspopup="listbox" aria-expanded="false"
-                aria-controls="project-listbox" aria-label="按项目筛选">
-                <span class="project-value" id="project-value">全部项目</span>
+                aria-controls="project-listbox" aria-label="${escapeAttr(t.filterByProject)}">
+                <span class="project-value" id="project-value">${t.allProjects}</span>
                 <svg class="project-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <div class="project-popup" id="project-listbox" role="listbox" aria-label="项目" hidden></div>
+              <div class="project-popup" id="project-listbox" role="listbox" aria-label="${escapeAttr(t.projectsAria)}" hidden></div>
             </div>
           </section>
           <section class="filter-block">
-            <h2>时间</h2>
+            <h2>${t.timeHeading}</h2>
             <div class="segmented range-filters" id="range-filters"></div>
           </section>
         </div>
         <div class="rail-filter-actions" id="rail-filter-actions" hidden>
           <button class="clear-filters" id="clear-filters" type="button">
             <svg class="clear-filters-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-            <span>清除筛选</span>
+            <span>${t.clearFilters}</span>
             <span class="clear-filters-count" id="clear-filters-count"></span>
           </button>
         </div>
@@ -1115,19 +1228,19 @@ function renderShell(): void {
       <main class="main">
         <div class="main-inner">
           <header class="topbar">
-            <button class="icon-btn filters-toggle" id="filters-toggle" aria-label="打开筛选" aria-controls="rail" aria-expanded="false">
+            <button class="icon-btn filters-toggle" id="filters-toggle" aria-label="${escapeAttr(t.openFilters)}" aria-controls="rail" aria-expanded="false">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M6 10h8M8 15h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </button>
             <div class="search-field">
               <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13.4 13.4 3.1 3.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               <input id="search" type="search" autocomplete="off" spellcheck="false"
-                aria-label="搜索提问和回答" placeholder="搜索提问和回答…">
+                aria-label="${escapeAttr(t.searchAria)}" placeholder="${escapeAttr(t.searchPlaceholder)}">
               <kbd>⌘K</kbd>
             </div>
             <div class="toolbar">
               <div class="toolbar-filters">
-                <div class="segmented" id="scope-filters" role="group" aria-label="搜索范围类型"></div>
-                <div class="segmented" id="role-filters" role="group" aria-label="问答范围"></div>
+                <div class="segmented" id="scope-filters" role="group" aria-label="${escapeAttr(t.scopeAria)}"></div>
+                <div class="segmented" id="role-filters" role="group" aria-label="${escapeAttr(t.roleAria)}"></div>
               </div>
               <div class="status-line" id="search-status" aria-live="polite"></div>
             </div>
@@ -1136,13 +1249,21 @@ function renderShell(): void {
         </div>
       </main>
     </div>
-    <button class="to-top" id="to-top" type="button" title="回到顶部" aria-label="回到顶部" hidden>
+    <button class="to-top" id="to-top" type="button" title="${escapeAttr(t.backToTop)}" aria-label="${escapeAttr(t.backToTop)}" hidden>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 12.5 10 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <div class="scrim" id="scrim" hidden aria-hidden="true"></div>
   `;
   bindShell();
 }
+
+/**
+ * `document`/`window` handlers outlive the elements `renderShell` rebuilds, so
+ * they are registered once per page. The language switch re-renders the shell
+ * (its copy is chrome too), and without this guard every switch would stack
+ * another copy of the keyboard, resize, scroll and hashchange handlers.
+ */
+let globalHandlersBound = false;
 
 function bindShell(): void {
   byId<HTMLInputElement>("search")?.addEventListener("input", (event) => {
@@ -1253,6 +1374,30 @@ function bindShell(): void {
       }
       return;
     }
+    const langButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "button[data-lang]",
+    );
+    if (langButton) {
+      const pref = langButton.dataset.lang;
+      if (isLangPref(pref) && pref !== langPref) {
+        applyLanguage(pref);
+        // The rail, the search box, the footer and the view are all chrome, so
+        // repaint them in place rather than reloading the page. Rebuilding the
+        // shell is why its global handlers are bound only once.
+        closeProjectPopup();
+        renderShell();
+        // The rebuilt shell has a fresh scrim; leave the drawer closed rather
+        // than open over a page that no longer matches its state.
+        setFiltersOpen(false);
+        route();
+        // The rebuilt shell dropped focus to <body>; put it back on the switch.
+        byId<HTMLDivElement>("lang-switch")
+          ?.querySelector<HTMLButtonElement>(`[data-lang="${lang}"]`)
+          ?.focus();
+        void saveLanguage(pref);
+      }
+      return;
+    }
     if ((event.target as HTMLElement).closest("[data-brief]")) {
       void generateBriefFile();
       return;
@@ -1261,6 +1406,8 @@ function bindShell(): void {
   });
 
   byId<HTMLDivElement>("content")?.addEventListener("click", onContentClick);
+
+  if (globalHandlersBound) return;
 
   document.addEventListener("keydown", (event) => {
     trapFiltersFocus(event);
@@ -1317,6 +1464,8 @@ function bindShell(): void {
     state = next;
     route();
   });
+
+  globalHandlersBound = true;
 }
 
 /**
@@ -1391,7 +1540,9 @@ function bindToTop(): void {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   });
-  window.addEventListener("scroll", updateToTop, { passive: true });
+  if (!globalHandlersBound) {
+    window.addEventListener("scroll", updateToTop, { passive: true });
+  }
   updateToTop();
 }
 
@@ -1411,7 +1562,7 @@ let projectOpen = false;
 let activeProjectIndex = 0;
 
 function projectOptions(): ProjectOption[] {
-  const options: ProjectOption[] = [{ value: "", label: "全部项目" }];
+  const options: ProjectOption[] = [{ value: "", label: t.allProjects }];
   for (const project of facetsData?.projects ?? []) {
     options.push({
       value: project.path,
@@ -1593,18 +1744,23 @@ function bindProjectCombobox(): void {
     if (value !== undefined) selectProject(value);
   });
 
-  // Closing on pointer and focus movement (rather than on `blur` alone) also
-  // covers clicks on non-focusable chrome, and leaving option mousedown alone
-  // keeps the popup's own scrollbar draggable.
-  document.addEventListener("mousedown", (event) => {
-    if (!projectOpen) return;
-    const target = event.target;
-    if (target instanceof Node && combo.contains(target)) return;
-    closeProjectPopup();
-  });
   combo.addEventListener("focusout", (event) => {
     const next = (event as FocusEvent).relatedTarget;
     if (next instanceof Node && combo.contains(next)) return;
+    closeProjectPopup();
+  });
+
+  if (globalHandlersBound) return;
+
+  // Closing on pointer and focus movement (rather than on `blur` alone) also
+  // covers clicks on non-focusable chrome, and leaving option mousedown alone
+  // keeps the popup's own scrollbar draggable. These live on `document`/`window`
+  // and so look the rail up by id each time: a language switch replaces it.
+  document.addEventListener("mousedown", (event) => {
+    if (!projectOpen) return;
+    const target = event.target;
+    const current = byId<HTMLDivElement>("project-combobox");
+    if (target instanceof Node && current?.contains(target)) return;
     closeProjectPopup();
   });
   window.addEventListener("resize", () => {
@@ -1617,7 +1773,8 @@ function bindProjectCombobox(): void {
     (event) => {
       if (!projectOpen) return;
       const target = event.target;
-      if (target instanceof Node && popup.contains(target)) return;
+      const current = byId<HTMLDivElement>("project-listbox");
+      if (target instanceof Node && current?.contains(target)) return;
       closeProjectPopup();
     },
     { passive: true, capture: true },
@@ -1625,7 +1782,14 @@ function bindProjectCombobox(): void {
 }
 
 /** Attributes that identify a filter/theme control across an innerHTML rerender. */
-const FOCUS_ATTRS = ["data-agent", "data-range", "data-scope", "data-role", "data-theme-mode"];
+const FOCUS_ATTRS = [
+  "data-agent",
+  "data-range",
+  "data-scope",
+  "data-role",
+  "data-theme-mode",
+  "data-lang",
+];
 
 /**
  * Remember which control has focus so a rerender can restore it. Rewriting a
@@ -1653,8 +1817,8 @@ function renderControls(): void {
   if (search) {
     search.placeholder =
       state.scope === "process"
-        ? "搜索文件、命令或错误…"
-        : "搜索提问和回答…";
+        ? t.searchProcessPlaceholder
+        : t.searchPlaceholder;
   }
 
   const agentFilters = byId<HTMLDivElement>("agent-filters");
@@ -1677,7 +1841,7 @@ function renderControls(): void {
   if (rangeFilters) {
     rangeFilters.innerHTML = RANGES.map(
       (range) =>
-        `<button class="seg${state.range === range.id ? " is-active" : ""}" data-range="${range.id}" aria-pressed="${state.range === range.id}">${range.label}</button>`,
+        `<button class="seg${state.range === range ? " is-active" : ""}" data-range="${range}" aria-pressed="${state.range === range}">${rangeLabel(range)}</button>`,
     ).join("");
   }
 
@@ -1685,7 +1849,7 @@ function renderControls(): void {
   if (scopeFilters) {
     scopeFilters.innerHTML = SCOPES.map(
       (scope) =>
-        `<button class="seg${state.scope === scope.id ? " is-active" : ""}" data-scope="${scope.id}" aria-pressed="${state.scope === scope.id}">${scope.label}</button>`,
+        `<button class="seg${state.scope === scope ? " is-active" : ""}" data-scope="${scope}" aria-pressed="${state.scope === scope}">${scopeLabel(scope)}</button>`,
     ).join("");
   }
 
@@ -1694,7 +1858,7 @@ function renderControls(): void {
     roleFilters.hidden = state.scope === "process";
     roleFilters.innerHTML = ROLES.map(
       (role) =>
-        `<button class="seg${state.role === role.id ? " is-active" : ""}" data-role="${role.id}" aria-pressed="${state.role === role.id}">${role.label}</button>`,
+        `<button class="seg${state.role === role ? " is-active" : ""}" data-role="${role}" aria-pressed="${state.role === role}">${roleLabel(role)}</button>`,
     ).join("");
   }
 
@@ -1714,29 +1878,35 @@ function renderFoot(): void {
   const foot = byId<HTMLElement>("rail-foot");
   if (!foot) return;
   if (!facetsData) {
-    foot.innerHTML = `${themeSwitchHtml()}<span class="foot-muted">正在读取索引…</span>`;
+    foot.innerHTML = `${themeSwitchHtml()}${langSwitchHtml()}<span class="foot-muted">${t.readingIndex}</span>`;
     restoreControlFocus(focus);
     return;
   }
   const { sessions, turns } = facetsData.total;
   const scanned = facetsData.lastScanMs
-    ? `索引于 ${new Date(facetsData.lastScanMs).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
-    : "尚未索引";
+    ? format(t.indexedAt, {
+        time: new Date(facetsData.lastScanMs).toLocaleTimeString(DATE_LOCALE[lang], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      })
+    : t.notIndexed;
   foot.innerHTML = `
     ${themeSwitchHtml()}
-    <div class="segmented brief-mode" id="brief-mode" role="group" aria-label="简报类型">
-      <button class="seg${briefMode === "day" ? " is-active" : ""}" type="button" data-brief-mode="day" aria-pressed="${briefMode === "day"}">日报</button>
-      <button class="seg${briefMode === "week" ? " is-active" : ""}" type="button" data-brief-mode="week" aria-pressed="${briefMode === "week"}">周报</button>
+    ${langSwitchHtml()}
+    <div class="segmented brief-mode" id="brief-mode" role="group" aria-label="${escapeAttr(t.briefAria)}">
+      <button class="seg${briefMode === "day" ? " is-active" : ""}" type="button" data-brief-mode="day" aria-pressed="${briefMode === "day"}">${t.briefDay}</button>
+      <button class="seg${briefMode === "week" ? " is-active" : ""}" type="button" data-brief-mode="week" aria-pressed="${briefMode === "week"}">${t.briefWeek}</button>
     </div>
     <div class="brief-row">
-      <button class="brief-date" id="brief-date" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="选择日期">${briefDateLabelHtml()}</button>
-      <button class="brief-button" type="button" data-brief>生成</button>
+      <button class="brief-date" id="brief-date" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="${escapeAttr(t.pickDate)}">${briefDateLabelHtml()}</button>
+      <button class="brief-button" type="button" data-brief>${t.briefGenerate}</button>
     </div>
     <div class="brief-status" id="brief-status" aria-live="polite"></div>
-    <div class="foot-stats"><strong>${formatCount(sessions)}</strong> 会话 · <strong>${formatCount(turns)}</strong> 问答</div>
+    <div class="foot-stats"><strong>${formatCount(sessions)}</strong> ${t.sessionsUnit} · <strong>${formatCount(turns)}</strong> ${t.turnsUnit}</div>
     <div class="foot-row">
       <span class="foot-muted">${scanned}</span>
-      <button class="icon-btn" data-refresh aria-label="重新索引" title="重新索引">
+      <button class="icon-btn" data-refresh aria-label="${escapeAttr(t.reindex)}" title="${escapeAttr(t.reindex)}">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8A5.8 5.8 0 1 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 4.8v3.4h-3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>`;
@@ -1745,7 +1915,7 @@ function renderFoot(): void {
 }
 
 function route(): void {
-  // Keep the footer's 日报/周报 switch in step with the report being viewed.
+  // Keep the footer's daily/weekly switch in step with the report being viewed.
   if (state.view === "brief") briefMode = state.briefFormat;
   const input = byId<HTMLInputElement>("search");
   if (input && input.value !== state.q) input.value = state.q;
@@ -1771,7 +1941,7 @@ async function loadFacets(): Promise<void> {
     renderControls();
   } catch (error) {
     const foot = byId<HTMLElement>("rail-foot");
-    if (foot) foot.innerHTML = `<span class="foot-muted">索引读取失败</span>`;
+    if (foot) foot.innerHTML = `<span class="foot-muted">${t.indexReadFailed}</span>`;
     console.error(error);
   }
 }
@@ -1814,7 +1984,7 @@ async function runSearch(): Promise<void> {
   const controller = new AbortController();
   searchAbort = controller;
   const status = byId<HTMLDivElement>("search-status");
-  if (status) status.textContent = "搜索中…";
+  if (status) status.textContent = t.searching;
   // Keep a rendered result set on screen through the request; anything else
   // (cold start, an empty result set, a session/brief page left behind by
   // navigation) gets a skeleton so the page never sits blank.
@@ -1833,10 +2003,14 @@ async function runSearch(): Promise<void> {
     lastTerms = result.terms;
     renderResults();
     if (status) {
+      const counts = {
+        sessions: formatCount(result.totalSessions),
+        ms: result.tookMs.toFixed(1),
+      };
       status.textContent =
         state.scope === "process"
-          ? `${formatCount(result.totalSessions)} 个会话 · ${formatCount(result.processTotal)} 条过程 · ${result.tookMs.toFixed(1)} ms`
-          : `${formatCount(result.totalSessions)} 个会话 · ${formatCount(result.totalTurns)} 条问答 · ${result.tookMs.toFixed(1)} ms`;
+          ? format(t.statusProcess, { ...counts, rows: formatCount(result.processTotal) })
+          : format(t.statusQa, { ...counts, turns: formatCount(result.totalTurns) });
     }
   } catch (error) {
     if (controller.signal.aborted) return;
@@ -1873,11 +2047,11 @@ function renderSearchErrorBar(error: unknown): void {
   bar.setAttribute("role", "alert");
   const text = document.createElement("span");
   text.className = "search-error-text";
-  text.textContent = `搜索失败：${message}`;
+  text.textContent = format(t.searchFailed, { message });
   const retry = document.createElement("button");
   retry.type = "button";
   retry.className = "text-btn";
-  retry.textContent = "重试";
+  retry.textContent = t.retry;
   retry.addEventListener("click", () => {
     clearSearchError();
     void runSearch();
@@ -1896,20 +2070,20 @@ function renderResults(): void {
   }
   const heading = state.q
     ? state.scope === "process"
-      ? "过程搜索"
-      : "搜索结果"
+      ? t.headingProcessSearch
+      : t.headingSearch
     : state.scope === "process"
-      ? "最近过程"
+      ? t.headingRecentProcess
       : state.role === "assistant"
-        ? "最近回答"
-        : "最近提问";
+        ? t.headingRecentAnswers
+        : t.headingRecentQuestions;
   const description = state.q
     ? state.scope === "process"
-      ? `包含 “${escapeHtml(state.q)}” 的工具、命令或错误 · 按最近活动`
-      : `包含 “${escapeHtml(state.q)}” 的提问与回答 · 按最近活动`
+      ? format(t.descProcessQuery, { q: escapeHtml(state.q) })
+      : format(t.descQaQuery, { q: escapeHtml(state.q) })
     : state.scope === "process"
-      ? "按最近工具活动排序"
-      : "按最近活动排序";
+      ? t.descRecentProcess
+      : t.descRecent;
   const head = `<div class="result-head">
     <h1>${heading}</h1>
     <p>${description}</p>
@@ -1925,31 +2099,31 @@ function renderResults(): void {
     `<div class="results">${result.sessions.map((session) => sessionBlock(session, result.terms)).join("")}</div>` +
     (result.sessions.length < result.totalSessions
       ? resultLimit < MAX_RESULT_LIMIT
-        ? `<p class="list-foot">显示前 ${formatCount(result.sessions.length)} 个会话，共 ${formatCount(result.totalSessions)} 个。<button type="button" class="load-more" data-more>显示更多</button></p>`
-        : `<p class="list-foot">显示前 ${formatCount(result.sessions.length)} 个会话，共 ${formatCount(result.totalSessions)} 个；已达到单次显示上限。</p>`
+        ? `<p class="list-foot">${format(t.listFootMore, { shown: formatCount(result.sessions.length), total: formatCount(result.totalSessions) })}<button type="button" class="load-more" data-more>${t.showMore}</button></p>`
+        : `<p class="list-foot">${format(t.listFootCapped, { shown: formatCount(result.sessions.length), total: formatCount(result.totalSessions) })}</p>`
       : "");
 }
 
 function emptyState(): string {
   if (state.scope === "process") {
     return `<div class="empty">
-      <h2>没有找到匹配的过程</h2>
-      <p>过程搜索覆盖工具名、参数里的文件和命令，以及错误输出。试试更短的文件名或命令片段。</p>
+      <h2>${t.emptyProcessTitle}</h2>
+      <p>${t.emptyProcessBody}</p>
     </div>`;
   }
   if (state.q) {
     return `<div class="empty">
-      <h2>没有找到匹配的问答</h2>
-      <p>试试更短的关键词，或把搜索范围切到「全部」，也可以清除 Agent / 项目筛选。</p>
+      <h2>${t.emptyQaTitle}</h2>
+      <p>${t.emptyQaBody}</p>
     </div>`;
   }
   if (facetsData && facetsData.total.sessions === 0) {
     return `<div class="empty">
-      <h2>索引还是空的</h2>
-      <p>先在终端运行 <code>bun run scan</code>，然后刷新这个页面。</p>
+      <h2>${t.emptyIndexTitle}</h2>
+      <p>${format(t.emptyIndexBody, { cmd: "<code>bun run scan</code>" })}</p>
     </div>`;
   }
-  return `<div class="empty"><h2>还没有可显示的提问</h2><p>换一个关键词，或把范围切到「全部」。</p></div>`;
+  return `<div class="empty"><h2>${t.emptyRecentTitle}</h2><p>${t.emptyRecentBody}</p></div>`;
 }
 
 function sessionBlock(session: ResultSession, terms: string[]): string {
@@ -1959,7 +2133,7 @@ function sessionBlock(session: ResultSession, terms: string[]): string {
   const count = processMode ? session.processHitCount : session.hitCount;
   const shown = processMode ? session.processHits.length : session.hits.length;
   const more = count > shown
-    ? `<span class="hit-count">${formatCount(count)} 处命中</span>`
+    ? `<span class="hit-count">${format(t.hitsCount, { n: formatCount(count) })}</span>`
     : "";
   const body = processMode
     ? session.processHits.map((hit) => processHitBlock(hit, session.id, terms)).join("")
@@ -1968,7 +2142,7 @@ function sessionBlock(session: ResultSession, terms: string[]): string {
         .join("");
   return `<article class="session-block">
     <a class="session-head" href="#/session/${encodeURIComponent(session.id)}">
-      <h2 class="session-title">${escapeHtml(session.title || "未命名会话")}</h2>
+      <h2 class="session-title">${escapeHtml(session.title || t.untitledSession)}</h2>
       <div class="session-meta">
         ${agentBadge(session.agent)}
         ${showProject ? `<span class="project" title="${escapeAttr(session.projectPath)}">${escapeHtml(project)}</span><span class="dot-sep">·</span>` : ""}
@@ -1989,14 +2163,14 @@ function processHitBlock(
   const status = processStatus(hit.status);
   const label =
     hit.matchField === "error"
-      ? "错误输出"
+      ? t.errorOutputLabel
       : hit.matchField === "input"
-        ? "参数"
-        : "工具";
+        ? t.inputLabel
+        : t.toolLabel;
   const meta = [label, hit.tool, status].filter(Boolean).join(" · ");
   return `<a class="hit process-hit" href="${href}">
     <span class="hit-label">${escapeHtml(meta)}</span>
-    <p class="hit-primary">${highlight(hit.snippet || "（无内容）", terms)}</p>
+    <p class="hit-primary">${highlight(hit.snippet || t.noContent, terms)}</p>
   </a>`;
 }
 
@@ -2006,9 +2180,9 @@ function hitBlock(hit: Hit, session: ResultSession, terms: string[]): string {
   const answer = hit.matchField === "user" ? hit.assistantSnippet : hit.snippet;
   const answerText = plainPreview(answer);
   return `<a class="hit" href="${href}">
-    <span class="hit-label">提问</span>
-    <p class="hit-primary">${highlight(prompt || "（无提问记录）", terms)}</p>
-    ${answerText ? `<p class="hit-secondary"><span class="hit-answer-label">回答</span>${highlight(answerText, terms)}</p>` : ""}
+    <span class="hit-label">${t.questionLabel}</span>
+    <p class="hit-primary">${highlight(prompt || t.noPrompt, terms)}</p>
+    ${answerText ? `<p class="hit-secondary"><span class="hit-answer-label">${t.answerLabel}</span>${highlight(answerText, terms)}</p>` : ""}
   </a>`;
 }
 
@@ -2041,17 +2215,22 @@ async function renderBrief(ref: string, format: "day" | "week" = "day"): Promise
       | (BriefPayload & { error?: string })
       | null;
     if (!response.ok || !data?.markdown) {
-      throw new Error(data?.error ?? `请求失败 (${response.status})`);
+      throw new Error(data?.error ?? format(t.requestFailed, { status: response.status }));
     }
     const subtitle = isWeek ? weekSubtitle(data.week ?? ref, data.range) : data.date;
     content.innerHTML = `
       <a class="back" href="${lastSearchHash}">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        返回搜索
+        ${t.backToSearch}
       </a>
       <div class="brief-toolbar">
-        <span class="foot-muted">${escapeHtml(subtitle)} · ${formatCount(data.projects)} 个项目 · ${formatCount(data.sessions)} 个会话 · ${formatCount(data.turns)} 轮问答</span>
-        <a class="brief-download" href="${escapeAttr(data.download)}" download>下载 .md</a>
+        <span class="foot-muted">${format(t.briefMeta, {
+          subtitle: escapeHtml(subtitle),
+          projects: formatCount(data.projects),
+          sessions: formatCount(data.sessions),
+          turns: formatCount(data.turns),
+        })}</span>
+        <a class="brief-download" href="${escapeAttr(data.download)}" download>${t.downloadMd}</a>
       </div>
       <article class="markdown brief-view">${renderMarkdown(stripFrontMatter(data.markdown))}</article>
     `;
@@ -2085,28 +2264,28 @@ async function renderSession(
     const project = projectLabel(session.projectPath);
     const showProject = project.toLowerCase() !== AGENT_LABEL[session.agent].toLowerCase();
     const fromSearch = query
-      ? `<p class="session-from-search">来自搜索 “${escapeHtml(query)}” · <a href="${searchHash}">查看搜索结果</a></p>`
+      ? `<p class="session-from-search">${format(t.fromSearch, { q: escapeHtml(query) })}<a href="${searchHash}">${t.viewSearchResults}</a></p>`
       : "";
     content.innerHTML = `
       <a class="back" href="${backHref}">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        返回搜索
+        ${t.backToSearch}
       </a>
       <header class="session-page-head">
-        <h1>${escapeHtml(session.title || "未命名会话")}</h1>
+        <h1>${escapeHtml(session.title || t.untitledSession)}</h1>
         <div class="session-meta">
           ${agentBadge(session.agent)}
           ${showProject ? `<span class="project" title="${escapeAttr(session.projectPath)}">${escapeHtml(project)}</span><span class="dot-sep">·</span>` : ""}
           <time>${formatDate(session.updatedAt)}</time>
           <span class="dot-sep">·</span>
-          <span>${formatCount(detail.turns.length)} 轮问答</span>
+          <span>${format(t.turnCount, { n: formatCount(detail.turns.length) })}</span>
         </div>
       </header>
       ${fromSearch}
       <div class="session-actionbar">
         ${resumeBlock(session)}
-        <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="复制包含问题、文件、命令和 Git 状态的交接卡">复制交接</button>
-        <button class="forget-button" type="button" data-forget="${escapeAttr(session.id)}" title="从本机索引中永久移除该会话，之后扫描不会再索引它">忘记此会话</button>
+        <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="${escapeAttr(t.handoffButtonTitle)}">${t.handoffCopy}</button>
+        <button class="forget-button" type="button" data-forget="${escapeAttr(session.id)}" title="${escapeAttr(t.forgetButtonTitle)}">${t.forgetButton}</button>
       </div>
       <div class="turns">
         ${detail.turns.map((turn) => turnBlock(turn, session.agent, terms, turnIdx, focus)).join("")}
@@ -2188,17 +2367,17 @@ function turnBlock(
     : "";
   const user = turn.userText.trim()
     ? `<section class="msg msg-user${target && focus === "user" ? " is-hit" : ""}" id="turn-${turn.idx}-user">
-        <div class="msg-label">提问</div>
+        <div class="msg-label">${t.questionLabel}</div>
         <div class="msg-body">${highlight(turn.userText, terms)}</div>
       </section>`
     : "";
   const assistant = turn.assistantText.trim()
     ? `<section class="msg msg-assistant${target && focus === "assistant" ? " is-hit" : ""}" id="turn-${turn.idx}-assistant">
-        <div class="msg-label">回答 <span class="msg-agent">${AGENT_LABEL[agent]}</span>${modelBadge}</div>
+        <div class="msg-label">${t.answerLabel} <span class="msg-agent">${AGENT_LABEL[agent]}</span>${modelBadge}</div>
         <div class="markdown">${renderMarkdown(turn.assistantText)}</div>
-        ${turn.truncated ? `<p class="truncated">内容较长，已截断索引。</p>` : ""}
+        ${turn.truncated ? `<p class="truncated">${t.truncatedTurn}</p>` : ""}
       </section>`
-    : `<section class="msg msg-assistant" id="turn-${turn.idx}-assistant"><div class="msg-label">回答${modelBadge}</div><p class="muted">（没有记录到回答）</p></section>`;
+    : `<section class="msg msg-assistant" id="turn-${turn.idx}-assistant"><div class="msg-label">${t.answerLabel}${modelBadge}</div><p class="muted">${t.noAnswerRecorded}</p></section>`;
   return `<article class="turn${target ? " is-target" : ""}" id="turn-${turn.idx}">
     <div class="turn-rail" aria-hidden="true">${number}</div>
     <div class="turn-main">${user}${assistant}${processBlock(turn)}</div>
@@ -2208,7 +2387,7 @@ function turnBlock(
 function processBlock(turn: SessionDetail["turns"][number]): string {
   if (turn.eventCount <= 0) return "";
   return `<details class="process" data-turn="${turn.idx}">
-    <summary>过程 <span class="process-count">${formatCount(turn.eventCount)} 项</span></summary>
+    <summary>${t.processLabel} <span class="process-count">${formatCount(turn.eventCount)} ${t.processCountUnit}</span></summary>
     <div class="process-panel" data-loaded="0"></div>
   </details>`;
 }
@@ -2232,11 +2411,11 @@ function processStatus(meta: string | null): string {
 
 function processEventBlock(event: SessionEvent, turn: number): string {
   const truncated = event.truncated
-    ? `<p class="truncated">内容较长，已截断。</p>`
+    ? `<p class="truncated">${t.truncatedEvent}</p>`
     : "";
   if (event.kind === "reasoning") {
     return `<details class="process-event process-reasoning" data-seq="${event.seq}" id="event-${turn}-${event.seq}">
-      <summary>思考过程</summary>
+      <summary>${t.reasoningLabel}</summary>
       <pre class="process-pre">${escapeHtml(event.output)}</pre>
       ${truncated}
     </details>`;
@@ -2244,13 +2423,13 @@ function processEventBlock(event: SessionEvent, turn: number): string {
   const status = processStatus(event.meta);
   const input = event.input.trim()
     ? `<div class="process-section">
-        <span class="process-label">参数</span>
+        <span class="process-label">${t.inputLabel}</span>
         <pre class="process-pre">${escapeHtml(prettyEventText(event.input))}</pre>
       </div>`
     : "";
   const output = event.output.trim()
     ? `<div class="process-section">
-        <span class="process-label">结果</span>
+        <span class="process-label">${t.outputLabel}</span>
         <pre class="process-pre">${escapeHtml(prettyEventText(event.output))}</pre>
       </div>`
     : "";
@@ -2268,18 +2447,18 @@ async function loadProcess(details: HTMLDetailsElement): Promise<void> {
   const turn = Number(details.dataset.turn ?? "-1");
   if (!panel || panel.dataset.loaded === "1" || turn < 0) return;
   panel.dataset.loaded = "1";
-  panel.innerHTML = `<p class="muted process-loading">正在读取过程…</p>`;
+  panel.innerHTML = `<p class="muted process-loading">${t.processLoading}</p>`;
   try {
     const data = await api<{ turn: number; events: SessionEvent[] }>(
       `/api/session/${encodeURIComponent(state.sessionId)}/events?turn=${turn}`,
     );
     panel.innerHTML = data.events.length
       ? data.events.map((event) => processEventBlock(event, turn)).join("")
-      : `<p class="muted">没有记录到过程。</p>`;
+      : `<p class="muted">${t.processEmpty}</p>`;
   } catch (error) {
     panel.dataset.loaded = "0";
     const message = error instanceof Error ? error.message : String(error);
-    panel.innerHTML = `<p class="muted">读取失败：${escapeHtml(message)}</p>`;
+    panel.innerHTML = `<p class="muted">${format(t.processReadFailed, { message: escapeHtml(message) })}</p>`;
   }
 }
 
@@ -2288,9 +2467,9 @@ function renderError(error: unknown): void {
   if (!content) return;
   const message = error instanceof Error ? error.message : String(error);
   content.innerHTML = `<div class="empty">
-    <h2>读取失败</h2>
+    <h2>${t.readFailed}</h2>
     <p>${escapeHtml(message)}</p>
-    <button class="text-btn" id="retry">重试</button>
+    <button class="text-btn" id="retry">${t.retry}</button>
   </div>`;
   byId<HTMLButtonElement>("retry")?.addEventListener("click", () => {
     if (state.view === "session") void renderSession(state.sessionId);
@@ -2304,7 +2483,7 @@ async function generateBriefFile(): Promise<void> {
   const date = briefDate || localDateKey();
   briefDate = date;
   const isWeek = briefMode === "week";
-  if (status) status.innerHTML = `<span class="foot-muted">正在生成…</span>`;
+  if (status) status.innerHTML = `<span class="foot-muted">${t.generating}</span>`;
   try {
     const query = isWeek
       ? `format=week&date=${encodeURIComponent(date)}`
@@ -2321,7 +2500,7 @@ async function generateBriefFile(): Promise<void> {
         }
       | null;
     if (!response.ok || !body?.download) {
-      throw new Error(body?.error ?? `请求失败 (${response.status})`);
+      throw new Error(body?.error ?? format(t.requestFailed, { status: response.status }));
     }
     // A weekly report is keyed by ISO week, so the in-app link carries both the
     // week and the format that tells the brief view how to load it.
@@ -2329,19 +2508,19 @@ async function generateBriefFile(): Promise<void> {
     const suffix = isWeek ? "?format=week" : "";
     const href = `#/brief/${encodeURIComponent(ref)}${suffix}`;
     if (status) {
-      status.innerHTML = `已生成 <a href="${escapeAttr(href)}" title="${escapeAttr(body.path ?? "")}">在线查看</a> · <a href="${escapeAttr(body.download)}" download>下载 .md</a>`;
+      status.innerHTML = `${t.generated}<a href="${escapeAttr(href)}" title="${escapeAttr(body.path ?? "")}">${t.viewOnline}</a> · <a href="${escapeAttr(body.download)}" download>${t.downloadMd}</a>`;
     }
   } catch (error) {
     if (status) {
       const message = error instanceof Error ? error.message : String(error);
-      status.innerHTML = `<span class="foot-muted">生成失败：${escapeHtml(message)}</span>`;
+      status.innerHTML = `<span class="foot-muted">${format(t.generateFailed, { message: escapeHtml(message) })}</span>`;
     }
   }
 }
 
 async function refreshIndex(): Promise<void> {
   const foot = byId<HTMLElement>("rail-foot");
-  if (foot) foot.innerHTML = `<span class="foot-muted">正在索引…</span>`;
+  if (foot) foot.innerHTML = `<span class="foot-muted">${t.indexing}</span>`;
   try {
     await fetch("/api/scan", { method: "POST" });
     window.clearTimeout(pollTimer);

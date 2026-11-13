@@ -1,5 +1,7 @@
 # Reports: daily and weekly
 
+[English](REPORTS.md) | [简体中文](REPORTS.zh-CN.md)
+
 How `brief` should turn a day or week of agent sessions into something a person
 can read in 30 seconds (daily) or one page (weekly).
 

@@ -1,5 +1,7 @@
 # session recall
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 [![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
 [![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
 
@@ -25,11 +27,13 @@ bun run start     # build the UI and serve http://127.0.0.1:4319
 
 `bun run start` also scans on boot and refreshes the index every 90 seconds.
 The rail footer switches the theme between Auto (follows macOS), Light, and
-Dark. The choice is stored by the server in `<app dir>/prefs.json` (see
-`src/prefs.ts`) rather than in `localStorage`, so it survives the app restarting
-on a different port; `localStorage` is only a same-origin cache for the first
-paint. API: `GET /api/prefs`, and `PATCH /api/prefs` with `{"theme": …}` for
-`auto`, `light` or `dark` — anything else is rejected with a 400.
+Dark, and the UI language between 中文 and English. Both choices are stored by
+the server in `<app dir>/prefs.json` (see `src/prefs.ts`) rather than in
+`localStorage`, so they survive the app restarting on a different port;
+`localStorage` is only a same-origin cache for the first paint. API:
+`GET /api/prefs`, and `PATCH /api/prefs` with `{"theme": …}` or
+`{"language": …}` for `auto`, `light`/`dark` or `auto`/`zh`/`en`; anything
+else is rejected with a 400.
 
 ## Packaged app
 
@@ -102,19 +106,18 @@ Every screenshot below is rendered from a handful of invented sessions seeded
 into a throwaway index by `scripts/capture-screenshots.sh`; the real index is
 never read and never photographed.
 
-![Search results for a mixed Chinese and English query](docs/screenshots/search-results.png)
+![Search results for a WebSocket reconnect query](docs/screenshots/en/search-results.png)
 
-A mixed Chinese/English query across every indexed agent: the rail filters by
-agent, project and time, and each hit shows the question, the answer, and where
-the terms matched.
+A query across every indexed agent: the rail filters by agent, project and time,
+and each hit shows the question, the answer, and where the terms matched.
 
-![One session, deep-linked to a single highlighted question](docs/screenshots/session-detail.png)
+![One session, deep-linked to a single highlighted question](docs/screenshots/en/session-detail.png)
 
 One session, opened through a `?turn=` deep link that jumps to a single turn in
 the dark theme: the addressed question is highlighted, its answer follows, and
 the continue-in strip carries the exact resume command.
 
-![Process search for a tool error](docs/screenshots/process-search.png)
+![Process search for a tool error](docs/screenshots/en/process-search.png)
 
 Process search looks past the prose into tool calls, commands and error output,
 which is how a failing run behind a conversation gets found.
@@ -409,7 +412,7 @@ Tools:
 ## Index and privacy
 
 - Index: `~/Library/Application Support/session-recall/index.db` (SQLite WAL).
-- Preferences: `<app dir>/prefs.json`, currently the theme. It is written
+- Preferences: `<app dir>/prefs.json`, currently the theme and UI language. It is written
   atomically (temp file + rename) and merged on write; a missing or corrupt file
   just means the defaults.
 - Everything runs on `127.0.0.1`; there are no network calls, accounts, or
@@ -502,7 +505,7 @@ brief/            generated daily briefs (git-ignored)
 ## Development
 
 ```bash
-bun test          # 128 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, Alma, Cindy, Claude Code, Codex
+bun test          # 139 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, Alma, Cindy, Claude Code, Codex
 bun run build     # bundle web/app.ts -> web/dist
 ```
 
@@ -515,9 +518,9 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
   without output.
 - **WorkBuddy**: its local SQLite stores session metadata only; transcripts are
   cloud-side, so it is not indexed yet.
-- **Codex format**: the adapter follows the documented rollout format, but no
-  Codex sessions existed on this machine, so it is fixture-tested only; field
-  names may drift between Codex releases.
+- **Codex format**: the adapter follows the documented rollout format and reads
+  real Cindy `codex-home` sessions, but field names may still drift between Codex
+  releases; the parser remains fixture-tested.
 - **Claude Code sidechains**: subagent (`isSidechain`) records are skipped so
   they cannot interleave with the main conversation; their work is not indexed
   on its own.

@@ -682,7 +682,8 @@ button {
   text-underline-offset: 2px;
 }
 
-.theme-row {
+.theme-row,
+.lang-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -690,11 +691,13 @@ button {
   margin-bottom: 10px;
 }
 
-.theme-switch {
+.theme-switch,
+.lang-switch {
   flex: 1;
 }
 
-.theme-switch .seg {
+.theme-switch .seg,
+.lang-switch .seg {
   padding: 3px 5px;
   font-size: 10.5px;
 }

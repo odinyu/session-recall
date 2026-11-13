@@ -1,5 +1,7 @@
 # Positioning & Roadmap
 
+[English](POSITIONING.md) | [简体中文](POSITIONING.zh-CN.md)
+
 ## One line
 
 **A local, cross-agent memory layer for coding agents. You search it; your agents can too.**

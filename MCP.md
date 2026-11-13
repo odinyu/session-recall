@@ -1,5 +1,7 @@
 # MCP integration
 
+[English](MCP.md) | [简体中文](MCP.zh-CN.md)
+
 How the **app** and an **MCP server** coexist over one local index.
 
 ## Principle

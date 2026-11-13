@@ -1,5 +1,7 @@
 # CLI usage
 
+[English](USAGE.md) | [简体中文](USAGE.zh-CN.md)
+
 Search the local session index from a shell, a script, or an agent with shell
 access. No server is required — the CLI opens the same `index.db` the UI uses.
 

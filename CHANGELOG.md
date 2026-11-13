@@ -3,6 +3,12 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## Unreleased
+
+- UI language switch: 中文 / English, persisted in `prefs.json` alongside the theme; `auto` follows the browser language. All interface chrome is localized while session content stays verbatim.
+- Bilingual documentation: README, USAGE, MCP, DESIGN, POSITIONING, PRODUCT and REPORTS now have English originals and `.zh-CN.md` counterparts, with language switches.
+- Screenshots are generated in matching languages under `docs/screenshots/en/` and `docs/screenshots/zh/` from synthetic English and Chinese sessions.
+
 ## 1.2.2 — 2026-11-13
 
 - 修复筛选栏的「清除筛选」按钮：选中 Agent、项目或时长后，按钮不再被滚动区域和滚动条裁切，改为固定在筛选列表下方并显示当前筛选数量。

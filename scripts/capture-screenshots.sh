@@ -9,8 +9,14 @@
 # temporary directory, so even the scan the server runs on boot can only find
 # nothing. The script verifies that before and after it takes the shots.
 #
+# Two sets are produced, one per interface language, each with an index written
+# in that language so the English shots show English session bodies too:
+#
+#   docs/screenshots/en/{search-results,session-detail,process-search}.png
+#   docs/screenshots/zh/{search-results,session-detail,process-search}.png
+#
 # Usage:
-#   bash scripts/capture-screenshots.sh
+#   bash scripts/capture-screenshots.sh [--lang en|zh|all]   # default all
 #
 # Env overrides:
 #   SR_CHROME    path to a Chrome/Chromium binary (auto-detected by default)
@@ -19,8 +25,9 @@
 #   SR_HEIGHT    viewport height, default 900
 #   SR_KEEP_TMP  1 keeps the temp dir (fixture index, server log) for inspection
 #
-# Requires macOS, Bun 1.3+ and a Chrome/Chromium build. Re-runnable: each run
-# seeds a fresh index in a new temp dir and stops every process it started.
+# Requires macOS, Bun 1.3+ and a Chrome/Chromium build. Re-runnable: each
+# language seeds a fresh index in the same temp dir, gets its own server process
+# and its own port, and every process it started is stopped before it exits.
 
 set -euo pipefail
 
@@ -30,6 +37,37 @@ WIDTH="${SR_WIDTH:-1440}"
 HEIGHT="${SR_HEIGHT:-900}"
 OUT="$ROOT/docs/screenshots"
 FIXTURE="$ROOT/test/fixtures/screenshot-data.ts"
+
+LANG_ARG="all"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --lang)
+      LANG_ARG="${2:-}"
+      shift 2
+      ;;
+    --lang=*)
+      LANG_ARG="${1#--lang=}"
+      shift
+      ;;
+    -h|--help)
+      sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1 (expected --lang en|zh|all)" >&2
+      exit 2
+      ;;
+  esac
+done
+
+case "$LANG_ARG" in
+  all) LANGS=(en zh) ;;
+  en|zh) LANGS=("$LANG_ARG") ;;
+  *)
+    echo "invalid --lang value: $LANG_ARG (expected en, zh or all)" >&2
+    exit 2
+    ;;
+esac
 
 echo "本脚本使用合成数据，不会读取真实 index.db"
 echo "capture-screenshots: synthetic sessions only; the real index.db is never opened"
@@ -71,8 +109,6 @@ first_free_port() { # first_free_port <start>
   done
   return 1
 }
-PORT="$(first_free_port "${SR_PORT:-4399}")" || { echo "no free port near ${SR_PORT:-4399}; set SR_PORT" >&2; exit 1; }
-CDP_PORT="$(first_free_port "$((PORT + 1))")" || { echo "no free DevTools port near $((PORT + 1))" >&2; exit 1; }
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/session-recall-screenshots.XXXXXX")"
 SERVER_PID=""
@@ -102,7 +138,6 @@ export SESSION_RECALL_HOME="$TMP/app"
 export SESSION_RECALL_DB="$TMP/app/index.db"
 export SESSION_RECALL_BRIEF_DIR="$TMP/app/brief"
 export SESSION_RECALL_WEB_DIST="$ROOT/web/dist"
-export SESSION_RECALL_PORT="$PORT"
 # Every adapter root explicitly redirected, on top of the empty HOME:
 export SESSION_RECALL_ALMA_DB="$HOME/Library/Application Support/alma/chat_threads.db"
 export SESSION_RECALL_CINDY_DIR="$HOME/Library/Application Support/CindyGlobal"
@@ -114,42 +149,16 @@ export XDG_DATA_HOME="$HOME/.local/share"
 echo "temp dir:      $TMP"
 echo "fixture index: $SESSION_RECALL_DB"
 echo "chrome:        $CHROME"
+echo "languages:     ${LANGS[*]}"
 
 if [[ ! -f "$SESSION_RECALL_WEB_DIST/index.html" ]]; then
   echo "web/dist is missing; building the UI"
   ( cd "$ROOT" && "$BUN" run scripts/build.ts )
 fi
 
-echo "seeding synthetic sessions"
-"$BUN" run "$FIXTURE" "$SESSION_RECALL_DB"
-"$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB"
-
-echo "starting the UI on http://127.0.0.1:$PORT with isolated adapters"
-( cd "$ROOT" && exec "$BUN" run src/cli.ts serve ) > "$TMP/serve.log" 2>&1 &
-SERVER_PID=$!
-
-ready=0
-for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/api/status" 2>/dev/null; then ready=1; break; fi
-  if ! kill -0 "$SERVER_PID" 2>/dev/null; then break; fi
-  sleep 0.25
-done
-if [[ "$ready" != "1" ]]; then
-  echo "the server did not come up; log follows:" >&2
-  cat "$TMP/serve.log" >&2
-  exit 1
-fi
-
-# The server scans every agent root on boot. Let that settle, then prove it
-# found nothing: the index may only still hold the sessions this script seeded.
-sleep 1
-"$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB"
-
-mkdir -p "$OUT"
-
-set_theme() {
-  curl -fsS -X PATCH -H "content-type: application/json" \
-    -d "{\"theme\":\"$1\"}" "http://127.0.0.1:$PORT/api/prefs" >/dev/null
+verify_fixture() { # verify_fixture <label>
+  "$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB" >/dev/null
+  echo "  verified ($1): only synthetic sessions in the index"
 }
 
 # Shots are taken over the DevTools protocol from a helper written to the temp
@@ -263,30 +272,65 @@ console.log("  captured " + outFile);
 process.exit(0);
 SCREENSHOT_TS_EOF
 
-echo "starting headless Chrome (DevTools on port $CDP_PORT)"
-# The mock keychain and the disabled updater keep a fresh profile from blocking
-# on macOS dialogs or background work before a shot is written.
-"$CHROME" --headless=new --disable-gpu --no-first-run --no-default-browser-check \
-  --disable-extensions --disable-component-update --disable-background-networking \
-  --use-mock-keychain --password-store=basic --hide-scrollbars \
-  --user-data-dir="$TMP/chrome" --window-size="$WIDTH,$HEIGHT" \
-  --remote-debugging-port="$CDP_PORT" about:blank > "$TMP/chrome.log" 2>&1 &
-CHROME_PID=$!
+start_chrome() {
+  local cdp_port="$1"
+  echo "starting headless Chrome (DevTools on port $cdp_port)"
+  # The mock keychain and the disabled updater keep a fresh profile from blocking
+  # on macOS dialogs or background work before a shot is written.
+  "$CHROME" --headless=new --disable-gpu --no-first-run --no-default-browser-check \
+    --disable-extensions --disable-component-update --disable-background-networking \
+    --use-mock-keychain --password-store=basic --hide-scrollbars \
+    --user-data-dir="$TMP/chrome" --window-size="$WIDTH,$HEIGHT" \
+    --remote-debugging-port="$cdp_port" about:blank > "$TMP/chrome.log" 2>&1 &
+  CHROME_PID=$!
 
-cdp_ready=0
-for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null "http://127.0.0.1:$CDP_PORT/json/version" 2>/dev/null; then cdp_ready=1; break; fi
-  if ! kill -0 "$CHROME_PID" 2>/dev/null; then break; fi
-  sleep 0.25
-done
-if [[ "$cdp_ready" != "1" ]]; then
-  echo "headless Chrome did not report a DevTools endpoint; log follows:" >&2
-  cat "$TMP/chrome.log" >&2
-  exit 1
-fi
+  local cdp_ready=0
+  for _ in $(seq 1 60); do
+    if curl -fsS -o /dev/null "http://127.0.0.1:$cdp_port/json/version" 2>/dev/null; then cdp_ready=1; break; fi
+    if ! kill -0 "$CHROME_PID" 2>/dev/null; then break; fi
+    sleep 0.25
+  done
+  if [[ "$cdp_ready" != "1" ]]; then
+    echo "headless Chrome did not report a DevTools endpoint; log follows:" >&2
+    cat "$TMP/chrome.log" >&2
+    exit 1
+  fi
+}
 
-shoot() { # shoot <file-name> <url> <ready-js>
-  local name="$1" url="$2" ready="$3" file="$OUT/$1"
+start_server() { # start_server <port> <log-name>
+  echo "starting the UI on http://127.0.0.1:$1 with isolated adapters"
+  ( cd "$ROOT" && exec "$BUN" run src/cli.ts serve ) > "$TMP/serve-$2.log" 2>&1 &
+  SERVER_PID=$!
+  local ready=0
+  for _ in $(seq 1 60); do
+    if curl -fsS -o /dev/null "http://127.0.0.1:$1/api/status" 2>/dev/null; then ready=1; break; fi
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then break; fi
+    sleep 0.25
+  done
+  if [[ "$ready" != "1" ]]; then
+    echo "the server did not come up; log follows:" >&2
+    cat "$TMP/serve-$2.log" >&2
+    exit 1
+  fi
+}
+
+stop_server() {
+  if [[ -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  SERVER_PID=""
+}
+
+# Theme and interface language are both server-side preferences, so the shot
+# only has to reload the page for either to take effect.
+set_prefs() { # set_prefs <theme> <lang>
+  curl -fsS -X PATCH -H "content-type: application/json" \
+    -d "{\"theme\":\"$1\",\"language\":\"$2\"}" "http://127.0.0.1:$PORT/api/prefs" >/dev/null
+}
+
+shoot() { # shoot <file> <url> <ready-js>
+  local file="$1" url="$2" ready="$3"
   local attempt bytes
   for attempt in 1 2 3; do
     rm -f -- "$file"
@@ -295,33 +339,74 @@ shoot() { # shoot <file-name> <url> <ready-js>
       if [[ -f "$file" ]]; then bytes="$(wc -c < "$file")"; fi
       # A blank or browser-error page is a few kB; anything this small is a miss.
       if (( bytes >= 10000 )); then
-        echo "  $name — $bytes bytes"
+        echo "  $(basename "$file") — $bytes bytes"
         return 0
       fi
     fi
-    echo "  attempt $attempt failed; retrying $name" >&2
+    echo "  attempt $attempt failed; retrying $file" >&2
   done
   echo "screenshot failed: $file" >&2
   return 1
 }
 
-BASE="http://127.0.0.1:$PORT"
-# 1. Search results for a mixed Chinese/English query (重连 backoff), light theme.
-set_theme light
-shoot search-results.png "$BASE/#/search?q=%E9%87%8D%E8%BF%9E%20backoff" \
-  'document.querySelectorAll(".session-block").length > 0'
-# 2. One session, deep-linked to a question that sits below the fold, so the shot
-#    shows the ?turn= jump itself with its question and answer side by side.
-#    Dark theme.
-set_theme dark
-shoot session-detail.png "$BASE/#/session/claude-code%3Ademo-ws-reconnect?turn=1&hit=user" \
-  'document.querySelectorAll(".turn.is-target .is-hit").length > 0'
-# 3. Process scope: the tool calls and the errors behind the answers.
-shoot process-search.png "$BASE/#/search?q=timeout&scope=process" \
-  'document.querySelectorAll(".session-block").length > 0'
+CAPTURED=()
 
-# Nothing the server or the browser did may have added a non-fixture session.
-"$BUN" run "$FIXTURE" --verify "$SESSION_RECALL_DB"
+for LANG in "${LANGS[@]}"; do
+  echo
+  echo "=== $LANG ==="
+  case "$LANG" in
+    zh) QUERY="%E9%87%8D%E8%BF%9E%20backoff" ;; # 重连 backoff
+    en) QUERY="reconnect%20backoff" ;;
+  esac
 
+  PORT="$(first_free_port "${SR_PORT:-4399}")" || { echo "no free port near ${SR_PORT:-4399}; set SR_PORT" >&2; exit 1; }
+  # Per language, so a second run cannot collide with the one just stopped — and
+  # never the real app's port (4319 by default), which may well be in use.
+  export SESSION_RECALL_PORT="$PORT"
+
+  echo "seeding synthetic sessions ($LANG)"
+  "$BUN" run "$FIXTURE" --lang "$LANG" "$SESSION_RECALL_DB"
+  # Before anything photographs this index, prove it holds fixtures only.
+  verify_fixture "after seeding"
+
+  DEST="$OUT/$LANG"
+  mkdir -p "$DEST"
+
+  # One Chrome for the whole run, so its DevTools port is picked once and every
+  # language photographs through the same browser.
+  if [[ -z "$CHROME_PID" ]]; then
+    CDP_PORT="$(first_free_port "$((PORT + 1))")" || { echo "no free DevTools port near $((PORT + 1))" >&2; exit 1; }
+    start_chrome "$CDP_PORT"
+  fi
+  start_server "$PORT" "$LANG"
+
+  # The server scans every agent root on boot. Let that settle, then prove it
+  # found nothing: the index may only still hold the sessions this script seeded.
+  sleep 1
+  verify_fixture "after the boot scan"
+
+  BASE="http://127.0.0.1:$PORT"
+  # 1. Search results for the language's own mixed-language query, light theme.
+  set_prefs light "$LANG"
+  shoot "$DEST/search-results.png" "$BASE/#/search?q=$QUERY" \
+    'document.querySelectorAll(".session-block").length > 0'
+  # 2. One session, deep-linked to a question that sits below the fold, so the shot
+  #    shows the ?turn= jump itself with its question and answer side by side.
+  #    Dark theme.
+  set_prefs dark "$LANG"
+  shoot "$DEST/session-detail.png" "$BASE/#/session/claude-code%3Ademo-ws-reconnect?turn=1&hit=user" \
+    'document.querySelectorAll(".turn.is-target .is-hit").length > 0'
+  # 3. Process scope: the tool calls and the errors behind the answers.
+  shoot "$DEST/process-search.png" "$BASE/#/search?q=timeout&scope=process" \
+    'document.querySelectorAll(".session-block").length > 0'
+
+  # Nothing the server or the browser did may have added a non-fixture session.
+  verify_fixture "after the shots"
+
+  stop_server
+  CAPTURED+=("$DEST"/*.png)
+done
+
+echo
 echo "done — screenshots written:"
-ls -1 "$OUT"
+printf '%s\n' "${CAPTURED[@]}"
