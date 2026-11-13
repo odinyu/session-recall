@@ -824,6 +824,97 @@ html:not(.js) .theme-btn {
 }
 
 /* ============================================================================
+   Beyond search — handoff, briefs, forget
+   ========================================================================= */
+
+.workflows {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: clamp(40px, 5vw, 60px);
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.workflow {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding: clamp(24px, 3vw, 34px);
+}
+
+.workflow__n {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.workflow h3 {
+  margin-top: 16px;
+  font-size: var(--fs-h3);
+  font-weight: 620;
+  letter-spacing: -0.018em;
+  line-height: 1.35;
+}
+
+.workflow__text {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  letter-spacing: -0.003em;
+}
+
+/* the key detail sits at the card foot so the three cards line up */
+.workflow__key {
+  margin-top: auto;
+  padding-top: 20px;
+  display: grid;
+  gap: 7px;
+  font-family: var(--mono);
+  font-size: 0.71875rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.workflow__key p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+}
+
+.workflow__key .k {
+  color: var(--ink);
+}
+
+.workflow__key code {
+  font-family: var(--mono);
+  font-size: inherit;
+}
+
+/* keep each section name whole; a CJK list would otherwise break mid-word */
+.workflow__key code span {
+  white-space: nowrap;
+}
+
+.workflow__key .chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+
+/* ============================================================================
    Install panel — deliberately the same in light and dark
    ========================================================================= */
 
@@ -1278,6 +1369,12 @@ html.js .to-top.is-visible {
   }
   .hdr__gh {
     display: inline-flex;
+  }
+}
+
+@media (max-width: 900px) {
+  .workflows {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

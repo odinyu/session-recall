@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=4"></script>
-<link rel="stylesheet" href="/assets/site.css?v=4">
+<script src="/assets/theme-init.js?v=5"></script>
+<link rel="stylesheet" href="/assets/site.css?v=5">
 
 <script type="application/ld+json">
 {
@@ -294,6 +294,69 @@
     </div>
   </section>
 
+  <!-- ===================== Beyond search ===================== -->
+  <section class="section" id="workflow" aria-labelledby="workflow-h">
+    <div class="wrap">
+      <p class="eyebrow">Beyond search</p>
+      <h2 class="h2" id="workflow-h">Search is only the start.</h2>
+      <p class="lede">
+        Finding a session is half the job. The other half is carrying the work forward — into
+        another agent, into tomorrow's standup — and pruning what should not stay searchable.
+      </p>
+
+      <div class="workflows">
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">01</p>
+          <h3>Hand off a session.</h3>
+          <p class="workflow__text">
+            Every session page builds a handoff card: project, agent, time range, the resume command,
+            the last few prompts, the last answer quoted verbatim (truncated), files touched by tool calls,
+            commands run, tool errors, and the current Git branch when the project is a worktree.
+            Paste it into a scratchpad or hand it to another agent; a cross-agent handoff opens a new
+            session there with the card as its context, because a session id only means something to
+            its own agent. It is built on demand from the local index, so nothing is uploaded.
+          </p>
+          <div class="workflow__key">
+            <p><span class="chip">Copy handoff</span></p>
+          </div>
+        </article>
+
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">02</p>
+          <h3>Daily and weekly briefs.</h3>
+          <p class="workflow__text">
+            A standup for the day and a rollup for the week, both derived from the index with no
+            model calls. Read either report in the app, or download the Markdown. The generated
+            file's section headings are Chinese:
+          </p>
+          <div class="workflow__key">
+            <p><span class="k">standup</span> <code><span>进展</span> · <span>决策</span> · <span>待续</span> · <span>明天第一件事</span> · <span>概览</span></code></p>
+            <p><span class="k">weekly</span> <code><span>亮点</span> · <span>按项目</span> · <span>主题与决策</span> · <span>指标</span> · <span>风险</span> · <span>下周计划</span></code></p>
+            <p><span class="chip">bun run brief --week 2026-W46</span></p>
+          </div>
+        </article>
+
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">03</p>
+          <h3>Forget a session.</h3>
+          <p class="workflow__text">
+            Taking a session out of the index is not the same as deleting it. The
+            <b>Forget this session</b> button drops it from the local index and records the id so
+            later scans skip it, leaving the original transcript in the agent's own storage
+            untouched. <b>Undo</b> clears the mark and the next scan indexes it again. This is not
+            secure erasure — the index rows and full-text entries go, the source files stay — and
+            generated briefs are plain Markdown copies that are never rewritten, so the app lists
+            the ones that still mention the session for you to regenerate or delete.
+          </p>
+          <div class="workflow__key">
+            <p><span class="chip">Forget this session</span></p>
+            <p><span class="chip">Undo</span></p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <!-- ===================== Install ===================== -->
   <section class="section" id="install" aria-labelledby="install-h">
     <div class="wrap">
@@ -521,6 +584,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=4" defer></script>
+<script src="/assets/site.js?v=5" defer></script>
 </body>
 </html>

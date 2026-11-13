@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=4"></script>
-<link rel="stylesheet" href="/assets/site.css?v=4">
+<script src="/assets/theme-init.js?v=5"></script>
+<link rel="stylesheet" href="/assets/site.css?v=5">
 
 <script type="application/ld+json">
 {
@@ -290,6 +290,64 @@
     </div>
   </section>
 
+  <!-- ===================== Beyond search ===================== -->
+  <section class="section" id="workflow" aria-labelledby="workflow-h">
+    <div class="wrap">
+      <p class="eyebrow">不止检索</p>
+      <h2 class="h2" id="workflow-h">搜索只是开始。</h2>
+      <p class="lede">
+        找回一次会话只是一半。另一半是把工作接着走下去——交给另一个 agent、写进明天的站会——
+        以及把不该再被搜到的东西清理掉。
+      </p>
+
+      <div class="workflows">
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">01</p>
+          <h3>把会话交接出去。</h3>
+          <p class="workflow__text">
+            每个会话页都会生成一张交接卡：项目、agent、时间范围、恢复命令、最近几次提问、
+            最后一次回答（原文截断）、工具调用涉及的文件、运行过的命令、工具错误，以及项目是
+            Git worktree 时的当前分支。可以粘进草稿区，也可以交给另一个 agent——跨 agent 交接会在
+            对方那里新开一个会话，把这张卡当作上下文，因为会话 id 只对自己的 agent 有意义。
+            卡片按需从本地索引生成，不会上传到任何地方。
+          </p>
+          <div class="workflow__key">
+            <p><span class="chip">复制交接</span></p>
+          </div>
+        </article>
+
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">02</p>
+          <h3>日报与周报。</h3>
+          <p class="workflow__text">
+            日报是简短的站会，周报把同样的会话汇总起来，两者都由索引确定性推导，不调用模型。
+            可以在应用里查看，也可以下载 Markdown。报告里的章节标题是固定的：
+          </p>
+          <div class="workflow__key">
+            <p><span class="k">standup</span> <code><span>进展</span> · <span>决策</span> · <span>待续</span> · <span>明天第一件事</span> · <span>概览</span></code></p>
+            <p><span class="k">weekly</span> <code><span>亮点</span> · <span>按项目</span> · <span>主题与决策</span> · <span>指标</span> · <span>风险</span> · <span>下周计划</span></code></p>
+            <p><span class="chip">bun run brief --week 2026-W46</span></p>
+          </div>
+        </article>
+
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">03</p>
+          <h3>让一次会话不再被搜到。</h3>
+          <p class="workflow__text">
+            把会话移出索引和删掉它不是一回事。<b>忘记此会话</b>会把它从本地索引中移除，并记下这个
+            id，让之后的扫描都跳过它——agent 自己存储里的原始记录原封不动。<b>撤销</b>会清掉标记，
+            下次扫描重新索引。这不是安全擦除：索引行和全文条目会被清掉，源文件仍然存在。报告是
+            纯 Markdown 副本、从不改写，所以应用会列出仍提到该会话的报告，由你重新生成或删除。
+          </p>
+          <div class="workflow__key">
+            <p><span class="chip">忘记此会话</span></p>
+            <p><span class="chip">撤销</span></p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
   <!-- ===================== Install ===================== -->
   <section class="section" id="install" aria-labelledby="install-h">
     <div class="wrap">
@@ -511,6 +569,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=4" defer></script>
+<script src="/assets/site.js?v=5" defer></script>
 </body>
 </html>
