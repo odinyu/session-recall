@@ -1102,7 +1102,13 @@ function renderShell(): void {
             <h2>时间</h2>
             <div class="segmented range-filters" id="range-filters"></div>
           </section>
-          <button class="text-btn" id="clear-filters" hidden>清除筛选</button>
+        </div>
+        <div class="rail-filter-actions" id="rail-filter-actions" hidden>
+          <button class="clear-filters" id="clear-filters" type="button">
+            <svg class="clear-filters-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span>清除筛选</span>
+            <span class="clear-filters-count" id="clear-filters-count"></span>
+          </button>
         </div>
         <footer class="rail-foot" id="rail-foot"></footer>
       </aside>
@@ -1692,8 +1698,12 @@ function renderControls(): void {
     ).join("");
   }
 
-  const clear = byId<HTMLButtonElement>("clear-filters");
-  if (clear) clear.hidden = state.agents.length === 0 && !state.project && state.range === "all";
+  const activeFilters =
+    state.agents.length + (state.project ? 1 : 0) + (state.range === "all" ? 0 : 1);
+  const filterActions = byId<HTMLDivElement>("rail-filter-actions");
+  if (filterActions) filterActions.hidden = activeFilters === 0;
+  const filterCount = byId<HTMLSpanElement>("clear-filters-count");
+  if (filterCount) filterCount.textContent = activeFilters > 0 ? String(activeFilters) : "";
 
   renderFoot();
   restoreControlFocus(focus);
