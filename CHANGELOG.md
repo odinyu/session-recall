@@ -3,6 +3,13 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.3.1 — 2026-11-13
+
+- 修复会话页「复制交接」首次点击失败：会话打开时预取卡片，预取完成前按钮保持「准备中…」；慢路径提示「已就绪，请再点一次」，不再显示「复制失败」。
+- 修复日报/周报在线查看的 `format2 is not a function`：`renderBrief` 的参数不再遮蔽 `format` 辅助函数。
+- 明确「忘记此会话」只移除本地索引，不删除 Agent 原始存储；Web 与 CLI 文案同步。
+- 新增 web app 参数遮蔽与 handoff 状态机测试，测试数 152。
+
 ## 1.3.0 — 2026-11-13
 
 - UI language switch: 中文 / English, persisted in `prefs.json` alongside the theme; `auto` follows the browser language. All interface chrome is localized while session content stays verbatim.
