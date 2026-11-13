@@ -209,30 +209,165 @@ button {
   text-transform: none;
 }
 
-.agent-filters {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+/* The agent filter is a combobox: a trigger, a popup list of the agents, and
+   a row of removable chips for the active ones. */
+.agent-combobox {
+  position: relative;
 }
 
-.agent-row {
+.agent-trigger {
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
-  padding: 7px 9px;
-  border: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: transparent;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
   text-align: left;
 }
 
-.agent-row:hover {
+.agent-trigger:hover {
+  border-color: var(--line-strong);
   background: var(--surface-2);
 }
 
-.agent-row.is-active {
+.agent-trigger[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.agent-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.agent-popup {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+}
+
+.agent-popup[hidden] {
+  display: none;
+}
+
+.agent-search {
+  padding: 2px 2px 4px;
+}
+
+.agent-search-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.agent-search-input::placeholder {
+  color: var(--faint);
+}
+
+.agent-options {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.agent-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agent-option:hover,
+.agent-option.is-active {
+  background: var(--surface-2);
+}
+
+.agent-option.is-selected {
+  color: var(--ink);
+}
+
+.agent-check {
+  width: 11px;
+  flex: none;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.agent-empty {
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 3px 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.agent-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+}
+
+.agent-chip-remove:hover {
   background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.agent-chip-remove svg {
+  width: 11px;
+  height: 11px;
 }
 
 .agent-name {
@@ -1997,5 +2132,221 @@ mark {
   *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+/* ---------- settings drawer ---------- */
+
+/* The rail footer ends in a gear; everything that used to sit above it — theme,
+   language, scan time, re-index — now lives in the drawer behind it. */
+.settings {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(10, 16, 12, 0.32);
+}
+
+.settings[hidden] {
+  display: none;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 100vw);
+  height: 100%;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+  animation: settings-in 160ms ease-out;
+}
+
+@keyframes settings-in {
+  from {
+    transform: translateX(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-title {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 20px 24px;
+}
+
+.settings-group {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-group:last-child {
+  padding-bottom: 4px;
+  border-bottom: 0;
+}
+
+.settings-group-title {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.settings-line > span:first-child {
+  color: var(--muted);
+}
+
+.settings-value {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The shortcuts group holds one row that is not wired up yet; it reads as
+   present-but-inert rather than as a control that failed. */
+.settings-line.is-disabled,
+.settings-line.is-disabled > span:first-child {
+  color: var(--faint);
+}
+
+.settings-badge {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.settings-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-action svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+
+.settings-action:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-action:hover svg {
+  color: var(--accent);
+}
+
+.settings-sources {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-source {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.settings-source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-source-count {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-source-status {
+  flex: none;
+  min-width: 58px;
+  color: var(--faint);
+  font-size: 11px;
+  text-align: right;
+}
+
+/* The footer's own row: a transient note on the left, the gear hard right. */
+.foot-row .settings-btn {
+  margin-left: auto;
+}
+
+.foot-note {
+  color: var(--faint);
+  line-height: 1.5;
+}
+
+@media (max-width: 880px) {
+  .settings-body {
+    padding: 2px 16px 24px;
+  }
+
+  .settings-head {
+    padding: 12px 10px 10px 16px;
   }
 }

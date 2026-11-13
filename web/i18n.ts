@@ -54,7 +54,7 @@ export const WEEKDAY_SHORT: Record<Lang, string[]> = {
 const zh = {
   /* --- document --- */
   appTitle: "session recall · 本机 agent 会话检索",
-  appDescription: "本机 coding agent 会话的只读检索库：搜索过去的提问与回答。",
+  appDescription: "本机 AI agent 会话的只读检索库：搜索过去的提问与回答。",
 
   /* --- shell --- */
   skipToResults: "跳到结果",
@@ -63,6 +63,13 @@ const zh = {
   railSub: "本机 agent 会话 · 只读索引",
   agentHeading: "Agent",
   agentHint: "未选 = 全部",
+  allAgents: "全部 Agent",
+  agentsSelected: "{n} 个 Agent",
+  filterByAgent: "按 Agent 筛选",
+  agentsAria: "Agent",
+  agentSearchPlaceholder: "筛选 Agent…",
+  agentSearchAria: "按名称筛选 Agent",
+  noAgentsMatch: "没有匹配的 Agent",
   projectsHeading: "项目",
   filterByProject: "按项目筛选",
   allProjects: "全部项目",
@@ -217,6 +224,19 @@ const zh = {
   viewOnline: "在线查看",
   generateFailed: "生成失败：{message}",
   indexing: "正在索引…",
+
+  /* --- settings drawer --- */
+  settingsTitle: "设置",
+  settingsOpen: "打开设置",
+  settingsClose: "关闭设置",
+  settingsAppearance: "外观",
+  settingsIndex: "索引",
+  settingsLastScan: "最近扫描",
+  settingsSources: "来源",
+  settingsSourceStatus: "已接入",
+  settingsShortcuts: "快捷键",
+  shortcutGlobalWake: "全局唤起",
+  comingSoon: "即将支持",
 };
 
 export type Messages = typeof zh;
@@ -224,7 +244,7 @@ export type Messages = typeof zh;
 const en: Messages = {
   /* --- document --- */
   appTitle: "session recall · local agent session search",
-  appDescription: "A local, read-only index over coding-agent sessions on this Mac.",
+  appDescription: "A local, read-only index over AI agent sessions on this Mac.",
 
   /* --- shell --- */
   skipToResults: "Skip to results",
@@ -233,6 +253,13 @@ const en: Messages = {
   railSub: "Local agent sessions · read-only index",
   agentHeading: "Agent",
   agentHint: "none selected = all",
+  allAgents: "All agents",
+  agentsSelected: "{n} agents",
+  filterByAgent: "Filter by agent",
+  agentsAria: "Agents",
+  agentSearchPlaceholder: "Filter agents…",
+  agentSearchAria: "Filter agents by name",
+  noAgentsMatch: "No matching agent",
   projectsHeading: "Projects",
   filterByProject: "Filter by project",
   allProjects: "All projects",
@@ -390,6 +417,19 @@ const en: Messages = {
   viewOnline: "View online",
   generateFailed: "Generate failed: {message}",
   indexing: "Indexing…",
+
+  /* --- settings drawer --- */
+  settingsTitle: "Settings",
+  settingsOpen: "Open settings",
+  settingsClose: "Close settings",
+  settingsAppearance: "Appearance",
+  settingsIndex: "Index",
+  settingsLastScan: "Last scan",
+  settingsSources: "Sources",
+  settingsSourceStatus: "Connected",
+  settingsShortcuts: "Shortcuts",
+  shortcutGlobalWake: "Global hotkey",
+  comingSoon: "Coming soon",
 };
 
 export const MESSAGES: Record<Lang, Messages> = { zh, en };

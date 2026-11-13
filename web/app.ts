@@ -862,6 +862,7 @@ async function saveLanguage(pref: LangPref): Promise<void> {
     ) {
       applyLanguage(prefs.language);
       renderControls();
+      renderSettings();
       route();
     }
   } catch (error) {
@@ -1382,7 +1383,23 @@ function renderShell(): void {
         <div class="rail-scroll">
           <section class="filter-block">
             <h2>${t.agentHeading} <span class="filter-hint">${t.agentHint}</span></h2>
-            <div class="agent-filters" id="agent-filters"></div>
+            <div class="agent-combobox" id="agent-combobox">
+              <button class="agent-trigger" id="agent-select" type="button"
+                role="combobox" aria-haspopup="listbox" aria-expanded="false"
+                aria-controls="agent-listbox" aria-label="${escapeAttr(t.filterByAgent)}">
+                <span class="agent-value" id="agent-value">${t.allAgents}</span>
+                <svg class="agent-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="agent-popup" id="agent-listbox" role="listbox" aria-multiselectable="true" aria-label="${escapeAttr(t.agentsAria)}" hidden>
+                <div class="agent-search">
+                  <input class="agent-search-input" id="agent-search" type="text"
+                    placeholder="${escapeAttr(t.agentSearchPlaceholder)}"
+                    aria-label="${escapeAttr(t.agentSearchAria)}" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="agent-options" id="agent-options" role="presentation"></div>
+              </div>
+            </div>
+            <div class="agent-chips" id="agent-chips"></div>
           </section>
           <section class="filter-block">
             <h2>${t.projectsHeading}</h2>
@@ -1438,8 +1455,22 @@ function renderShell(): void {
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 12.5 10 7l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <div class="scrim" id="scrim" hidden aria-hidden="true"></div>
+    <div class="settings" id="settings" hidden>
+      <div class="settings-panel" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="settings-head">
+          <h2 class="settings-title" id="settings-title">${t.settingsTitle}</h2>
+          <button class="icon-btn settings-close" id="settings-close" type="button" aria-label="${escapeAttr(t.settingsClose)}">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9M14.5 5.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </header>
+        <div class="settings-body" id="settings-body"></div>
+      </div>
+    </div>
   `;
   bindShell();
+  // A language switch rebuilds the whole shell; the drawer is chrome too, so it
+  // comes back open rather than vanishing under the pointer.
+  if (settingsOpen) openSettings(false);
 }
 
 /**
@@ -1472,21 +1503,9 @@ function bindShell(): void {
   byId<HTMLButtonElement>("rail-close")?.addEventListener("click", closeFilters);
   byId<HTMLDivElement>("scrim")?.addEventListener("click", closeFilters);
 
+  bindAgentCombobox();
   bindProjectCombobox();
   bindToTop();
-
-  byId<HTMLDivElement>("agent-filters")?.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-agent]");
-    if (!button) return;
-    ensureSearchView();
-    const agent = button.dataset.agent as AgentId;
-    state.agents = state.agents.includes(agent)
-      ? state.agents.filter((value) => value !== agent)
-      : [...state.agents, agent];
-    syncHash();
-    renderControls();
-    void runSearch();
-  });
 
   byId<HTMLDivElement>("range-filters")?.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-range]");
@@ -1547,32 +1566,49 @@ function bindShell(): void {
       else openDatePicker(dateTrigger);
       return;
     }
-    const themeButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
-      "button[data-theme-mode]",
-    );
+    // The gear is rebuilt with the rest of the footer, so it is matched here
+    // rather than bound directly to the node.
+    if ((event.target as HTMLElement).closest("#settings-open")) {
+      // On a phone the gear sits in the rail drawer; the settings drawer opens
+      // above it, so the rail stays where the user left it.
+      openSettings();
+      return;
+    }
+    if ((event.target as HTMLElement).closest("[data-brief]")) {
+      void generateBriefFile();
+    }
+  });
+
+  byId<HTMLDivElement>("settings")?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    // The panel is the only child; a click landing on the backdrop closes.
+    if (target.closest("#settings-close") || target.id === "settings") {
+      closeSettings();
+      return;
+    }
+    const themeButton = target.closest<HTMLButtonElement>("button[data-theme-mode]");
     if (themeButton) {
       const mode = themeButton.dataset.themeMode;
       if (isThemeMode(mode)) {
         applyTheme(mode);
-        renderFoot();
+        renderSettings();
         void saveTheme(mode);
       }
       return;
     }
-    const langButton = (event.target as HTMLElement).closest<HTMLButtonElement>(
-      "button[data-lang]",
-    );
+    const langButton = target.closest<HTMLButtonElement>("button[data-lang]");
     if (langButton) {
       const pref = langButton.dataset.lang;
       if (isLangPref(pref) && pref !== langPref) {
         applyLanguage(pref);
-        // The rail, the search box, the footer and the view are all chrome, so
-        // repaint them in place rather than reloading the page. Rebuilding the
-        // shell is why its global handlers are bound only once.
+        // The rail, the search box and the drawer are all chrome, so repaint
+        // them in place rather than reloading the page. Rebuilding the shell is
+        // why its global handlers are bound only once.
         closeProjectPopup();
+        closeAgentPopup();
         renderShell();
-        // The rebuilt shell has a fresh scrim; leave the drawer closed rather
-        // than open over a page that no longer matches its state.
+        // The rebuilt shell has a fresh scrim; leave the filter drawer closed
+        // rather than open over a page that no longer matches its state.
         setFiltersOpen(false);
         route();
         // The rebuilt shell dropped focus to <body>; put it back on the switch.
@@ -1583,11 +1619,7 @@ function bindShell(): void {
       }
       return;
     }
-    if ((event.target as HTMLElement).closest("[data-brief]")) {
-      void generateBriefFile();
-      return;
-    }
-    if ((event.target as HTMLElement).closest("[data-refresh]")) void refreshIndex();
+    if (target.closest("[data-refresh]")) void refreshIndex();
   });
 
   byId<HTMLDivElement>("content")?.addEventListener("click", onContentClick);
@@ -1595,6 +1627,17 @@ function bindShell(): void {
   if (globalHandlersBound) return;
 
   document.addEventListener("keydown", (event) => {
+    // The settings drawer is modal: it owns Escape and Tab, and no other view
+    // may take focus behind it while it is open.
+    if (settingsOpen) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeSettings();
+      } else if (event.key === "Tab") {
+        trapSettingsFocus(event);
+      }
+      return;
+    }
     trapFiltersFocus(event);
     const target = event.target as HTMLElement | null;
     const typing =
@@ -1734,6 +1777,344 @@ function bindToTop(): void {
 function updateToTop(): void {
   const button = byId<HTMLButtonElement>("to-top");
   if (button) button.hidden = window.scrollY <= TO_TOP_THRESHOLD;
+}
+
+/* ---------- agent combobox ---------- */
+
+/**
+ * The agent filter is a multi-select combobox rather than a stack of one row
+ * per agent: with thirteen sources and more coming, a list of buttons in the
+ * rail is the wrong shape. The trigger shows the count, the popup lists the
+ * agents with their session counts, and the active ones also appear as
+ * removable chips under the trigger. The filter semantics are unchanged —
+ * `state.agents` is still a multi-select set.
+ */
+let agentOpen = false;
+let activeAgentIndex = 0;
+let agentQuery = "";
+
+function agentCounts(): Map<AgentId, number> {
+  return new Map(facetsData?.agents.map((entry) => [entry.id, entry.sessions]) ?? []);
+}
+
+/** The agents offered by the popup, narrowed by the popup's search box. */
+function agentOptions(): AgentId[] {
+  const query = agentQuery.trim().toLowerCase();
+  if (!query) return AGENTS;
+  return AGENTS.filter((agent) =>
+    AGENT_LABEL[agent].toLowerCase().includes(query),
+  );
+}
+
+function renderAgentControl(): void {
+  const value = byId<HTMLSpanElement>("agent-value");
+  const chips = byId<HTMLDivElement>("agent-chips");
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  const options = byId<HTMLDivElement>("agent-options");
+  const counts = agentCounts();
+
+  if (value) {
+    value.textContent =
+      state.agents.length === 0
+        ? t.allAgents
+        : format(t.agentsSelected, { n: state.agents.length });
+  }
+
+  // The chips mirror the trigger: a removable chip per active agent.
+  if (chips) {
+    chips.innerHTML = state.agents
+      .map(
+        (agent) =>
+          `<span class="agent-chip"><span class="agent-dot agent-${agent}"></span>${escapeHtml(AGENT_LABEL[agent])}<button class="agent-chip-remove" type="button" data-agent-remove="${agent}" aria-label="${escapeAttr(AGENT_LABEL[agent])}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></span>`,
+      )
+      .join("");
+  }
+
+  if (!popup || !options) return;
+  const shown = agentOptions();
+  if (shown.length === 0) {
+    options.innerHTML = `<p class="agent-empty">${escapeHtml(t.noAgentsMatch)}</p>`;
+    return;
+  }
+  options.innerHTML = shown
+    .map((agent, index) => {
+      const active = state.agents.includes(agent);
+      const count = counts.get(agent) ?? 0;
+      return `<div class="agent-option${active ? " is-selected" : ""}" role="option" aria-selected="${active}" tabindex="-1" id="agent-option-${index}" data-index="${index}" data-agent-option="${agent}">
+        <span class="agent-check" aria-hidden="true">${active ? "✓" : ""}</span>
+        <span class="agent-dot agent-${agent}"></span>
+        <span class="agent-name">${escapeHtml(AGENT_LABEL[agent])}</span>
+        <span class="agent-count">${formatCount(count)}</span>
+      </div>`;
+    })
+    .join("");
+  paintActiveAgent();
+}
+
+/** Marks the keyboard-active row, distinct from the selected ones. */
+function paintActiveAgent(scrollIntoView = false): void {
+  const trigger = byId<HTMLButtonElement>("agent-select");
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  if (!trigger || !popup) return;
+  const options = [...popup.querySelectorAll<HTMLElement>('[role="option"]')];
+  const active = options[activeAgentIndex];
+  options.forEach((option) => option.classList.toggle("is-active", option === active));
+  // `aria-activedescendant` only means something while the popup is open.
+  if (!active || popup.hidden) {
+    trigger.removeAttribute("aria-activedescendant");
+    return;
+  }
+  trigger.setAttribute("aria-activedescendant", active.id);
+  if (scrollIntoView) active.scrollIntoView({ block: "nearest" });
+}
+
+/**
+ * The popup escapes the rail's scroll clipping (and its stacking context) by
+ * positioning itself against the viewport, clamped to the space around the
+ * trigger — the same trick the project popup uses.
+ */
+function positionAgentPopup(): void {
+  const trigger = byId<HTMLButtonElement>("agent-select");
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  if (!trigger || !popup || popup.hidden) return;
+  const rect = trigger.getBoundingClientRect();
+  const gap = 6;
+  const margin = 16;
+  const limit = 340;
+  const below = window.innerHeight - rect.bottom - gap - margin;
+  const above = rect.top - gap - margin;
+  popup.style.left = `${Math.round(rect.left)}px`;
+  popup.style.width = `${Math.round(rect.width)}px`;
+  if (below >= Math.min(limit, 200) || below >= above) {
+    popup.style.top = `${Math.round(rect.bottom + gap)}px`;
+    popup.style.bottom = "auto";
+    popup.style.maxHeight = `${Math.round(Math.max(120, Math.min(limit, below)))}px`;
+  } else {
+    popup.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+    popup.style.top = "auto";
+    popup.style.maxHeight = `${Math.round(Math.max(120, Math.min(limit, above)))}px`;
+  }
+}
+
+function openAgentPopup(): void {
+  const trigger = byId<HTMLButtonElement>("agent-select");
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  if (!trigger || !popup || agentOpen) return;
+  agentOpen = true;
+  agentQuery = "";
+  const search = byId<HTMLInputElement>("agent-search");
+  if (search) search.value = "";
+  renderAgentControl();
+  const first = agentOptions().findIndex((agent) => state.agents.includes(agent));
+  activeAgentIndex = first >= 0 ? first : 0;
+  popup.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  positionAgentPopup();
+  paintActiveAgent(true);
+  search?.focus();
+}
+
+function closeAgentPopup(focusTrigger = false): void {
+  if (!agentOpen) return;
+  agentOpen = false;
+  const trigger = byId<HTMLButtonElement>("agent-select");
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  if (popup) popup.hidden = true;
+  if (trigger) {
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.removeAttribute("aria-activedescendant");
+    if (focusTrigger) trigger.focus();
+  }
+}
+
+function moveActiveAgent(delta: number): void {
+  const count = agentOptions().length;
+  if (count === 0) return;
+  activeAgentIndex = Math.min(count - 1, Math.max(0, activeAgentIndex + delta));
+  paintActiveAgent(true);
+}
+
+/** Adds or removes one agent from the filter set; the popup stays open. */
+function toggleAgent(agent: AgentId): void {
+  ensureSearchView();
+  state.agents = state.agents.includes(agent)
+    ? state.agents.filter((value) => value !== agent)
+    : [...state.agents, agent];
+  syncHash();
+  renderControls();
+  void runSearch();
+}
+
+function onAgentKeydown(event: KeyboardEvent): void {
+  const open = agentOpen;
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  if (!popup) return;
+  switch (event.key) {
+    case "ArrowDown":
+    case "ArrowUp": {
+      event.preventDefault();
+      if (!open) {
+        openAgentPopup();
+        if (event.key === "ArrowUp") {
+          activeAgentIndex = Math.max(0, agentOptions().length - 1);
+          paintActiveAgent(true);
+        }
+        return;
+      }
+      moveActiveAgent(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    case "Home":
+    case "End": {
+      if (!open) return;
+      event.preventDefault();
+      activeAgentIndex =
+        event.key === "Home" ? 0 : Math.max(0, agentOptions().length - 1);
+      paintActiveAgent(true);
+      return;
+    }
+    case "Enter":
+    case " ": {
+      // Handling both keys here (and cancelling the native activation) keeps a
+      // single code path: the browser would otherwise also fire `click`.
+      event.preventDefault();
+      if (!open) {
+        openAgentPopup();
+        return;
+      }
+      const agent = agentOptions()[activeAgentIndex];
+      if (agent) toggleAgent(agent);
+      return;
+    }
+    case "Escape": {
+      if (!open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeAgentPopup(true);
+      return;
+    }
+    case "Tab": {
+      // A focus trap: Tab cycles inside the popup instead of walking into the
+      // rail behind it, so the keyboard user cannot end up somewhere with the
+      // listbox still open.
+      if (!open) return;
+      event.preventDefault();
+      const focusables = [
+        ...popup.querySelectorAll<HTMLElement>(
+          'input, button, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (focusables.length === 0) return;
+      const index = focusables.indexOf(document.activeElement as HTMLElement);
+      const next = event.shiftKey
+        ? (index <= 0 ? focusables.length - 1 : index - 1)
+        : (index < 0 || index === focusables.length - 1 ? 0 : index + 1);
+      focusables[next].focus();
+      return;
+    }
+    default:
+  }
+}
+
+function bindAgentCombobox(): void {
+  const trigger = byId<HTMLButtonElement>("agent-select");
+  const popup = byId<HTMLDivElement>("agent-listbox");
+  const combo = byId<HTMLDivElement>("agent-combobox");
+  const search = byId<HTMLInputElement>("agent-search");
+  const options = byId<HTMLDivElement>("agent-options");
+  const chips = byId<HTMLDivElement>("agent-chips");
+  if (!trigger || !popup || !combo) return;
+
+  trigger.addEventListener("click", () => {
+    if (agentOpen) closeAgentPopup();
+    else openAgentPopup();
+  });
+  trigger.addEventListener("keydown", onAgentKeydown);
+
+  // Type-to-filter. The query narrows the list but never changes the filter
+  // itself; the selection lives in `state.agents`.
+  search?.addEventListener("input", () => {
+    agentQuery = search.value;
+    activeAgentIndex = 0;
+    const list = byId<HTMLDivElement>("agent-options");
+    if (!list) return;
+    const shown = agentOptions();
+    if (shown.length === 0) {
+      list.innerHTML = `<p class="agent-empty">${escapeHtml(t.noAgentsMatch)}</p>`;
+    } else {
+      const counts = agentCounts();
+      list.innerHTML = shown
+        .map((agent, index) => {
+          const active = state.agents.includes(agent);
+          const count = counts.get(agent) ?? 0;
+          return `<div class="agent-option${active ? " is-selected" : ""}" role="option" aria-selected="${active}" tabindex="-1" id="agent-option-${index}" data-index="${index}" data-agent-option="${agent}">
+            <span class="agent-check" aria-hidden="true">${active ? "✓" : ""}</span>
+            <span class="agent-dot agent-${agent}"></span>
+            <span class="agent-name">${escapeHtml(AGENT_LABEL[agent])}</span>
+            <span class="agent-count">${formatCount(count)}</span>
+          </div>`;
+        })
+        .join("");
+    }
+    paintActiveAgent();
+  });
+
+  options?.addEventListener("click", (event) => {
+    const row = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-agent-option]",
+    );
+    if (!row) return;
+    toggleAgent(row.dataset.agentOption as AgentId);
+  });
+
+  // The keyboard lives on the popup, not on each row: one handler covers both
+  // the trigger and the rows inside it.
+  popup.addEventListener("keydown", onAgentKeydown);
+
+  // A removable chip clears one agent without opening the popup.
+  chips?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "[data-agent-remove]",
+    );
+    if (!button) return;
+    toggleAgent(button.dataset.agentRemove as AgentId);
+  });
+
+  combo.addEventListener("focusout", (event) => {
+    const next = (event as FocusEvent).relatedTarget;
+    if (next instanceof Node && combo.contains(next)) return;
+    closeAgentPopup();
+  });
+
+  if (globalHandlersBound) return;
+
+  // Closing on pointer and focus movement (rather than on `blur` alone) also
+  // covers clicks on non-focusable chrome, and leaving option mousedown alone
+  // keeps the popup's own scrollbar draggable. These live on `document`/`window`
+  // and so look the rail up by id each time: a language switch replaces it.
+  document.addEventListener("mousedown", (event) => {
+    if (!agentOpen) return;
+    const target = event.target;
+    const current = byId<HTMLDivElement>("agent-combobox");
+    if (target instanceof Node && current?.contains(target)) return;
+    closeAgentPopup();
+  });
+  window.addEventListener("resize", () => {
+    if (agentOpen) positionAgentPopup();
+  });
+  // A fixed-position panel cannot follow its trigger: close it when anything
+  // outside the popup scrolls, including the rail.
+  window.addEventListener(
+    "scroll",
+    (event) => {
+      if (!agentOpen) return;
+      const target = event.target;
+      const current = byId<HTMLDivElement>("agent-listbox");
+      if (target instanceof Node && current?.contains(target)) return;
+      closeAgentPopup();
+    },
+    { passive: true, capture: true },
+  );
 }
 
 /* ---------- project combobox ---------- */
@@ -1968,7 +2349,8 @@ function bindProjectCombobox(): void {
 
 /** Attributes that identify a filter/theme control across an innerHTML rerender. */
 const FOCUS_ATTRS = [
-  "data-agent",
+  "data-agent-option",
+  "data-agent-remove",
   "data-range",
   "data-scope",
   "data-role",
@@ -2006,19 +2388,7 @@ function renderControls(): void {
         : t.searchPlaceholder;
   }
 
-  const agentFilters = byId<HTMLDivElement>("agent-filters");
-  if (agentFilters) {
-    const counts = new Map(facetsData?.agents.map((entry) => [entry.id, entry.sessions]) ?? []);
-    agentFilters.innerHTML = AGENTS.map((agent) => {
-      const active = state.agents.includes(agent);
-      const count = counts.get(agent) ?? 0;
-      return `<button class="agent-row${active ? " is-active" : ""}" data-agent="${agent}" aria-pressed="${active}">
-        <span class="agent-dot agent-${agent}"></span>
-        <span class="agent-name">${AGENT_LABEL[agent]}</span>
-        <span class="agent-count">${formatCount(count)}</span>
-      </button>`;
-    }).join("");
-  }
+  renderAgentControl();
 
   renderProjectControl();
 
@@ -2058,27 +2428,25 @@ function renderControls(): void {
   restoreControlFocus(focus);
 }
 
+/**
+ * The footer is a glance, not a settings panel: the brief controls, the index
+ * counters and the way into the settings drawer. Theme, language, the scan time
+ * and re-index moved into the drawer.
+ */
 function renderFoot(): void {
   const focus = focusedControlSelector();
   const foot = byId<HTMLElement>("rail-foot");
   if (!foot) return;
   if (!facetsData) {
-    foot.innerHTML = `${themeSwitchHtml()}${langSwitchHtml()}<span class="foot-muted">${t.readingIndex}</span>`;
+    foot.innerHTML = `<div class="foot-row">
+      <span class="foot-note" id="foot-note">${t.readingIndex}</span>
+      ${settingsButtonHtml()}
+    </div>`;
     restoreControlFocus(focus);
     return;
   }
   const { sessions, turns } = facetsData.total;
-  const scanned = facetsData.lastScanMs
-    ? format(t.indexedAt, {
-        time: new Date(facetsData.lastScanMs).toLocaleTimeString(DATE_LOCALE[lang], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      })
-    : t.notIndexed;
   foot.innerHTML = `
-    ${themeSwitchHtml()}
-    ${langSwitchHtml()}
     <div class="segmented brief-mode" id="brief-mode" role="group" aria-label="${escapeAttr(t.briefAria)}">
       <button class="seg${briefMode === "day" ? " is-active" : ""}" type="button" data-brief-mode="day" aria-pressed="${briefMode === "day"}">${t.briefDay}</button>
       <button class="seg${briefMode === "week" ? " is-active" : ""}" type="button" data-brief-mode="week" aria-pressed="${briefMode === "week"}">${t.briefWeek}</button>
@@ -2090,13 +2458,164 @@ function renderFoot(): void {
     <div class="brief-status" id="brief-status" aria-live="polite"></div>
     <div class="foot-stats"><strong>${formatCount(sessions)}</strong> ${t.sessionsUnit} · <strong>${formatCount(turns)}</strong> ${t.turnsUnit}</div>
     <div class="foot-row">
-      <span class="foot-muted">${scanned}</span>
-      <button class="icon-btn" data-refresh aria-label="${escapeAttr(t.reindex)}" title="${escapeAttr(t.reindex)}">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8A5.8 5.8 0 1 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 4.8v3.4h-3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+      <span class="foot-note" id="foot-note"></span>
+      ${settingsButtonHtml()}
     </div>`;
   restoreControlFocus(focus);
   anchorDatePicker();
+}
+
+function settingsButtonHtml(): string {
+  return `<button class="icon-btn settings-btn" id="settings-open" type="button"
+      aria-haspopup="dialog" aria-controls="settings" aria-expanded="${settingsOpen}"
+      aria-label="${escapeAttr(t.settingsOpen)}" title="${escapeAttr(t.settingsOpen)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18.9 14.6a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 1 1-4.1 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.6-1H2.1a2 2 0 1 1 0-4.1h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.6V2.1a2 2 0 1 1 4.1 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.6 1h.2a2 2 0 1 1 0 4.1h-.1a1.7 1.7 0 0 0-1.6 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>`;
+}
+
+/**
+ * Transient footer copy — reading, indexing, a failed index read. The footer
+ * also holds the settings gear now, so this writes into the note slot instead
+ * of replacing the footer wholesale and taking the gear with it.
+ */
+function setFootNote(text: string): void {
+  const note = byId<HTMLElement>("foot-note");
+  if (note) {
+    note.textContent = text;
+    return;
+  }
+  const foot = byId<HTMLElement>("rail-foot");
+  if (foot) foot.innerHTML = `<span class="foot-muted">${escapeHtml(text)}</span>`;
+}
+
+/* ---------- settings drawer ---------- */
+
+let settingsOpen = false;
+
+/** The time of the last scan, as the drawer's index group spells it. */
+function lastScanLabel(): string {
+  if (!facetsData) return t.readingIndex;
+  if (!facetsData.lastScanMs) return t.notIndexed;
+  return format(t.indexedAt, {
+    time: new Date(facetsData.lastScanMs).toLocaleTimeString(DATE_LOCALE[lang], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  });
+}
+
+/**
+ * The sources the indexer knows about, listed read-only. This is where the
+ * per-source toggles will live; today it shows the dot, the label and how many
+ * sessions each source contributed.
+ */
+function settingsSourcesHtml(): string {
+  const counts = new Map(
+    facetsData?.agents.map((entry) => [entry.id, entry.sessions]) ?? [],
+  );
+  return AGENTS.map(
+    (agent) => `<li class="settings-source">
+        <span class="agent-dot agent-${agent}" aria-hidden="true"></span>
+        <span class="settings-source-name">${escapeHtml(AGENT_LABEL[agent])}</span>
+        <span class="settings-source-count">${formatCount(counts.get(agent) ?? 0)}</span>
+        <span class="settings-source-status">${t.settingsSourceStatus}</span>
+      </li>`,
+  ).join("");
+}
+
+function settingsHtml(): string {
+  return `
+    <section class="settings-group" aria-labelledby="settings-appearance">
+      <h3 class="settings-group-title" id="settings-appearance">${t.settingsAppearance}</h3>
+      ${themeSwitchHtml()}
+      ${langSwitchHtml()}
+    </section>
+    <section class="settings-group" aria-labelledby="settings-index">
+      <h3 class="settings-group-title" id="settings-index">${t.settingsIndex}</h3>
+      <div class="settings-line">
+        <span>${t.settingsLastScan}</span>
+        <span class="settings-value">${lastScanLabel()}</span>
+      </div>
+      <button class="settings-action" type="button" data-refresh>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8A5.8 5.8 0 1 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 4.8v3.4h-3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>${t.reindex}</span>
+      </button>
+    </section>
+    <section class="settings-group" aria-labelledby="settings-sources">
+      <h3 class="settings-group-title" id="settings-sources">${t.settingsSources}</h3>
+      <ul class="settings-sources">${settingsSourcesHtml()}</ul>
+    </section>
+    <section class="settings-group" aria-labelledby="settings-shortcuts">
+      <h3 class="settings-group-title" id="settings-shortcuts">${t.settingsShortcuts}</h3>
+      <div class="settings-line is-disabled">
+        <span>${t.shortcutGlobalWake}</span>
+        <span class="settings-badge">${t.comingSoon}</span>
+      </div>
+    </section>`;
+}
+
+/** Repaints the drawer body; the open/closed state lives outside it. */
+function renderSettings(): void {
+  const body = byId<HTMLDivElement>("settings-body");
+  if (!body) return;
+  const focus = focusedControlSelector();
+  body.innerHTML = settingsHtml();
+  if (!focus) return;
+  // Scoped to the drawer on purpose: `applyTheme` puts `data-theme-mode` on
+  // <html> too, and a document-wide lookup would match that instead of the
+  // button that was just pressed.
+  body.querySelector<HTMLElement>(focus)?.focus();
+}
+
+function openSettings(focusFirst = true): void {
+  const panel = byId<HTMLElement>("settings");
+  if (!panel) return;
+  settingsOpen = true;
+  renderSettings();
+  panel.hidden = false;
+  document.body.classList.add("settings-open");
+  byId<HTMLButtonElement>("settings-open")?.setAttribute("aria-expanded", "true");
+  if (focusFirst) byId<HTMLButtonElement>("settings-close")?.focus();
+}
+
+function closeSettings(): void {
+  if (!settingsOpen) return;
+  settingsOpen = false;
+  const panel = byId<HTMLElement>("settings");
+  if (panel) panel.hidden = true;
+  document.body.classList.remove("settings-open");
+  const trigger = byId<HTMLButtonElement>("settings-open");
+  if (!trigger) return;
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.focus();
+}
+
+/**
+ * The drawer covers the page, so Tab must cycle inside it rather than walking
+ * the content behind the backdrop.
+ */
+function trapSettingsFocus(event: KeyboardEvent): void {
+  const panel = byId<HTMLElement>("settings-panel");
+  if (!panel) return;
+  const focusable = Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => el.getClientRects().length > 0);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+  const inside = active !== null && panel.contains(active);
+  if (event.shiftKey) {
+    if (!inside || active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (!inside || active === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function route(): void {
@@ -2125,8 +2644,7 @@ async function loadFacets(): Promise<void> {
     facetsData = await api<Facets>("/api/facets");
     renderControls();
   } catch (error) {
-    const foot = byId<HTMLElement>("rail-foot");
-    if (foot) foot.innerHTML = `<span class="foot-muted">${t.indexReadFailed}</span>`;
+    setFootNote(t.indexReadFailed);
     console.error(error);
   }
 }
@@ -2729,8 +3247,7 @@ async function generateBriefFile(): Promise<void> {
 }
 
 async function refreshIndex(): Promise<void> {
-  const foot = byId<HTMLElement>("rail-foot");
-  if (foot) foot.innerHTML = `<span class="foot-muted">${t.indexing}</span>`;
+  setFootNote(t.indexing);
   try {
     await fetch("/api/scan", { method: "POST" });
     window.clearTimeout(pollTimer);
@@ -2761,7 +3278,10 @@ async function boot(): Promise<void> {
   window
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", () => {
-      if (themeMode === "auto") applyTheme("auto", false);
+      if (themeMode !== "auto") return;
+      applyTheme("auto", false);
+      // The drawer's theme switch follows the OS while it is set to auto.
+      if (settingsOpen) renderSettings();
     });
   renderShell();
   document.addEventListener(
