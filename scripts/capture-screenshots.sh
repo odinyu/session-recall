@@ -42,7 +42,11 @@ LANG_ARG="all"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --lang)
-      LANG_ARG="${2:-}"
+      if [[ $# -lt 2 ]]; then
+        echo "--lang needs a value (en, zh or all)" >&2
+        exit 2
+      fi
+      LANG_ARG="$2"
       shift 2
       ;;
     --lang=*)

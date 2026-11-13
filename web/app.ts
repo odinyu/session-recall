@@ -830,8 +830,14 @@ async function saveLanguage(pref: LangPref): Promise<void> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ language: pref }),
     });
-    if (isLangPref(prefs.language) && prefs.language !== langPref) {
-      // The server rejected or rewrote the value; its answer wins.
+    // A rejected or rewritten value wins — but only while it still describes
+    // what is on screen: a second click can land before this reply arrives, and
+    // that older answer must not pull the UI back to the language it named.
+    if (
+      isLangPref(prefs.language) &&
+      prefs.language !== pref &&
+      pref === langPref
+    ) {
       applyLanguage(prefs.language);
       renderControls();
       route();
@@ -973,7 +979,7 @@ function continuationDetail(continuation: Continuation): string {
     return `<a class="resume-link" href="${escapeAttr(continuation.command)}" title="${escapeAttr(continuation.note)}">
       <code class="resume-code">${escapeHtml(continuation.command)}</code>
     </a>
-    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}">${t.copyLink}</button>`;
+    <button class="copy-command" type="button" data-command="${escapeAttr(continuation.command)}" data-copy-label="link">${t.copyLink}</button>`;
   }
   if (continuation.command) {
     return `<code class="resume-code">${escapeHtml(continuation.command)}</code>
@@ -1032,11 +1038,16 @@ async function copyText(text: string): Promise<boolean> {
 
 async function copyCommand(button: HTMLButtonElement): Promise<void> {
   const command = button.dataset.command ?? "";
+  // A deep link's button says "Copy link"; a command's says "Copy". Read the
+  // label from the dictionary again on the way back, so a language switch during
+  // the confirmation does not restore a stale word.
+  const idleLabel = (): string =>
+    button.dataset.copyLabel === "link" ? t.copyLink : t.copy;
   const copied = await copyText(command);
   button.textContent = copied ? t.copied : t.copyFailed;
   button.classList.toggle("is-copied", copied);
   window.setTimeout(() => {
-    button.textContent = t.copy;
+    button.textContent = idleLabel();
     button.classList.remove("is-copied");
   }, 1400);
 }
