@@ -367,7 +367,7 @@ bun run sr "ENOENT" --scope process
 - The CLI reuses `searchTurns` from `src/search.ts`: it never scans, mutates the
   index, or touches an agent's store.
 - Full reference — every option, the JSON schema, exit codes, recipes and how to
-  hand it to an agent — is in [USAGE.md](USAGE.md).
+  hand it to an agent — is in [doc/USAGE.md](doc/USAGE.md).
 
 ## MCP server
 
@@ -500,6 +500,7 @@ scripts/
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
 test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, Alma, Cindy, Claude Code, Codex tests
 brief/            generated daily briefs (git-ignored)
+doc/              long-form docs, each in English and zh-CN
 ```
 
 ## Development
@@ -549,6 +550,18 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
 Prebuilt macOS builds (one single-architecture bundle per slice — Apple silicon
 and Intel — ad-hoc signed, not notarized) are attached to each
 [release](https://github.com/odinyu/session-recall/releases).
+
+## Documentation
+
+Longer notes live in [`doc/`](doc); every page exists in English and in
+`.zh-CN.md`, with a language switch at the top.
+
+- [`doc/USAGE.md`](doc/USAGE.md) — every CLI and MCP option, JSON schemas, exit codes and recipes.
+- [`doc/MCP.md`](doc/MCP.md) — how the app and a stdio MCP client share one index.
+- [`doc/REPORTS.md`](doc/REPORTS.md) — the daily and weekly report templates.
+- [`doc/DESIGN.md`](doc/DESIGN.md) — layout, type scale, tokens and interaction rules.
+- [`doc/PRODUCT.md`](doc/PRODUCT.md) — what the app is, who it is for, and what it deliberately is not.
+- [`doc/POSITIONING.md`](doc/POSITIONING.md) — where it sits next to other agent-memory tools, and the roadmap.
 
 ## License
 

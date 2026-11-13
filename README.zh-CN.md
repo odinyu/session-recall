@@ -222,7 +222,7 @@ bun run sr "ENOENT" --scope process
 - `--json` 打印稳定对象：`query`、`scope`、`mode`、`returned`、`totalSessions`，以及 `results[]`（含 `sessionId`、`agent`、`project`、`date`，`hits[]` 含 `question`、`answer`、`tool`、`status`、`matchField`）。
 - 退出码：有结果或无匹配为 `0`，索引缺失/不可读为 `1`，参数非法为 `2`。
 - CLI 复用 `src/search.ts` 的 `searchTurns`：它从不扫描、不修改索引，也不碰 agent 的存储。
-- 完整参考——每个选项、JSON schema、退出码、recipes，以及如何交给 agent——见 [USAGE.zh-CN.md](USAGE.zh-CN.md)。
+- 完整参考——每个选项、JSON schema、退出码、recipes，以及如何交给 agent——见 [doc/USAGE.zh-CN.md](doc/USAGE.zh-CN.md)。
 
 ## MCP server
 
@@ -307,6 +307,7 @@ scripts/
   make-icon.py    渲染 app-icon.png（PIL，镜像 web/favicon.svg）
 test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、Alma、Cindy、Claude Code、Codex 测试
 brief/            生成的日报（git-ignored）
+doc/              长篇文档，每篇都有英文和中文版
 ```
 
 ## 开发
@@ -333,6 +334,17 @@ bun run build     # bundle web/app.ts -> web/dist
 - **Cindy 隐藏消息**：`messages.rewind_at`（编辑/回退）和早于 `sessions.cleared_at` 的行在 SQL 里过滤，和 Cindy UI 显示一致。Fork 的会话在索引里保留 `parent_session_id`。
 
 预构建的 macOS 版本（每个切片一个单架构 bundle——Apple silicon 和 Intel——ad-hoc 签名，未公证）附在每次 [release](https://github.com/odinyu/session-recall/releases) 上。
+
+## 文档
+
+更长的说明放在 [`doc/`](doc)，每一篇都有英文原版和 `.zh-CN.md` 中文版，顶部可互相切换。
+
+- [`doc/USAGE.zh-CN.md`](doc/USAGE.zh-CN.md)——所有 CLI 与 MCP 选项、JSON schema、退出码和 recipes。
+- [`doc/MCP.zh-CN.md`](doc/MCP.zh-CN.md)——应用和 stdio MCP 客户端如何共用一个索引。
+- [`doc/REPORTS.zh-CN.md`](doc/REPORTS.zh-CN.md)——日报和周报的模板。
+- [`doc/DESIGN.zh-CN.md`](doc/DESIGN.zh-CN.md)——布局、字号阶梯、设计 token 和交互规则。
+- [`doc/PRODUCT.zh-CN.md`](doc/PRODUCT.zh-CN.md)——这个应用是什么、给谁用、故意不做什么。
+- [`doc/POSITIONING.zh-CN.md`](doc/POSITIONING.zh-CN.md)——和其他 agent 记忆工具的位置关系，以及路线图。
 
 ## License
 
