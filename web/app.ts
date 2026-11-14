@@ -1857,7 +1857,7 @@ function renderShell(): void {
     <div class="shell">
       <aside class="rail" id="rail" aria-label="${escapeAttr(t.railAria)}">
         <div class="brand-row">
-          <a class="brand" href="#/search">session<span>recall</span></a>
+          <a class="brand" href="#/search">Session<span>Recall</span></a>
           <button class="icon-btn settings-btn" id="settings-open" type="button"
             aria-haspopup="dialog" aria-controls="settings" aria-expanded="false"
             aria-label="${escapeAttr(t.settingsOpen)}" title="${escapeAttr(t.settingsOpen)}">
@@ -1913,7 +1913,6 @@ function renderShell(): void {
             <h2>${t.timeHeading}</h2>
             <div class="segmented range-filters" id="range-filters"></div>
           </section>
-          <section class="filter-block" id="brief-block"></section>
           <section class="filter-block" id="save-search-block" hidden>
             <h2>${t.saveThisSearch}</h2>
             <div class="save-search-row">
@@ -2059,7 +2058,9 @@ function bindShell(): void {
     void runSearch();
   });
 
-  byId<HTMLElement>("brief-block")?.addEventListener("click", (event) => {
+  // The brief block lives inside the footer, which renderFoot rewrites
+  // wholesale: bind on the footer element, which itself is never replaced.
+  byId<HTMLElement>("rail-foot")?.addEventListener("click", (event) => {
     const modeButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-brief-mode]");
     if (modeButton) {
       const mode = modeButton.dataset.briefMode === "week" ? "week" : "day";
@@ -2937,6 +2938,7 @@ const FOCUS_ATTRS = [
   "data-scope",
   "data-role",
   "data-session-view",
+  "data-brief-mode",
   "data-theme-mode",
   "data-lang",
 ];
@@ -3033,7 +3035,6 @@ function renderControls(): void {
     }
   }
 
-  renderBriefBlock();
   const activeFilters =
     state.agents.length + (state.project ? 1 : 0) + (state.range === "all" ? 0 : 1);
   const filterActions = byId<HTMLDivElement>("rail-filter-actions");
@@ -3063,8 +3064,9 @@ function renderControls(): void {
  * and re-index moved into the drawer.
  */
 /**
- * The brief controls live at the top of the rail in one compact row; the
- * footer keeps only the stats and the transient index note.
+ * The brief controls live in the rail footer, pinned at the bottom-left of
+ * the sidebar in one compact row (mode + date + generate), with the report's
+ * progress note under them.
  */
 function renderBriefBlock(): void {
   const focus = focusedControlSelector();
@@ -3089,20 +3091,17 @@ function renderFoot(): void {
   const focus = focusedControlSelector();
   const foot = byId<HTMLElement>("rail-foot");
   if (!foot) return;
-  if (!facetsData) {
-    foot.innerHTML = `<div class="foot-row">
-      <span class="foot-note" id="foot-note">${t.readingIndex}</span>
-    </div>`;
-    restoreControlFocus(focus);
-    return;
-  }
-  const { sessions, turns } = facetsData.total;
+  // The footer is the brief's home: the report controls sit pinned at the
+  // bottom-left, with the transient note row under them. Session and turn
+  // counts live in the topbar status line only — showing them here as well
+  // was the duplicate the owner flagged.
   foot.innerHTML = `
-    <div class="foot-stats">${sessions === 1 && turns === 1 ? t.footStatsOne : format(t.footStatsMany, { s: sessions, t: turns })}</div>
+    <section class="brief-block" id="brief-block" aria-label="${escapeAttr(t.briefAria)}"></section>
     <div class="foot-row">
-      <span class="foot-note" id="foot-note"></span>
+      <span class="foot-note" id="foot-note">${facetsData ? "" : t.readingIndex}</span>
     </div>`;
   restoreControlFocus(focus);
+  renderBriefBlock();
 }
 
 /**

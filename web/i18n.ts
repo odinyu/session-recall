@@ -53,7 +53,7 @@ export const WEEKDAY_SHORT: Record<Lang, string[]> = {
 
 const zh = {
   /* --- document --- */
-  appTitle: "session recall · 本机 agent 会话检索",
+  appTitle: "Session Recall · 本机 agent 会话检索",
   appDescription: "本机 AI agent 会话的只读检索库：搜索过去的提问与回答。",
 
   /* --- shell --- */
@@ -121,8 +121,6 @@ const zh = {
   briefGenerate: "生成",
   sessionsUnit: "会话",
   turnsUnit: "问答",
-  footStatsOne: "<b>{s}</b> 会话 · <b>{t}</b> 轮问答",
-  footStatsMany: "<b>{s}</b> 会话 · <b>{t}</b> 轮问答",
   reindex: "重新索引",
   indexReadFailed: "索引读取失败",
   monthPrev: "上个月",
@@ -311,7 +309,7 @@ export type Messages = typeof zh;
 
 const en: Messages = {
   /* --- document --- */
-  appTitle: "session recall · local agent session search",
+  appTitle: "Session Recall · local agent session search",
   appDescription: "A local, read-only index over AI agent sessions on this Mac.",
 
   /* --- shell --- */
@@ -379,8 +377,6 @@ const en: Messages = {
   briefGenerate: "Generate",
   sessionsUnit: "sessions",
   turnsUnit: "turns",
-  footStatsOne: "<b>{s}</b> session · <b>{t}</b> turn",
-  footStatsMany: "<b>{s}</b> sessions · <b>{t}</b> turns",
   reindex: "Re-index",
   indexReadFailed: "Could not read the index",
   monthPrev: "Previous month",

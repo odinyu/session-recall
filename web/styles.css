@@ -879,13 +879,6 @@ button {
    segmented control (12px, 5px 9px): the old 10.5px/3px 5px override made the
    drawer's switches read lighter than the 日报/周报 toggle beside them. */
 
-.foot-stats strong {
-  color: var(--ink);
-  font-family: var(--mono);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 .foot-row {
   display: flex;
   align-items: center;
@@ -2802,9 +2795,20 @@ mark {
   outline-offset: 2px;
 }
 
-/* ---- 1.7.0: brief block at the rail top ---- */
+/* ---- brief block, pinned in the rail footer (bottom-left) ---- */
+.brief-block {
+  display: block;
+}
+
 .brief-block .brief-status {
   margin-top: 6px;
+  min-height: 0;
+}
+
+/* The note row sits under the report controls; no stats row above it any more. */
+.rail-foot .foot-row {
+  margin-top: 6px;
+  min-height: 16px;
 }
 
 /* ---- update-available announcement modal ---- */
