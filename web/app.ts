@@ -1158,17 +1158,32 @@ function copyPayload(markdown: string): string {
   );
 }
 
+/**
+ * Copy one slice of a turn. `data-turn-copy` is the combined Q&A Markdown
+ * (see `turnMarkdown`); `data-turn-copy-q`/`data-turn-copy-a` copy the raw
+ * `userText`/`assistantText` verbatim — no blockquote, no decoration.
+ */
 async function copyTurnFromUi(button: HTMLButtonElement): Promise<void> {
-  const idx = Number(button.dataset.turnCopy);
+  const idx = Number(button.dataset.turnCopy ?? button.dataset.turnCopyQ ?? button.dataset.turnCopyA);
   const turn = sessionTurns.find((row) => row.idx === idx);
   if (!turn) return;
-  const copied = await copyText(copyPayload(turnMarkdown(turn)));
+  const text = button.dataset.turnCopyQ !== undefined
+    ? turn.userText
+    : button.dataset.turnCopyA !== undefined
+      ? turn.assistantText
+      : copyPayload(turnMarkdown(turn));
+  const copied = await copyText(text);
   // Icon-only button: colour is the feedback, the title spells it out.
   button.classList.toggle("is-copied", copied);
   button.title = copied ? t.copied : t.copyFailed;
   window.setTimeout(() => {
     button.classList.remove("is-copied");
-    button.title = t.copyQaTitle;
+    button.title =
+      button.dataset.turnCopyQ !== undefined
+        ? t.copyQTitle
+        : button.dataset.turnCopyA !== undefined
+          ? t.copyATitle
+          : t.copyQaTitle;
   }, 1400);
 }
 
@@ -1594,6 +1609,7 @@ function renderShell(): void {
         </div>
         <p class="rail-sub">${t.railSub}</p>
         <div class="rail-scroll">
+          <section class="filter-block brief-block" id="brief-block"></section>
           <section class="filter-block">
             <h2>${t.agentHeading} <span class="filter-hint">${t.agentHint}</span></h2>
             <div class="agent-combobox" id="agent-combobox">
@@ -1668,7 +1684,12 @@ function renderShell(): void {
             <div class="toolbar">
               <div class="toolbar-filters">
                 <div class="segmented" id="scope-filters" role="group" aria-label="${escapeAttr(t.scopeAria)}"></div>
-                <div class="segmented" id="role-filters" role="group" aria-label="${escapeAttr(t.roleAria)}"></div>
+                <button class="role-chip" id="role-chip" type="button" hidden></button>
+                <button class="icon-btn settings-btn" id="settings-open" type="button"
+                  aria-haspopup="dialog" aria-controls="settings" aria-expanded="false"
+                  aria-label="${escapeAttr(t.settingsOpen)}" title="${escapeAttr(t.settingsOpen)}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18.9 14.6a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 1 1-4.1 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.6-1H2.1a2 2 0 1 1 0-4.1h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.6V2.1a2 2 0 1 1 4.1 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.6 1h.2a2 2 0 1 1 0 4.1h-.1a1.7 1.7 0 0 0-1.6 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
               </div>
               <div class="status-line" id="search-status" aria-live="polite"></div>
             </div>
@@ -1765,11 +1786,37 @@ function bindShell(): void {
     void runSearch();
   });
 
-  byId<HTMLDivElement>("role-filters")?.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-role]");
-    if (!button) return;
+  // Settings moved to the topbar gear; the element is static per shell render.
+  byId<HTMLButtonElement>("settings-open")?.addEventListener("click", () => {
+    openSettings();
+  });
+
+  byId<HTMLElement>("brief-block")?.addEventListener("click", (event) => {
+    const modeButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-brief-mode]");
+    if (modeButton) {
+      const mode = modeButton.dataset.briefMode === "week" ? "week" : "day";
+      if (mode !== briefMode) {
+        briefMode = mode;
+        renderBriefBlock();
+      }
+      return;
+    }
+    const dateTrigger = (event.target as HTMLElement).closest<HTMLElement>("#brief-date");
+    if (dateTrigger) {
+      if (datePicker) closeDatePicker();
+      else openDatePicker(dateTrigger);
+      return;
+    }
+    if ((event.target as HTMLElement).closest("[data-brief]")) {
+      void generateBriefFile();
+    }
+  });
+
+  byId<HTMLButtonElement>("role-chip")?.addEventListener("click", () => {
+    // The rail no longer exposes a role control; the chip is the only way back
+    // to all-roles when a saved search or deep link narrows it.
     ensureSearchView();
-    state.role = button.dataset.role as Role;
+    state.role = "all";
     syncHash();
     renderControls();
     void runSearch();
@@ -1796,36 +1843,7 @@ function bindShell(): void {
     }
   });
 
-  byId<HTMLDivElement>("rail-foot")?.addEventListener("click", (event) => {
-    const modeButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-brief-mode]");
-    if (modeButton) {
-      const mode = modeButton.dataset.briefMode === "week" ? "week" : "day";
-      if (mode !== briefMode) {
-        briefMode = mode;
-        renderFoot();
-        // The mode switch rerendered the footer; keep the picker anchored.
-        anchorDatePicker();
-      }
-      return;
-    }
-    const dateTrigger = (event.target as HTMLElement).closest<HTMLElement>("#brief-date");
-    if (dateTrigger) {
-      if (datePicker) closeDatePicker();
-      else openDatePicker(dateTrigger);
-      return;
-    }
-    // The gear is rebuilt with the rest of the footer, so it is matched here
-    // rather than bound directly to the node.
-    if ((event.target as HTMLElement).closest("#settings-open")) {
-      // On a phone the gear sits in the rail drawer; the settings drawer opens
-      // above it, so the rail stays where the user left it.
-      openSettings();
-      return;
-    }
-    if ((event.target as HTMLElement).closest("[data-brief]")) {
-      void generateBriefFile();
-    }
-  });
+
 
   byId<HTMLDivElement>("settings")?.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
@@ -2088,6 +2106,8 @@ function renderAgentControl(): void {
     options.innerHTML = `<p class="agent-empty">${escapeHtml(t.noAgentsMatch)}</p>`;
     return;
   }
+  // A narrowed filter list can leave the index past its end.
+  activeAgentIndex = Math.min(activeAgentIndex, shown.length - 1);
   options.innerHTML = shown
     .map((agent, index) => {
       const active = state.agents.includes(agent);
@@ -2192,6 +2212,11 @@ function toggleAgent(agent: AgentId): void {
   state.agents = state.agents.includes(agent)
     ? state.agents.filter((value) => value !== agent)
     : [...state.agents, agent];
+  // The keyboard-active row follows the row the user acted on; leaving it
+  // stale was the combobox-highlight bug: the ✓ moved to the clicked agent
+  // while the highlight stayed wherever the popup was opened.
+  const index = agentOptions().indexOf(agent);
+  if (index >= 0) activeAgentIndex = index;
   syncHash();
   renderControls();
   void runSearch();
@@ -2702,15 +2727,19 @@ function renderControls(): void {
     ).join("");
   }
 
-  const roleFilters = byId<HTMLDivElement>("role-filters");
-  if (roleFilters) {
-    roleFilters.hidden = state.scope === "process";
-    roleFilters.innerHTML = ROLES.map(
-      (role) =>
-        `<button class="seg${state.role === role ? " is-active" : ""}" data-role="${role}" aria-pressed="${state.role === role}">${roleLabel(role)}</button>`,
-    ).join("");
+  const roleChip = byId<HTMLButtonElement>("role-chip");
+  if (roleChip) {
+    // The rail has no role control any more; a saved search or deep link can
+    // still carry one, and silence would hide a filter that narrows results.
+    const nonDefault = state.role !== "all";
+    roleChip.hidden = !nonDefault;
+    if (nonDefault) {
+      roleChip.textContent = `${roleLabel(state.role)} ✕`;
+      roleChip.title = format(t.roleChipClear, { role: roleLabel(state.role) });
+    }
   }
 
+  renderBriefBlock();
   const activeFilters =
     state.agents.length + (state.project ? 1 : 0) + (state.range === "all" ? 0 : 1);
   const filterActions = byId<HTMLDivElement>("rail-filter-actions");
@@ -2739,6 +2768,28 @@ function renderControls(): void {
  * counters and the way into the settings drawer. Theme, language, the scan time
  * and re-index moved into the drawer.
  */
+/**
+ * The brief controls live at the top of the rail in one compact row; the
+ * footer keeps only the stats and the transient index note.
+ */
+function renderBriefBlock(): void {
+  const focus = focusedControlSelector();
+  const block = byId<HTMLElement>("brief-block");
+  if (!block) return;
+  block.innerHTML = `
+    <div class="brief-line">
+      <div class="segmented brief-mode" id="brief-mode" role="group" aria-label="${escapeAttr(t.briefAria)}">
+        <button class="seg${briefMode === "day" ? " is-active" : ""}" type="button" data-brief-mode="day" aria-pressed="${briefMode === "day"}">${t.briefDay}</button>
+        <button class="seg${briefMode === "week" ? " is-active" : ""}" type="button" data-brief-mode="week" aria-pressed="${briefMode === "week"}">${t.briefWeek}</button>
+      </div>
+      <button class="brief-date" id="brief-date" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="${escapeAttr(t.pickDate)}">${briefDateLabelHtml()}</button>
+      <button class="brief-button" type="button" data-brief>${t.briefGenerate}</button>
+    </div>
+    <div class="brief-status" id="brief-status" aria-live="polite"></div>`;
+  restoreControlFocus(focus);
+  anchorDatePicker();
+}
+
 function renderFoot(): void {
   const focus = focusedControlSelector();
   const foot = byId<HTMLElement>("rail-foot");
@@ -2746,37 +2797,17 @@ function renderFoot(): void {
   if (!facetsData) {
     foot.innerHTML = `<div class="foot-row">
       <span class="foot-note" id="foot-note">${t.readingIndex}</span>
-      ${settingsButtonHtml()}
     </div>`;
     restoreControlFocus(focus);
     return;
   }
   const { sessions, turns } = facetsData.total;
   foot.innerHTML = `
-    <div class="segmented brief-mode" id="brief-mode" role="group" aria-label="${escapeAttr(t.briefAria)}">
-      <button class="seg${briefMode === "day" ? " is-active" : ""}" type="button" data-brief-mode="day" aria-pressed="${briefMode === "day"}">${t.briefDay}</button>
-      <button class="seg${briefMode === "week" ? " is-active" : ""}" type="button" data-brief-mode="week" aria-pressed="${briefMode === "week"}">${t.briefWeek}</button>
-    </div>
-    <div class="brief-row">
-      <button class="brief-date" id="brief-date" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="${escapeAttr(t.pickDate)}">${briefDateLabelHtml()}</button>
-      <button class="brief-button" type="button" data-brief>${t.briefGenerate}</button>
-    </div>
-    <div class="brief-status" id="brief-status" aria-live="polite"></div>
-    <div class="foot-stats"><strong>${formatCount(sessions)}</strong> ${t.sessionsUnit} · <strong>${formatCount(turns)}</strong> ${t.turnsUnit}</div>
+    <div class="foot-stats">${sessions === 1 && turns === 1 ? t.footStatsOne : format(t.footStatsMany, { s: sessions, t: turns })}</div>
     <div class="foot-row">
       <span class="foot-note" id="foot-note"></span>
-      ${settingsButtonHtml()}
     </div>`;
   restoreControlFocus(focus);
-  anchorDatePicker();
-}
-
-function settingsButtonHtml(): string {
-  return `<button class="icon-btn settings-btn" id="settings-open" type="button"
-      aria-haspopup="dialog" aria-controls="settings" aria-expanded="${settingsOpen}"
-      aria-label="${escapeAttr(t.settingsOpen)}" title="${escapeAttr(t.settingsOpen)}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18.9 14.6a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 1 1-4.1 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.6-1H2.1a2 2 0 1 1 0-4.1h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.6V2.1a2 2 0 1 1 4.1 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.6 1h.2a2 2 0 1 1 0 4.1h-.1a1.7 1.7 0 0 0-1.6 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>`;
 }
 
 /**
@@ -4043,11 +4074,23 @@ function turnBlock(
   return `<article class="turn${target ? " is-target" : ""}" id="turn-${turn.idx}">
     <div class="turn-rail">
       <span aria-hidden="true">${number}</span>
-      <button class="turn-copy" type="button" data-turn-copy="${turn.idx}"
-        aria-label="${escapeAttr(t.copyQa)}" title="${escapeAttr(t.copyQaTitle)}">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="11" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.6 4.5H6a1.8 1.8 0 0 0-1.8 1.8v8.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <svg class="turn-copy-check" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.5 3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+      <div class="turn-tools">
+        <button class="turn-copy" type="button" data-turn-copy-q="${turn.idx}"
+          aria-label="${escapeAttr(t.copyQ)}" title="${escapeAttr(t.copyQTitle)}">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.2 6.4c0-1.2 1-2.2 2.2-2.2h9.2c1.2 0 2.2 1 2.2 2.2v5c0 1.2-1 2.2-2.2 2.2H9.8l-4 3.2v-3.2h-.4c-1.2 0-2.2-1-2.2-2.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <svg class="turn-copy-check" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.5 3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="turn-copy" type="button" data-turn-copy-a="${turn.idx}"
+          aria-label="${escapeAttr(t.copyA)}" title="${escapeAttr(t.copyATitle)}">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5.2h12M4 9.6h12M4 14h7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <svg class="turn-copy-check" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.5 3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="turn-copy" type="button" data-turn-copy="${turn.idx}"
+          aria-label="${escapeAttr(t.copyQa)}" title="${escapeAttr(t.copyQaTitle)}">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="11" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.6 4.5H6a1.8 1.8 0 0 0-1.8 1.8v8.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <svg class="turn-copy-check" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.5 3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
     </div>
     <div class="turn-main">${user}${assistant}${processBlock(turn)}</div>
   </article>`;
@@ -4266,7 +4309,9 @@ async function boot(): Promise<void> {
     if (handoff) void copyHandoff(handoff);
     const conversation = target.closest<HTMLButtonElement>("[data-copy-conversation]");
     if (conversation) void copyConversationFromUi(conversation);
-    const turnCopy = target.closest<HTMLButtonElement>(".turn-copy[data-turn-copy]");
+    const turnCopy = target.closest<HTMLButtonElement>(
+      ".turn-copy[data-turn-copy], .turn-copy[data-turn-copy-q], .turn-copy[data-turn-copy-a]",
+    );
     if (turnCopy) void copyTurnFromUi(turnCopy);
     const forget = target.closest<HTMLButtonElement>(".forget-button");
     if (forget) void forgetSessionFromUi(forget);

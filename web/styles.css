@@ -183,8 +183,10 @@ button {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
   scrollbar-width: thin;
+  /* No right padding: the extra 4px put the filter list 4px left of the rail
+     footer and the brief rows, which read as a gap under the last filter.
+     The overlay scrollbar draws over the rail padding instead. */
 }
 
 .filter-block {
@@ -304,13 +306,21 @@ button {
   cursor: pointer;
 }
 
-.agent-option:hover,
-.agent-option.is-active {
+/* Selected rows stay highlighted so the ✓ is never the only signal (the
+   trigger's count and the checkmark alone read as "nothing chosen" at a
+   glance); the keyboard-active row adds an inset outline on top. */
+.agent-option:hover {
   background: var(--surface-2);
 }
 
 .agent-option.is-selected {
+  background: var(--surface-2);
   color: var(--ink);
+}
+
+.agent-option.is-active {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
 }
 
 .agent-check {
@@ -651,19 +661,20 @@ button {
   font-size: 12px;
 }
 
-/* The 日报/周报 switch spans the whole rail, like the date row below it. */
-.brief-mode {
-  display: flex;
-  box-sizing: border-box;
-  width: 100%;
-  margin-top: 4px;
-}
-
-.brief-row {
+/* The brief controls sit above the agent filter in one compact row: mode on
+   its own line only when the row is too narrow, date + generate sharing it. */
+.brief-line {
   display: flex;
   align-items: stretch;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+}
+
+.brief-line .brief-mode {
+  flex: 1 1 120px;
+  display: flex;
+  box-sizing: border-box;
+  min-width: 96px;
 }
 
 /* The date button and the 生成 button share one height, radius and type size so
@@ -671,7 +682,10 @@ button {
 .brief-date,
 .brief-button {
   box-sizing: border-box;
-  height: 26px;
+  /* Matches the inner .seg height of the 日报/周报 segmented control above
+     (12px/19.2px line + 2 × 5px padding ≈ 29px), so the date row reads as the
+     same weight as the segmented rows instead of a shorter 26px row. */
+  height: 29px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--surface);
@@ -861,11 +875,9 @@ button {
   flex: 1;
 }
 
-.theme-switch .seg,
-.lang-switch .seg {
-  padding: 3px 5px;
-  font-size: 10.5px;
-}
+/* The theme and language switches use the same .seg metrics as every other
+   segmented control (12px, 5px 9px): the old 10.5px/3px 5px override made the
+   drawer's switches read lighter than the 日报/周报 toggle beside them. */
 
 .foot-stats strong {
   color: var(--ink);
@@ -1322,7 +1334,7 @@ mark {
   z-index: 6;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
   background: var(--bg);
@@ -1438,7 +1450,7 @@ mark {
   align-items: center;
   white-space: nowrap;
   margin-top: 12px;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--surface);
@@ -1544,14 +1556,21 @@ mark {
 
 .turn-rail {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
   padding-top: 5px;
   color: var(--faint);
   font-family: var(--mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Per-turn copy tools: question, answer, both — stacked under the number. */
+.turn-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* Per-turn copy: a quiet icon beside the turn number, inked on hover, and
@@ -2154,7 +2173,15 @@ mark {
   }
 
   .turn-rail {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     padding: 0 0 6px;
+  }
+
+  .turn-tools {
+    flex-direction: row;
+    gap: 2px;
   }
 
   .turn-copy {
@@ -2189,12 +2216,16 @@ mark {
 
 /* The rail footer ends in a gear; everything that used to sit above it — theme,
    language, scan time, re-index — now lives in the drawer behind it. */
+/* A centered modal over the dimmed page, not a slide-over: the content is a
+   form, and reading it mid-page beats tracking it to the screen edge. */
 .settings {
   position: fixed;
   inset: 0;
   z-index: 70;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
   background: rgba(10, 16, 12, 0.32);
 }
 
@@ -2205,9 +2236,10 @@ mark {
 .settings-panel {
   display: flex;
   flex-direction: column;
-  width: min(380px, 100vw);
-  height: 100%;
-  border-left: 1px solid var(--line);
+  width: min(520px, 100%);
+  max-height: min(86vh, 760px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--shadow-drawer);
   animation: settings-in 160ms ease-out;
@@ -2215,11 +2247,11 @@ mark {
 
 @keyframes settings-in {
   from {
-    transform: translateX(14px);
+    transform: translateY(8px) scale(0.98);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateY(0) scale(1);
     opacity: 1;
   }
 }
@@ -2281,6 +2313,10 @@ mark {
 }
 
 .settings-line > span:first-child {
+  /* Labels never shrink, so a long English label cannot push the value into a
+     two-line wrap; the value column wraps instead, and the i18n strings keep
+     both sides short enough for the 380px drawer. */
+  flex: none;
   color: var(--muted);
 }
 
@@ -2381,11 +2417,6 @@ mark {
   text-align: right;
 }
 
-/* The footer's own row: a transient note on the left, the gear hard right. */
-.foot-row .settings-btn {
-  margin-left: auto;
-}
-
 .foot-note {
   color: var(--faint);
   line-height: 1.5;
@@ -2398,6 +2429,23 @@ mark {
 
   .settings-head {
     padding: 12px 10px 10px 16px;
+  }
+}
+
+/* On a phone the modal becomes a near-fullscreen sheet: a centred dialog this
+   narrow wastes padding and makes the groups feel cramped. */
+@media (max-width: 600px) {
+  .settings {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .settings-panel {
+    width: 100vw;
+    max-height: 100dvh;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
   }
 }
 
@@ -2446,9 +2494,9 @@ mark {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   white-space: nowrap;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--surface);
@@ -2681,4 +2729,34 @@ mark {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
+}
+
+/* ---- 1.7.0: role chip (the rail's role control is gone; a saved search or
+   deep link can still narrow the role, and the chip is the way back) ---- */
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.role-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.role-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- 1.7.0: brief block at the rail top ---- */
+.brief-block .brief-status {
+  margin-top: 6px;
 }
