@@ -73,6 +73,9 @@ const UPDATE_ENDPOINT_ENV: &str = "SESSION_RECALL_UPDATE_ENDPOINT";
 const UPDATE_CHECK_DELAY: Duration = Duration::from_secs(10);
 /// How often the shell looks for an install request from the sidecar.
 const UPDATE_POLL_INTERVAL: Duration = Duration::from_secs(2);
+/// How often the background watcher re-runs the update check (6 hours). A
+/// manual `Update now` or a pending install request runs one immediately.
+const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 /// Guards the update watcher so whichever path opens the window first starts
 /// it exactly once.
 static UPDATE_WATCHER: Once = Once::new();
@@ -581,10 +584,16 @@ fn update_watcher(app: AppHandle) {
         return;
     }
     run_update_check(&app);
+    let mut since_last_check = UPDATE_POLL_INTERVAL;
     loop {
         std::thread::sleep(UPDATE_POLL_INTERVAL);
         if take_install_request() {
             install_pending_update(&app);
+        }
+        since_last_check += UPDATE_POLL_INTERVAL;
+        if since_last_check >= UPDATE_CHECK_INTERVAL {
+            since_last_check = Duration::ZERO;
+            run_update_check(&app);
         }
     }
 }
