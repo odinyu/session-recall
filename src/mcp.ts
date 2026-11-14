@@ -172,6 +172,7 @@ interface SearchArgs {
   limit: number;
   starred: boolean;
   includeHidden: boolean;
+  hiddenOnly: boolean;
 }
 
 function booleanArg(value: unknown, name: string): boolean {
@@ -206,7 +207,7 @@ function searchArgs(raw: unknown): SearchArgs {
     throw new ToolArgsError("limit must be an integer from 1 to 50");
   }
 
-  return {
+  const parsed: SearchArgs = {
     query,
     agent,
     scope,
@@ -216,7 +217,15 @@ function searchArgs(raw: unknown): SearchArgs {
     limit,
     starred: booleanArg(args.starred, "starred"),
     includeHidden: booleanArg(args.includeHidden, "includeHidden"),
+    hiddenOnly: booleanArg(args.hiddenOnly, "hiddenOnly"),
   };
+  // Explicit over silent precedence: the hidden view is its own mode.
+  if (parsed.hiddenOnly && (parsed.starred || parsed.includeHidden)) {
+    throw new ToolArgsError(
+      "hiddenOnly cannot be combined with starred or includeHidden",
+    );
+  }
+  return parsed;
 }
 
 function deepLink(sessionId: string, turn?: number): string {
@@ -269,6 +278,7 @@ export function recallSearch(ctx: McpContext, rawArgs: unknown): ToolCallResult 
       offset: 0,
       starred: args.starred,
       includeHidden: args.includeHidden,
+      hiddenOnly: args.hiddenOnly,
     };
     const result = searchTurns(db, params);
 
@@ -489,7 +499,8 @@ export const TOOLS = [
       "Returns one compact question/answer pair per session with a deep link. " +
       "Scope qa searches prompts and answers; scope process searches tool calls and errors. " +
       "Sessions the user hid are skipped unless includeHidden is true; starred: true " +
-      "restricts the search to the user's starred sessions.",
+      "restricts the search to the user's starred sessions; hiddenOnly: true returns " +
+      "only the hidden ones (exclusive with the other two flags).",
     inputSchema: {
       type: "object",
       properties: {
@@ -509,6 +520,12 @@ export const TOOLS = [
           type: "boolean",
           default: false,
           description: "Also search sessions the user hid; hidden ones are skipped by default.",
+        },
+        hiddenOnly: {
+          type: "boolean",
+          default: false,
+          description:
+            "Return only hidden sessions; cannot be combined with starred or includeHidden.",
         },
       },
       required: ["query"],

@@ -96,6 +96,7 @@ function searchParams(url: URL): SearchParams {
     offset: Number(url.searchParams.get("offset") ?? 0),
     starred: parseBool(url.searchParams.get("starred")),
     includeHidden: parseBool(url.searchParams.get("includeHidden")),
+    hiddenOnly: parseBool(url.searchParams.get("hiddenOnly")),
   };
 }
 
@@ -209,7 +210,16 @@ export async function api(
 ): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/search") {
     if (!db) return json({ error: "index not open" }, 500);
-    return json(searchTurns(db, searchParams(url)));
+    const params = searchParams(url);
+    // Explicit over silent precedence: the hidden view is its own mode, so a
+    // request that mixes it with the other flags is a client error.
+    if (params.hiddenOnly && (params.includeHidden || params.starred)) {
+      return json(
+        { error: "hiddenOnly cannot be combined with includeHidden or starred" },
+        400,
+      );
+    }
+    return json(searchTurns(db, params));
   }
   if (
     request.method === "POST" &&

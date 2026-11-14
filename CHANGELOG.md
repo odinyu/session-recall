@@ -3,6 +3,36 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.6.0 — 2026-11-14
+
+- Star and hide sessions, the P0 organization features: schema v6 adds
+  `starred`/`hidden` columns with indexes (an `ALTER TABLE` migration that never
+  triggers a re-scan, and scans preserve the flags), `POST /api/session/:id/star`
+  and `/hide` set them, search excludes hidden sessions by default with
+  `starred` and `includeHidden` parameters, facets report `starredCount` and
+  `hiddenCount`, the CLI (`sr`) and the MCP tool take the same filters and
+  `--json` output carries the flags, and daily, weekly and archive reports skip
+  hidden sessions entirely. A hidden session is not deleted: it still opens by
+  id, so handoff cards keep working.
+- Global shortcut that summons the window from any app: `⌥⌘R` by default,
+  configurable through the `hotkey` preference (`null` disables it), with the
+  effective value resolvable through `GET /api/hotkey` — `hotkey`, `registered`
+  and, on failure, the shell's error with a macOS hint. Registration happens
+  once per launch and never blocks the boot; a key changed while the app runs
+  applies after a restart. Closing the window with ⌘W now hides it, so the dock
+  icon and the shortcut both bring it back. Registration failures (another app
+  owns the combination, macOS withholds it) are reported instead of fatal.
+- The agent filter is a searchable combobox: typing narrows a long agent list,
+  Tab cycling stays inside the popover, moving focus to the system layer no
+  longer closes it, and the selected count is singular/plural aware.
+- Settings drawer: theme, language, re-index, the last scan time and a read-only
+  list of the thirteen sources moved into a slide-over panel opened from a gear
+  in the sidebar footer (focus trap, Escape closes, focus restored); session and
+  turn counts stay in the sidebar.
+- Agent-neutral copy: the interface and the page description say “AI agent”
+  instead of “coding agent”.
+- The test suite is now 224 tests.
+
 ## 1.5.0 — 2026-11-13
 
 - Five more agent sources, all read-only: Gemini CLI, Qwen Code, Kimi Code, GitHub

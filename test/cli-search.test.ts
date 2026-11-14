@@ -215,6 +215,31 @@ test("--include-hidden brings hidden sessions back, and composes with --starred"
   });
 });
 
+test("--hidden-only isolates hidden sessions and rejects conflicting flags", () => {
+  const only = JSON.parse(
+    run(["hiddenmarker", "--json", "--hidden-only"], { SESSION_RECALL_DB: flagsPath }).stdout,
+  );
+  expect(only.hiddenOnly).toBe(true);
+  expect(only.results.map((row: { sessionId: string }) => row.sessionId)).toEqual([
+    "omp:hidden-flag",
+  ]);
+
+  const star = run(["hiddenmarker", "--hidden-only", "--starred"], {
+    SESSION_RECALL_DB: flagsPath,
+  });
+  expect(star.code).toBe(2);
+  expect(star.stderr).toContain("--hidden-only cannot be combined");
+
+  const mixed = run(["hiddenmarker", "--hidden-only", "--include-hidden"], {
+    SESSION_RECALL_DB: flagsPath,
+  });
+  expect(mixed.code).toBe(2);
+  expect(mixed.stderr).toContain("--hidden-only cannot be combined");
+
+  expect(USAGE).toContain("--hidden-only");
+  expect(run(["--help"]).stdout).toContain("--hidden-only");
+});
+
 test("help documents the organization flags", () => {
   expect(USAGE).toContain("--starred");
   expect(USAGE).toContain("--include-hidden");

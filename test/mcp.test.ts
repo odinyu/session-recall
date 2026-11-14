@@ -152,6 +152,58 @@ test("recall_search advertises the organization filters in its schema", () => {
   expect(properties.includeHidden?.type).toBe("boolean");
 });
 
+test("recall_search hiddenOnly returns only hidden sessions and rejects conflicts", () => {
+  const hiddenDir = mkdtempSync(join(tmpdir(), "session-recall-mcp-hidden-"));
+  try {
+    // A mixed index: one hidden session among three.
+    const hiddenPath = join(hiddenDir, "index.db");
+    const hiddenDb = openDb(hiddenPath);
+    for (const externalId of ["hidden-a", "hidden-b", "hidden-c"]) {
+      writeSession(hiddenDb, {
+        ...first,
+        agent: "omp",
+        externalId,
+        title: `MCP hidden ${externalId}`,
+        sourcePath: `/tmp/${externalId}.jsonl`,
+        turns: [
+          {
+            idx: 0,
+            ts: first.startedAt,
+            userText: `mcp hidden marker ${externalId}`,
+            assistantText: "ok",
+          },
+        ],
+      });
+    }
+    setSessionFlag(hiddenDb, "omp", "hidden-a", "hidden", true);
+    setMeta(hiddenDb, "last_scan_ms", String(Date.now()));
+    hiddenDb.close();
+
+    const hiddenCtx: McpContext = {
+      dbPath: hiddenPath,
+      maxAgeMs: 5 * 60 * 1000,
+      staleLockMs: 10 * 60 * 1000,
+      scanLockTimeoutMs: 1_000,
+      adapters: [],
+    };
+    const data = payload(recallSearch(hiddenCtx, { query: "mcp", hiddenOnly: true }));
+    expect(data.totalSessions).toBe(1);
+    expect(
+      (data.results as { sessionId: string }[]).map((row) => row.sessionId),
+    ).toEqual(["omp:hidden-a"]);
+
+    // Conflicts are argument errors before any index is opened.
+    const starred = recallSearch(ctx, { query: "mcp", hiddenOnly: true, starred: true });
+    expect(starred.isError).toBe(true);
+    expect(starred.content[0]?.text).toContain("hiddenOnly cannot be combined");
+    expect(
+      recallSearch(ctx, { query: "mcp", hiddenOnly: true, includeHidden: true }).isError,
+    ).toBe(true);
+  } finally {
+    rmSync(hiddenDir, { recursive: true, force: true });
+  }
+});
+
 test("recall_session returns the whole session or one turn", () => {
   const whole = payload(recallSession(ctx, { sessionId: "omp:mcp-a" }));
   const turns = whole.turns as Record<string, unknown>[];

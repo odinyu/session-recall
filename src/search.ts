@@ -20,6 +20,8 @@ export interface SearchParams {
   starred?: boolean;
   /** Include sessions the user hid; hidden ones are excluded by default. */
   includeHidden?: boolean;
+  /** Only hidden sessions; overrides the two flags above. */
+  hiddenOnly?: boolean;
 }
 
 export interface SearchHit {
@@ -119,10 +121,18 @@ interface Clause {
 function baseClause(params: SearchParams): Clause {
   // Hidden sessions are user data that stays indexed but never surfaces in a
   // default result; every executor (qa/process, fts/like/recent) shares this
-  // clause, so the rule cannot drift between modes.
-  const clauses = [params.includeHidden ? "1 = 1" : "s.hidden = 0"];
+  // clause, so the rule cannot drift between modes. `hiddenOnly` is the rail's
+  // hidden view: the API/CLI/MCP layers reject it combined with the other two
+  // flags, and here it wins by construction.
+  const clauses = [
+    params.hiddenOnly
+      ? "s.hidden = 1"
+      : params.includeHidden
+        ? "1 = 1"
+        : "s.hidden = 0",
+  ];
   const values: (string | number)[] = [];
-  if (params.starred) {
+  if (params.starred && !params.hiddenOnly) {
     clauses.push("s.starred = 1");
   }
   if (params.agents.length > 0) {

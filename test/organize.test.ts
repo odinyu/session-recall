@@ -356,6 +356,51 @@ test("starred narrows results without resurrecting hidden sessions", () => {
   }
 });
 
+test("hiddenOnly isolates the hidden rail view", () => {
+  const db = organizedDb();
+  try {
+    expect(ids(db, { hiddenOnly: true })).toEqual(["omp:both", "omp:hid"]);
+    // The library resolves the overlap by construction; the API/CLI/MCP layers
+    // reject the mix outright, so callers never rely on this fallback.
+    expect(ids(db, { hiddenOnly: true, includeHidden: true })).toEqual([
+      "omp:both",
+      "omp:hid",
+    ]);
+    expect(ids(db, { hiddenOnly: true, starred: true })).toEqual([
+      "omp:both",
+      "omp:hid",
+    ]);
+
+    const only = searchTurns(db, params({ hiddenOnly: true }));
+    expect(only.sessions.every((session) => session.hidden)).toBe(true);
+    expect(only.sessions.every((session) => session.starred === (session.id === "omp:both"))).toBe(
+      true,
+    );
+
+    // A mixed index: one hidden session among three.
+    const mixed = freshDb();
+    try {
+      for (const id of ["one", "two", "three"]) writeSession(mixed.db, fixture(id));
+      setSessionFlag(mixed.db, "omp", "two", "hidden", true);
+      expect(ids(mixed.db, { hiddenOnly: true })).toEqual(["omp:two"]);
+      expect(ids(mixed.db)).toEqual(["omp:one", "omp:three"]);
+
+      // Nothing hidden at all: an empty result, not an error.
+      const lonely = freshDb();
+      try {
+        writeSession(lonely.db, fixture("lonely"));
+        expect(ids(lonely.db, { hiddenOnly: true })).toEqual([]);
+      } finally {
+        lonely.db.close();
+      }
+    } finally {
+      mixed.db.close();
+    }
+  } finally {
+    db.close();
+  }
+});
+
 test("results carry the flags they were filtered on", () => {
   const db = organizedDb();
   try {
@@ -479,6 +524,34 @@ test("a report skips hidden sessions and its own counts agree", () => {
     expect(restored.projects).toBe(2);
     expect(restored.markdown).toContain("report-hidden");
     expect(generateWeekReport(db, "2026-W46", { outDir, lang: "en" }).sessions).toBe(2);
+  } finally {
+    db.close();
+  }
+});
+
+test("GET /api/search supports hiddenOnly and rejects conflicting filters", async () => {
+  const db = organizedDb();
+  try {
+    const only = await callApi(db, "GET", "/api/search?hiddenOnly=1");
+    const body = (await only.json()) as { sessions: { id: string; hidden: boolean }[] };
+    expect(body.sessions.map((session) => session.id).sort()).toEqual([
+      "omp:both",
+      "omp:hid",
+    ]);
+    expect(body.sessions.every((session) => session.hidden)).toBe(true);
+
+    // The UI may write `true`; same contract as starred/includeHidden.
+    const truthy = await callApi(db, "GET", "/api/search?hiddenOnly=true");
+    expect(((await truthy.json()) as { sessions: unknown[] }).sessions).toHaveLength(2);
+
+    const mixedInclude = await callApi(db, "GET", "/api/search?hiddenOnly=1&includeHidden=1");
+    expect(mixedInclude.status).toBe(400);
+    expect(((await mixedInclude.json()) as { error: string }).error).toContain(
+      "hiddenOnly cannot be combined",
+    );
+
+    const mixedStar = await callApi(db, "GET", "/api/search?hiddenOnly=1&starred=true");
+    expect(mixedStar.status).toBe(400);
   } finally {
     db.close();
   }

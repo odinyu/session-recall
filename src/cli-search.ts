@@ -29,6 +29,8 @@ options:
   --scope <scope>  qa (prompts and answers, default) or process (tool calls, errors)
   --starred        only sessions you starred
   --include-hidden also search sessions you hid (hidden ones are skipped by default)
+  --hidden-only    only sessions you hid; cannot be combined with --starred
+                   or --include-hidden
   --json           print machine-readable JSON instead of text
   -h, --help       show this help
 
@@ -37,7 +39,8 @@ examples:
   bun run src/cli.ts search "websocket" --agent omp --json
   bun run src/cli.ts search "ENOENT" --scope process
   bun run src/cli.ts search "deploy" --starred
-  bun run src/cli.ts search "deploy" --include-hidden`;
+  bun run src/cli.ts search "deploy" --include-hidden
+  bun run src/cli.ts search "deploy" --hidden-only`;
 
 export interface SearchArgs {
   query: string;
@@ -46,6 +49,7 @@ export interface SearchArgs {
   scope: SearchScope;
   starred: boolean;
   includeHidden: boolean;
+  hiddenOnly: boolean;
   json: boolean;
 }
 
@@ -82,6 +86,7 @@ export function parseSearchArgs(argv: string[]): ParseOutcome {
   let scope: SearchScope = "qa";
   let starred = false;
   let includeHidden = false;
+  let hiddenOnly = false;
   let json = false;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -101,6 +106,10 @@ export function parseSearchArgs(argv: string[]): ParseOutcome {
     }
     if (arg === "--include-hidden") {
       includeHidden = true;
+      continue;
+    }
+    if (arg === "--hidden-only") {
+      hiddenOnly = true;
       continue;
     }
     if (arg === "-h" || arg === "--help") {
@@ -167,13 +176,22 @@ export function parseSearchArgs(argv: string[]): ParseOutcome {
     terms.push(arg);
   }
 
+  // Explicit over silent precedence: the hidden view is its own mode, so the
+  // mix is rejected instead of quietly ignoring one of the flags.
+  if (hiddenOnly && (starred || includeHidden)) {
+    return {
+      kind: "error",
+      message: "--hidden-only cannot be combined with --starred or --include-hidden",
+    };
+  }
+
   const query = terms.join(" ").trim();
   if (!query) {
     return { kind: "error", message: "missing query" };
   }
   return {
     kind: "run",
-    args: { query, limit, agents, scope, starred, includeHidden, json },
+    args: { query, limit, agents, scope, starred, includeHidden, hiddenOnly, json },
   };
 }
 
@@ -193,6 +211,7 @@ export function formatSearchText(result: SearchResult, args: SearchArgs): string
   if (args.agents.length > 0) filters.push(`agents: ${args.agents.join(", ")}`);
   if (args.starred) filters.push("starred only");
   if (args.includeHidden) filters.push("hidden included");
+  if (args.hiddenOnly) filters.push("hidden only");
   lines.push(
     `query "${result.q}" · ${result.totalTurns} hit(s) in ${result.totalSessions} session(s) · ${result.tookMs} ms · ${filters.join(" · ")}`,
   );
@@ -251,6 +270,8 @@ export interface CliSessionJson {
   /** The user's flags, so a mixed `--include-hidden` result stays readable. */
   starred: boolean;
   hidden: boolean;
+  /** Echoed request mode, so a script can tell which view produced the rows. */
+  hiddenOnly: boolean;
   hits: CliHitJson[];
 }
 
@@ -262,6 +283,7 @@ export interface CliSearchJson {
   agents: AgentId[];
   starred: boolean;
   includeHidden: boolean;
+  hiddenOnly: boolean;
   tookMs: number;
   totalTurns: number;
   totalSessions: number;
@@ -306,6 +328,7 @@ export function toJsonResult(result: SearchResult, args: SearchArgs): CliSearchJ
     agents: args.agents,
     starred: args.starred,
     includeHidden: args.includeHidden,
+    hiddenOnly: args.hiddenOnly,
     tookMs: result.tookMs,
     totalTurns: result.totalTurns,
     totalSessions: result.totalSessions,
@@ -369,6 +392,7 @@ export function runSearchCli(argv: string[], dbPath = DB_PATH): number {
       offset: 0,
       starred: args.starred,
       includeHidden: args.includeHidden,
+      hiddenOnly: args.hiddenOnly,
     };
     const result = searchTurns(db, params);
     console.log(
