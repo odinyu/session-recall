@@ -19,11 +19,18 @@
         "name": "Session Recall session link",
         "role": "Viewer"
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERBMjA1MUVERUM4NjBCN0EKUldSNkM0YnM3VkVnMnRpRUhqT1U2ZHR2dHlDUjZ1MTRnWEswd0JCYzZ0c1RiRDROaFFSUTh4aDMK",
+      "endpoints": [
+        "https://github.com/odinyu/session-recall/releases/latest/download/latest.json"
+      ]
     }
   },
   "bundle": {
     "active": true,
     "targets": ["app"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
