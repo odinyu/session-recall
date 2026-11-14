@@ -128,8 +128,8 @@ grep -rn "070801.top" site/ | wc -l
 Download links are version-less, so a new release needs no URL edit:
 
 ```
-https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-arm64.zip
-https://github.com/odinyu/session-recall/releases/latest/download/session-recall_macos-intel.zip
+https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip
+https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip
 ```
 
 The release workflow copies each versioned asset to those stable names and writes a matching
