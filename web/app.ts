@@ -1603,13 +1603,21 @@ function renderShell(): void {
       <aside class="rail" id="rail" aria-label="${escapeAttr(t.railAria)}">
         <div class="brand-row">
           <a class="brand" href="#/search">session<span>recall</span></a>
+          <button class="icon-btn settings-btn" id="settings-open" type="button"
+            aria-haspopup="dialog" aria-controls="settings" aria-expanded="false"
+            aria-label="${escapeAttr(t.settingsOpen)}" title="${escapeAttr(t.settingsOpen)}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18.9 14.6a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 1 1-4.1 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.6-1H2.1a2 2 0 1 1 0-4.1h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.6V2.1a2 2 0 1 1 4.1 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.6 1h.2a2 2 0 1 1 0 4.1h-.1a1.7 1.7 0 0 0-1.6 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button class="icon-btn rail-close" id="rail-close" aria-label="${escapeAttr(t.closeFilters)}">
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9M14.5 5.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </button>
         </div>
         <p class="rail-sub">${t.railSub}</p>
         <div class="rail-scroll">
-          <section class="filter-block brief-block" id="brief-block"></section>
+          <section class="filter-block">
+            <h2>${t.scopeAria}</h2>
+            <div class="segmented" id="scope-filters" role="group" aria-label="${escapeAttr(t.scopeAria)}"></div>
+          </section>
           <section class="filter-block">
             <h2>${t.agentHeading} <span class="filter-hint">${t.agentHint}</span></h2>
             <div class="agent-combobox" id="agent-combobox">
@@ -1683,13 +1691,7 @@ function renderShell(): void {
             </div>
             <div class="toolbar">
               <div class="toolbar-filters">
-                <div class="segmented" id="scope-filters" role="group" aria-label="${escapeAttr(t.scopeAria)}"></div>
                 <button class="role-chip" id="role-chip" type="button" hidden></button>
-                <button class="icon-btn settings-btn" id="settings-open" type="button"
-                  aria-haspopup="dialog" aria-controls="settings" aria-expanded="false"
-                  aria-label="${escapeAttr(t.settingsOpen)}" title="${escapeAttr(t.settingsOpen)}">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M18.9 14.6a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 1 1-4.1 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.6-1H2.1a2 2 0 1 1 0-4.1h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.6V2.1a2 2 0 1 1 4.1 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.6 1h.2a2 2 0 1 1 0 4.1h-.1a1.7 1.7 0 0 0-1.6 1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
               </div>
               <div class="status-line" id="search-status" aria-live="polite"></div>
             </div>
@@ -1776,21 +1778,6 @@ function bindShell(): void {
     void runSearch();
   });
 
-  byId<HTMLDivElement>("scope-filters")?.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-scope]");
-    if (!button) return;
-    ensureSearchView();
-    state.scope = button.dataset.scope as Scope;
-    syncHash();
-    renderControls();
-    void runSearch();
-  });
-
-  // Settings moved to the topbar gear; the element is static per shell render.
-  byId<HTMLButtonElement>("settings-open")?.addEventListener("click", () => {
-    openSettings();
-  });
-
   byId<HTMLElement>("brief-block")?.addEventListener("click", (event) => {
     const modeButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-brief-mode]");
     if (modeButton) {
@@ -1810,6 +1797,21 @@ function bindShell(): void {
     if ((event.target as HTMLElement).closest("[data-brief]")) {
       void generateBriefFile();
     }
+  });
+
+  // The gear is static per shell render; the modal is opened from the rail.
+  byId<HTMLButtonElement>("settings-open")?.addEventListener("click", () => {
+    openSettings();
+  });
+
+  byId<HTMLDivElement>("scope-filters")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-scope]");
+    if (!button) return;
+    ensureSearchView();
+    state.scope = button.dataset.scope as Scope;
+    syncHash();
+    renderControls();
+    void runSearch();
   });
 
   byId<HTMLButtonElement>("role-chip")?.addEventListener("click", () => {
@@ -2719,6 +2721,7 @@ function renderControls(): void {
     ).join("");
   }
 
+
   const scopeFilters = byId<HTMLDivElement>("scope-filters");
   if (scopeFilters) {
     scopeFilters.innerHTML = SCOPES.map(
@@ -2790,6 +2793,7 @@ function renderBriefBlock(): void {
   anchorDatePicker();
 }
 
+
 function renderFoot(): void {
   const focus = focusedControlSelector();
   const foot = byId<HTMLElement>("rail-foot");
@@ -2841,25 +2845,6 @@ function lastScanLabel(): string {
   });
 }
 
-/**
- * The sources the indexer knows about, listed read-only. This is where the
- * per-source toggles will live; today it shows the dot, the label and how many
- * sessions each source contributed.
- */
-function settingsSourcesHtml(): string {
-  const counts = new Map(
-    facetsData?.agents.map((entry) => [entry.id, entry.sessions]) ?? [],
-  );
-  return AGENTS.map(
-    (agent) => `<li class="settings-source">
-        <span class="agent-dot agent-${agent}" aria-hidden="true"></span>
-        <span class="settings-source-name">${escapeHtml(AGENT_LABEL[agent])}</span>
-        <span class="settings-source-count">${formatCount(counts.get(agent) ?? 0)}</span>
-        <span class="settings-source-status">${t.settingsSourceStatus}</span>
-      </li>`,
-  ).join("");
-}
-
 function settingsHtml(): string {
   return `
     <section class="settings-group" aria-labelledby="settings-appearance">
@@ -2877,10 +2862,6 @@ function settingsHtml(): string {
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15.5 8A5.8 5.8 0 1 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15.8 4.8v3.4h-3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>${t.reindex}</span>
       </button>
-    </section>
-    <section class="settings-group" aria-labelledby="settings-sources">
-      <h3 class="settings-group-title" id="settings-sources">${t.settingsSources}</h3>
-      <ul class="settings-sources">${settingsSourcesHtml()}</ul>
     </section>
     <section class="settings-group" aria-labelledby="settings-shortcuts">
       <h3 class="settings-group-title" id="settings-shortcuts">${t.settingsShortcuts}</h3>

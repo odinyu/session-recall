@@ -2377,46 +2377,6 @@ mark {
   color: var(--accent);
 }
 
-.settings-sources {
-  display: grid;
-  gap: 1px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.settings-source {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 5px 0;
-  font-size: 12px;
-}
-
-.settings-source-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.settings-source-count {
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.settings-source-status {
-  flex: none;
-  min-width: 58px;
-  color: var(--faint);
-  font-size: 11px;
-  text-align: right;
-}
-
 .foot-note {
   color: var(--faint);
   line-height: 1.5;
@@ -2731,8 +2691,8 @@ mark {
   line-height: 1.5;
 }
 
-/* ---- 1.7.0: role chip (the rail's role control is gone; a saved search or
-   deep link can still narrow the role, and the chip is the way back) ---- */
+/* ---- 1.7.0: role/scope chips (their always-visible toggles are gone; saved
+   searches and deep links can still narrow them, and a chip is the way back) ---- */
 .role-chip {
   display: inline-flex;
   align-items: center;
