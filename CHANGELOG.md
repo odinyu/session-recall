@@ -3,6 +3,18 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.7.0 — 2026-11-14
+
+- Saved searches: save any filter combination with a name from the rail, manage
+  them in the settings drawer, and restore a full view in one click. Also
+  available via the CLI (`saved list|add|remove`) and a read-only MCP tool.
+- Copy Q&A: copy a single turn or the whole conversation as Markdown, with a
+  200 KB cap that notes the truncation.
+- In-app updates: the app checks for new releases in the background (every
+  launch, ~10 s after the window opens; disable with the `checkUpdates`
+  preference), shows the new version and its highlights in the settings drawer,
+  and installs them with one click — no more manual download to upgrade.
+
 ## 1.6.0 — 2026-11-14
 
 - Star and hide sessions, the P0 organization features: schema v6 adds
