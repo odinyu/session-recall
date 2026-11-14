@@ -3,6 +3,17 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.7.1 — 2026-11-14
+
+- UI fixes from first real use: the agent combobox highlights the selected rows
+  (and the keyboard row follows the one you operate on), the session action bar
+  fits all six controls on one line, each turn gains separate “copy question”
+  and “copy answer” buttons alongside “copy Q&A”, the settings drawer is now a
+  centered modal opened from the topbar gear, the daily/weekly report controls
+  moved to the top of the sidebar, the role filter control is gone from the UI
+  (the `role` parameter stays for CLI, MCP and saved searches), and the search
+  placeholder now says “Search anything…”.
+
 ## 1.7.0 — 2026-11-14
 
 - Saved searches: save any filter combination with a name from the rail, manage
