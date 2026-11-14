@@ -1792,6 +1792,9 @@ function updateToTop(): void {
 let agentOpen = false;
 let activeAgentIndex = 0;
 let agentQuery = "";
+/** Set while a Tab is being trapped inside the popup, so the focusout that
+    follows it does not close the popup before the trap takes effect. */
+let agentTrapFocus = false;
 
 function agentCounts(): Map<AgentId, number> {
   return new Map(facetsData?.agents.map((entry) => [entry.id, entry.sessions]) ?? []);
@@ -2003,13 +2006,19 @@ function onAgentKeydown(event: KeyboardEvent): void {
         ...popup.querySelectorAll<HTMLElement>(
           'input, button, [tabindex]:not([tabindex="-1"])',
         ),
-      ].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      ].filter((el) => el.getClientRects().length > 0);
       if (focusables.length === 0) return;
       const index = focusables.indexOf(document.activeElement as HTMLElement);
       const next = event.shiftKey
         ? (index <= 0 ? focusables.length - 1 : index - 1)
         : (index < 0 || index === focusables.length - 1 ? 0 : index + 1);
+      // The browser still moves focus after this handler returns, so mark the
+      // trap: the focusout it causes must not close the popup.
+      agentTrapFocus = true;
       focusables[next].focus();
+      window.setTimeout(() => {
+        agentTrapFocus = false;
+      }, 0);
       return;
     }
     default:
@@ -2082,7 +2091,9 @@ function bindAgentCombobox(): void {
   });
 
   // Focus leaving the combobox closes the popup — but not when Tab is cycling
-  // inside it, which the keydown handler traps.
+  // inside it, which the keydown handler traps. The trap is armed for the
+  // duration of the key event, because the browser moves focus after the
+  // handler returns.
   combo.addEventListener("focusout", (event) => {
     const next = (event as FocusEvent).relatedTarget;
     if (next instanceof Node && combo.contains(next)) return;
