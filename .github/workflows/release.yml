@@ -70,10 +70,21 @@ jobs:
       # Do not call `cargo tauri build` directly here or CI=true would be rejected.
       # One single-architecture bundle per slice; --arch also builds the matching
       # sidecar, so nothing is lipos together.
+      #
+      # The signing key materializes createUpdaterArtifacts: each build emits
+      # `Session Recall.app.tar.gz` + `.sig` beside the .app, which the packaging
+      # step turns into the updater's latest.json. An empty password secret is
+      # valid: the CLI treats it as a zero-length passphrase.
       - name: Build Apple silicon .app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: bash scripts/make-app.sh --no-install --arch aarch64-apple-darwin
 
       - name: Build Intel .app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: bash scripts/make-app.sh --no-install --arch x86_64-apple-darwin
 
       # A GitHub Release cannot carry a directory, so each .app is archived with
@@ -98,12 +109,43 @@ jobs:
           echo "arm sidecar: $(lipo -archs "$arm/Contents/MacOS/session-recall")"
           echo "intel shell:   $(lipo -archs "$intel/Contents/MacOS/session-recall-app")"
           echo "intel sidecar: $(lipo -archs "$intel/Contents/MacOS/session-recall")"
+
+          # Updater artifacts: the signed archives the Rust updater downloads,
+          # plus the latest.json it reads to discover them. The .sig files were
+          # produced during the builds above (createUpdaterArtifacts + the
+          # TAURI_SIGNING_* secrets).
+          arm_pkg="$arm.tar.gz"
+          intel_pkg="$intel.tar.gz"
+          test -f "$arm_pkg"   || { echo "expected updater archive missing: $arm_pkg" >&2; exit 1; }
+          test -f "$arm_pkg.sig"   || { echo "expected signature missing: $arm_pkg.sig" >&2; exit 1; }
+          test -f "$intel_pkg" || { echo "expected updater archive missing: $intel_pkg" >&2; exit 1; }
+          test -f "$intel_pkg.sig" || { echo "expected signature missing: $intel_pkg.sig" >&2; exit 1; }
+          up_arm="session-recall_${version}_macos-arm64.app.tar.gz"
+          up_intel="session-recall_${version}_macos-intel.app.tar.gz"
+          cp "$arm_pkg" "$up_arm"
+          cp "$intel_pkg" "$up_intel"
+
+          # Release notes: the 1.7.0 changelog section, verbatim.
+          notes="$(awk -v ver="$version" 'index($0, "## " ver " ") { flag = 1; next } /^## / { flag = 0 } flag' CHANGELOG.md)"
+
+          bun scripts/gen-latest-json.mjs \
+            --version "$version" \
+            --notes "$notes" \
+            --sig-arm "$(cat "$arm_pkg.sig")" \
+            --url-arm "https://github.com/odinyu/session-recall/releases/download/v${version}/${up_arm}" \
+            --sig-intel "$(cat "$intel_pkg.sig")" \
+            --url-intel "https://github.com/odinyu/session-recall/releases/download/v${version}/${up_intel}" \
+            --out latest.json
+          cat latest.json
+
           {
             echo "version=$version"
             echo "arm_zip=$zip_arm"
             echo "intel_zip=$zip_intel"
             echo "arm_checksum=$(cut -d' ' -f1 < "$zip_arm.sha256")"
             echo "intel_checksum=$(cut -d' ' -f1 < "$zip_intel.sha256")"
+            echo "updater_arm=$up_arm"
+            echo "updater_intel=$up_intel"
           } >> "$GITHUB_OUTPUT"
 
       # The landing page links to /releases/latest/download/session-recall_macos-*.zip,
@@ -136,6 +178,9 @@ jobs:
             session-recall_macos-arm64.zip.sha256
             session-recall_macos-intel.zip
             session-recall_macos-intel.zip.sha256
+            ${{ steps.package.outputs.updater_arm }}
+            ${{ steps.package.outputs.updater_intel }}
+            latest.json
           body: |
             macOS app for tag `${{ github.ref_name }}` — one single-architecture bundle per slice, ad-hoc signed, **not notarized**.
 

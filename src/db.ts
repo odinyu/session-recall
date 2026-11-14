@@ -191,9 +191,17 @@ CREATE TABLE IF NOT EXISTS forgotten_session (
   id TEXT PRIMARY KEY,
   at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS saved_search (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  query TEXT NOT NULL DEFAULT '',
+  filters_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 `;
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /**
  * Revision of the write-path redaction. It is part of the scan fingerprint, so
@@ -330,6 +338,11 @@ export function openDb(path: string): IndexedDatabase {
       // index list: on an upgrade SCHEMA runs before this ALTER, and an index
       // on a column that does not exist yet would abort the migration.
       addSessionFlagColumns(db);
+    }
+    if (version < 7) {
+      // v7 adds the `saved_search` table (created by SCHEMA above). No ALTER
+      // and no backfill: the table starts empty on fresh and upgraded installs
+      // alike, so nothing more to do here.
     }
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
@@ -506,6 +519,186 @@ export function setSessionFlag(
   ]);
   if (result.changes === 0) return null;
   return { id, value };
+}
+
+// --- saved searches ---------------------------------------------------------
+
+/**
+ * A saved search is a named bookmark for a query plus the filter set the web
+ * hash router expands. `filters` holds URL query params verbatim: string
+ * values, with booleans canonically encoded as "1"/"0" (the form a query
+ * string carries), e.g. `{ agents: "omp,pi", scope: "process", starred: "1" }`.
+ * Unknown keys are preserved, like prefs, so an older or newer build cannot
+ * eat them; only the shape (an object) is enforced.
+ */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+  filters: Record<string, string>;
+  createdAt: number;
+}
+
+export const SAVED_SEARCH_NAME_MAX = 200;
+
+/** Raised for a saved search we refuse to store; the API turns it into a 400. */
+export class InvalidSavedSearchError extends Error {}
+
+interface SavedSearchRow {
+  id: string;
+  name: string;
+  query: string;
+  filters_json: string;
+  created_at: number;
+}
+
+function newSavedSearchId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  return `ss-${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function rowToSavedSearch(row: SavedSearchRow): SavedSearch | null {
+  // A row must at least carry a usable name and a filters object; a corrupt
+  // or hand-edited one is skipped (and logged) instead of failing the listing.
+  if (typeof row.name !== "string" || row.name.trim() === "") {
+    console.warn(`saved_search ${row.id}: name is not a usable string; row skipped`);
+    return null;
+  }
+  let filters: unknown;
+  try {
+    filters = JSON.parse(row.filters_json);
+  } catch {
+    console.warn(`saved_search ${row.id}: filters_json is not valid JSON; row skipped`);
+    return null;
+  }
+  if (typeof filters !== "object" || filters === null || Array.isArray(filters)) {
+    console.warn(`saved_search ${row.id}: filters_json is not an object; row skipped`);
+    return null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    query: typeof row.query === "string" ? row.query : "",
+    filters: filters as Record<string, string>,
+    createdAt: row.created_at,
+  };
+}
+
+function validateSavedSearchInput(input: {
+  name: unknown;
+  query: unknown;
+  filters: unknown;
+}): { name: string; query: string; filters: Record<string, string> } {
+  if (typeof input.name !== "string" || input.name.trim() === "") {
+    throw new InvalidSavedSearchError("name must be a non-empty string");
+  }
+  const name = input.name.trim();
+  if ([...name].length > SAVED_SEARCH_NAME_MAX) {
+    throw new InvalidSavedSearchError(
+      `name must be at most ${SAVED_SEARCH_NAME_MAX} characters`,
+    );
+  }
+  if (input.query !== undefined && input.query !== null && typeof input.query !== "string") {
+    throw new InvalidSavedSearchError("query must be a string");
+  }
+  if (typeof input.filters !== "object" || input.filters === null || Array.isArray(input.filters)) {
+    throw new InvalidSavedSearchError("filters must be a JSON object");
+  }
+  // Strict string-only values: there is exactly one canonical form (the query
+  // string the hash router navigates to, booleans as "1"/"0"), so a number or
+  // nested value would create a second form nobody expands the same way.
+  const filters = input.filters as Record<string, unknown>;
+  for (const [key, value] of Object.entries(filters)) {
+    if (typeof value !== "string") {
+      throw new InvalidSavedSearchError(
+        `filters.${key} must be a string (booleans as "1"/"0"); got ${typeof value}`,
+      );
+    }
+  }
+  return {
+    name,
+    query: typeof input.query === "string" ? input.query : "",
+    filters: filters as Record<string, string>,
+  };
+}
+
+/** Every saved search, newest first; unusable rows are skipped, not fatal. */
+export function listSavedSearches(db: IndexedDatabase): SavedSearch[] {
+  const rows = db
+    .query(
+      "SELECT id, name, query, filters_json, created_at FROM saved_search ORDER BY created_at DESC, id DESC",
+    )
+    .all() as SavedSearchRow[];
+  const searches: SavedSearch[] = [];
+  for (const row of rows) {
+    const search = rowToSavedSearch(row);
+    if (search) searches.push(search);
+  }
+  return searches;
+}
+
+export function getSavedSearch(db: IndexedDatabase, id: string): SavedSearch | null {
+  const row = db
+    .query("SELECT id, name, query, filters_json, created_at FROM saved_search WHERE id = ?")
+    .get(id) as SavedSearchRow | null;
+  return row ? rowToSavedSearch(row) : null;
+}
+
+export function createSavedSearch(
+  db: IndexedDatabase,
+  input: { name: unknown; query: unknown; filters: unknown },
+): SavedSearch {
+  const valid = validateSavedSearchInput(input);
+  const search: SavedSearch = {
+    id: newSavedSearchId(),
+    ...valid,
+    createdAt: Date.now(),
+  };
+  db.run(
+    "INSERT INTO saved_search(id, name, query, filters_json, created_at) VALUES (?, ?, ?, ?, ?)",
+    [search.id, search.name, search.query, JSON.stringify(search.filters), search.createdAt],
+  );
+  return search;
+}
+
+export interface SavedSearchPatch {
+  name?: unknown;
+  query?: unknown;
+  filters?: unknown;
+}
+
+/** Applies the given fields over the stored row; null when the id is unknown. */
+export function updateSavedSearch(
+  db: IndexedDatabase,
+  id: string,
+  patch: SavedSearchPatch,
+): SavedSearch | null {
+  // Explicit over silent: JSON null has no meaning here (fields cannot be
+  // cleared), so a null value is a client bug to report, not a no-op.
+  for (const key of ["name", "query", "filters"] as const) {
+    if (patch[key] === null) {
+      throw new InvalidSavedSearchError(`${key} cannot be null; omit the field instead`);
+    }
+  }
+  const existing = getSavedSearch(db, id);
+  if (!existing) return null;
+  const merged = validateSavedSearchInput({
+    name: patch.name ?? existing.name,
+    query: patch.query ?? existing.query,
+    filters: patch.filters ?? existing.filters,
+  });
+  db.run("UPDATE saved_search SET name = ?, query = ?, filters_json = ? WHERE id = ?", [
+    merged.name,
+    merged.query,
+    JSON.stringify(merged.filters),
+    id,
+  ]);
+  return { id, ...merged, createdAt: existing.createdAt };
+}
+
+export function deleteSavedSearch(db: IndexedDatabase, id: string): boolean {
+  const result = db.run("DELETE FROM saved_search WHERE id = ?", [id]);
+  return result.changes > 0;
 }
 
 /** Every id the user asked to forget; scans drop them before loading a source. */

@@ -18,6 +18,9 @@ tauri-plugin-deep-link = "2"
 # System-wide shortcut that summons the window from any app. Registered for the
 # whole app, so it also works while the window is hidden in the background.
 tauri-plugin-global-shortcut = "2"
+# In-app update check against the GitHub release's latest.json. Registration is
+# passive; the check itself only runs when prefs allow it.
+tauri-plugin-updater = "2"
 serde_json = "1"
 
 [profile.release]

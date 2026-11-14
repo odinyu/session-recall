@@ -1113,9 +1113,83 @@ function paintHandoffResult(button: HTMLButtonElement, copied: boolean, token: n
   }, 1600);
 }
 
+/* ---------- Q&A copy (per turn and whole conversation) ---------- */
+
+/**
+ * The turns of the session page currently on screen, in order. Copy reads the
+ * raw `userText`/`assistantText` from here rather than from the DOM: the DOM
+ * holds rendered Markdown, and the copy must carry the answer's code fences
+ * verbatim. Cleared whenever another view is rendered.
+ */
+let sessionTurns: SessionDetail["turns"] = [];
+
+/**
+ * The Markdown shape of a copied turn — a stable contract shared by the
+ * per-turn button and the whole-conversation copy:
+ *
+ *   > the user's prompt, verbatim, as a blockquote
+ *   (blank line)
+ *   the assistant's answer, verbatim Markdown
+ *
+ * An empty half is left out (some turns record no answer). The whole
+ * conversation is every turn in order, separated by a `---` divider with blank
+ * lines around it. A `---` inside an answer's fenced code block is data the
+ * fence keeps intact, so the divider stays unambiguous to a Markdown reader.
+ */
+function turnMarkdown(turn: SessionDetail["turns"][number]): string {
+  const parts: string[] = [];
+  const user = turn.userText.trim();
+  if (user) parts.push(`> ${user.replace(/\n/g, "\n> ")}`);
+  const answer = turn.assistantText.trim();
+  if (answer) parts.push(answer);
+  return parts.join("\n\n");
+}
+
+/** Text above this size is cut and the copy says so at the tail. */
+const COPY_TEXT_LIMIT = 200 * 1024;
+const COPY_TEXT_LIMIT_LABEL = "200 KB";
+
+function copyPayload(markdown: string): string {
+  if (markdown.length <= COPY_TEXT_LIMIT) return markdown;
+  return (
+    markdown.slice(0, COPY_TEXT_LIMIT) +
+    "\n\n" +
+    format(t.copyTruncatedNote, { limit: COPY_TEXT_LIMIT_LABEL })
+  );
+}
+
+async function copyTurnFromUi(button: HTMLButtonElement): Promise<void> {
+  const idx = Number(button.dataset.turnCopy);
+  const turn = sessionTurns.find((row) => row.idx === idx);
+  if (!turn) return;
+  const copied = await copyText(copyPayload(turnMarkdown(turn)));
+  // Icon-only button: colour is the feedback, the title spells it out.
+  button.classList.toggle("is-copied", copied);
+  button.title = copied ? t.copied : t.copyFailed;
+  window.setTimeout(() => {
+    button.classList.remove("is-copied");
+    button.title = t.copyQaTitle;
+  }, 1400);
+}
+
+async function copyConversationFromUi(button: HTMLButtonElement): Promise<void> {
+  if (!sessionTurns.length) return;
+  const markdown = sessionTurns
+    .map((turn) => turnMarkdown(turn))
+    .join("\n\n---\n\n");
+  const copied = await copyText(copyPayload(markdown));
+  // Same feedback pattern as the handoff button it sits beside.
+  button.textContent = copied ? t.copied : t.copyFailed;
+  button.classList.toggle("is-copied", copied);
+  window.setTimeout(() => {
+    button.textContent = t.copyConversation;
+    button.classList.remove("is-copied");
+    button.title = t.copyConversationTitle;
+  }, 1400);
+}
+
 /** Show a short notice (e.g. "ready — click again"), then restore the idle label. */
-function paintHandoffNotice(button: HTMLButtonElement, message: string, token: number): void {
-  if (token !== handoffWarmToken) return;
+function paintHandoffNotice(button: HTMLButtonElement, message: string, token: number): void {  if (token !== handoffWarmToken) return;
   // The notice asks for another click; do not leave the button inert for 1.6s.
   button.disabled = false;
   button.textContent = message;
@@ -1560,6 +1634,15 @@ function renderShell(): void {
             <h2>${t.timeHeading}</h2>
             <div class="segmented range-filters" id="range-filters"></div>
           </section>
+          <section class="filter-block" id="save-search-block" hidden>
+            <h2>${t.saveThisSearch}</h2>
+            <div class="save-search-row">
+              <input class="save-search-input" id="save-search-name" type="text" autocomplete="off"
+                placeholder="${escapeAttr(t.savedNamePlaceholder)}" aria-label="${escapeAttr(t.savedNameAria)}" maxlength="200">
+              <button class="save-search-btn" id="save-search-btn" type="button">${t.saveSearchSave}</button>
+            </div>
+            <p class="save-search-note" id="save-search-note" aria-live="polite"></p>
+          </section>
         </div>
         <div class="rail-filter-actions" id="rail-filter-actions" hidden>
           <button class="clear-filters" id="clear-filters" type="button">
@@ -1701,6 +1784,16 @@ function bindShell(): void {
     syncHash();
     renderControls();
     void runSearch();
+  });
+
+  byId<HTMLButtonElement>("save-search-btn")?.addEventListener("click", () => {
+    void saveCurrentSearch();
+  });
+  byId<HTMLInputElement>("save-search-name")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void saveCurrentSearch();
+    }
   });
 
   byId<HTMLDivElement>("rail-foot")?.addEventListener("click", (event) => {
@@ -2625,6 +2718,18 @@ function renderControls(): void {
   const filterCount = byId<HTMLSpanElement>("clear-filters-count");
   if (filterCount) filterCount.textContent = activeFilters > 0 ? String(activeFilters) : "";
 
+  // The save-search affordance only exists while there is something to save;
+  // it hides itself (and its stale note) on the default view.
+  const saveBlock = byId<HTMLElement>("save-search-block");
+  if (saveBlock) {
+    const savable = state.view === "search" && hasNonDefaultFilters();
+    saveBlock.hidden = !savable;
+    if (!savable) {
+      const note = byId<HTMLElement>("save-search-note");
+      if (note) note.textContent = "";
+    }
+  }
+
   renderFoot();
   restoreControlFocus(focus);
 }
@@ -2771,6 +2876,33 @@ function settingsHtml(): string {
         <span>${t.shortcutInApp}</span>
         <span class="settings-value">${t.shortcutFocusSearch}</span>
       </div>
+    </section>
+    <section class="settings-group" aria-labelledby="settings-updates">
+      <h3 class="settings-group-title" id="settings-updates">${t.settingsUpdates}</h3>
+      <div class="settings-line">
+        <span>${t.updateCurrent}</span>
+        <span class="settings-value">v${__APP_VERSION__}</span>
+      </div>
+      <div class="settings-line">
+        <span id="update-state-label">${t.updateNotChecked}</span>
+        <span class="settings-value" id="update-state">${t.readingIndex}</span>
+      </div>
+      <p class="settings-help" id="update-notes" hidden></p>
+      <button class="settings-action" type="button" id="update-install" hidden>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.3-3.3M10 12 6.7 8.7M4 15.5h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>${t.updateNow}</span>
+      </button>
+      <p class="settings-help" id="update-note" aria-live="polite"></p>
+      <label class="settings-line settings-toggle">
+        <span>${t.checkUpdatesLabel}</span>
+        <input type="checkbox" id="check-updates">
+      </label>
+      <p class="settings-help">${t.hotkeyPendingRestart}</p>
+    </section>
+    <section class="settings-group" aria-labelledby="settings-saved">
+      <h3 class="settings-group-title" id="settings-saved">${t.settingsSaved}</h3>
+      <ul class="saved-list" id="saved-list"></ul>
+      <p class="settings-help" id="saved-note" aria-live="polite"></p>
     </section>`;
 }
 
@@ -2960,6 +3092,370 @@ function bindSettingsBody(): void {
     if (input) input.value = DEFAULT_HOTKEY;
     void saveHotkey(DEFAULT_HOTKEY);
   });
+  bindUpdateGroup(body);
+  bindSavedList(body);
+}
+
+/** Drawer-only listeners for the update group; fresh nodes on every repaint. */
+function bindUpdateGroup(body: HTMLElement): void {
+  body.querySelector("#update-install")?.addEventListener("click", () => {
+    void installUpdate();
+  });
+  const box = body.querySelector<HTMLInputElement>("#check-updates");
+  if (box) {
+    box.checked = checkUpdatesValue;
+    box.addEventListener("change", () => {
+      checkUpdatesValue = box.checked;
+      void api("/api/prefs", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ checkUpdates: box.checked }),
+      }).catch((error) => {
+        console.error("checkUpdates preference not saved", error);
+      });
+    });
+  }
+}
+
+/* ---------- update settings ---------- */
+
+/** Injected by scripts/build.ts from package.json's version field. */
+declare const __APP_VERSION__: string;
+
+/** Mirrors `GET /api/update`; see `UpdateStatus` in src/prefs.ts. */
+interface UpdateInfo {
+  available: boolean;
+  version?: string;
+  notes?: string;
+  error?: string;
+  checkedAt?: number;
+  installing?: boolean;
+}
+
+let updateInfo: UpdateInfo | null = null;
+let updatePollTimer = 0;
+
+/** Saved searches from `GET /api/saved-searches`; null until the first load. */
+interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+  filters: Record<string, string>;
+  createdAt: number;
+}
+
+let savedSearches: SavedSearch[] | null = null;
+/** The row currently being renamed; survives drawer repaints. */
+let renamingSavedId = "";
+/** `checkUpdates` is a per-shell pref; the checkbox mirrors the server's value. */
+let checkUpdatesValue = true;
+
+async function loadUpdateStatus(): Promise<void> {
+  try {
+    updateInfo = await api<UpdateInfo>("/api/update");
+  } catch {
+    updateInfo = null;
+  }
+  renderUpdateGroup();
+}
+
+function renderUpdateGroup(): void {
+  const stateLabel = byId<HTMLElement>("update-state-label");
+  const state = byId<HTMLElement>("update-state");
+  const notes = byId<HTMLElement>("update-notes");
+  const install = byId<HTMLButtonElement>("update-install");
+  if (!stateLabel || !state || !notes || !install) return;
+  if (!updateInfo) {
+    stateLabel.textContent = t.updateCheckFailed;
+    state.textContent = "";
+    notes.hidden = true;
+    install.hidden = true;
+    return;
+  }
+  if (updateInfo.installing) {
+    stateLabel.textContent = t.updateInstalling;
+    state.textContent = "";
+    notes.hidden = true;
+    install.hidden = true;
+    return;
+  }
+  if (updateInfo.available) {
+    stateLabel.textContent = t.updateAvailable;
+    state.textContent = updateInfo.version ? `v${updateInfo.version}` : "";
+    notes.textContent = updateInfo.notes ?? "";
+    notes.hidden = notes.textContent === "";
+    install.hidden = false;
+    return;
+  }
+  install.hidden = true;
+  if (updateInfo.checkedAt === undefined) {
+    // No state file yet: the shell checks ten seconds after launch. Absence
+    // is not a failure, so this renders as a state, not an error.
+    stateLabel.textContent = t.updateNotChecked;
+    state.textContent = "";
+    notes.hidden = true;
+    return;
+  }
+  stateLabel.textContent = t.updateLatest;
+  state.textContent = "";
+  notes.textContent = updateInfo.error
+    ? updateInfo.error
+    : format(t.updateLastChecked, {
+        time: new Date(updateInfo.checkedAt).toLocaleTimeString(DATE_LOCALE[lang], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      });
+  notes.hidden = notes.textContent === "";
+}
+
+async function installUpdate(): Promise<void> {
+  const note = byId<HTMLElement>("update-note");
+  try {
+    await api("/api/update/install", { method: "POST" });
+    if (note) note.textContent = t.updateInstallRequested;
+    // The shell does the download itself; watch its state file flip to
+    // `installing` (and then to a restart) rather than guessing.
+    window.clearInterval(updatePollTimer);
+    updatePollTimer = window.setInterval(() => void loadUpdateStatus(), 2000);
+    window.setTimeout(() => window.clearInterval(updatePollTimer), 60_000);
+  } catch (error) {
+    if (note) {
+      note.textContent = error instanceof Error ? error.message : String(error);
+    }
+  }
+}
+
+async function loadCheckUpdates(): Promise<void> {
+  const box = byId<HTMLInputElement>("check-updates");
+  if (!box) return;
+  try {
+    const prefs = await api<{ checkUpdates?: unknown }>("/api/prefs");
+    checkUpdatesValue = prefs.checkUpdates !== false;
+  } catch {
+    checkUpdatesValue = true;
+  }
+  box.checked = checkUpdatesValue;
+}
+
+/* ---------- saved searches ---------- */
+
+function savedSearchHash(search: SavedSearch): string {
+  // The contract: filters values are the hash's own string values ("1"/"0"
+  // for booleans), expanded verbatim; the query travels as `q`, encoded the
+  // way `parseHash` decodes it (encodeURIComponent, not URLSearchParams).
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(search.filters)) params.set(key, value);
+  const query = search.query ? `q=${encodeURIComponent(search.query)}` : "";
+  const rest = params.toString();
+  const joined = [query, rest].filter(Boolean).join("&");
+  return `#/search${joined ? `?${joined}` : ""}`;
+}
+
+async function loadSavedSearches(): Promise<void> {
+  try {
+    const body = await api<{ searches: SavedSearch[] }>("/api/saved-searches");
+    savedSearches = body.searches;
+  } catch {
+    savedSearches = null;
+  }
+  renderSavedList();
+}
+
+function renderSavedList(): void {
+  const list = byId<HTMLUListElement>("saved-list");
+  if (!list) return;
+  if (!savedSearches) {
+    list.innerHTML = `<li class="saved-empty">${t.readingIndex}</li>`;
+    return;
+  }
+  if (savedSearches.length === 0) {
+    list.innerHTML = `<li class="saved-empty">${t.savedEmpty}</li>`;
+    return;
+  }
+  list.innerHTML = savedSearches
+    .map((search) =>
+      search.id === renamingSavedId
+        ? `<li class="saved-row is-renaming" data-saved-id="${escapeAttr(search.id)}">
+            <input class="saved-rename-input" type="text" value="${escapeAttr(search.name)}"
+              aria-label="${escapeAttr(t.savedNameAria)}" maxlength="200">
+            <button class="text-btn" type="button" data-saved-rename-save>${t.hotkeySave}</button>
+            <button class="text-btn" type="button" data-saved-rename-cancel>${t.undo}</button>
+          </li>`
+        : `<li class="saved-row" data-saved-id="${escapeAttr(search.id)}">
+            <button class="saved-open" type="button" title="${escapeAttr(t.savedOpen)}"
+              data-saved-open>${escapeHtml(search.name)}</button>
+            <span class="saved-query">${escapeHtml(search.query || t.viewAll)}</span>
+            <button class="text-btn" type="button" data-saved-rename title="${escapeAttr(t.savedRename)}">${t.savedRename}</button>
+            <button class="text-btn" type="button" data-saved-delete title="${escapeAttr(t.savedDelete)}">${t.savedDelete}</button>
+          </li>`,
+    )
+    .join("");
+  const renaming = list.querySelector<HTMLInputElement>(".saved-rename-input");
+  if (renaming) {
+    renaming.focus();
+    renaming.select();
+  }
+}
+
+function bindSavedList(body: HTMLElement): void {
+  const list = body.querySelector<HTMLUListElement>("#saved-list");
+  if (!list) return;
+  list.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const row = target.closest<HTMLElement>("[data-saved-id]");
+    if (!row) return;
+    const id = row.dataset.savedId ?? "";
+    if (target.closest("[data-saved-open]")) {
+      const search = savedSearches?.find((row2) => row2.id === id);
+      if (search) {
+        closeSettings();
+        location.hash = savedSearchHash(search);
+      }
+      return;
+    }
+    if (target.closest("[data-saved-rename]")) {
+      renamingSavedId = id;
+      renderSavedList();
+      return;
+    }
+    if (target.closest("[data-saved-rename-cancel]")) {
+      renamingSavedId = "";
+      renderSavedList();
+      return;
+    }
+    if (target.closest("[data-saved-rename-save]")) {
+      void renameSavedSearch(id, row);
+      return;
+    }
+    const del = target.closest<HTMLButtonElement>("[data-saved-delete]");
+    if (del) void deleteSavedSearchFromUi(del, id);
+  });
+  // Enter commits a rename, Escape cancels it.
+  list.addEventListener("keydown", (event) => {
+    const input = event.target as HTMLElement;
+    if (!input.classList.contains("saved-rename-input")) return;
+    if (event.key !== "Enter" && event.key !== "Escape") return;
+    event.preventDefault();
+    const row = input.closest<HTMLElement>("[data-saved-id]");
+    if (!row) return;
+    const id = row.dataset.savedId ?? "";
+    if (event.key === "Escape") {
+      renamingSavedId = "";
+      renderSavedList();
+      return;
+    }
+    void renameSavedSearch(id, row);
+  });
+}
+
+const savedNoteResetters = new Map<string, number>();
+function setSavedNote(text: string): void {
+  const note = byId<HTMLElement>("saved-note");
+  if (!note) return;
+  note.textContent = text;
+  window.clearTimeout(savedNoteResetters.get(text));
+  savedNoteResetters.set(
+    text,
+    window.setTimeout(() => {
+      if (note.textContent === text) note.textContent = "";
+    }, 2400),
+  );
+}
+
+async function renameSavedSearch(id: string, row: HTMLElement): Promise<void> {
+  const input = row.querySelector<HTMLInputElement>(".saved-rename-input");
+  const name = input?.value.trim() ?? "";
+  if (!name) return;
+  try {
+    await api(`/api/saved-searches/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    renamingSavedId = "";
+    await loadSavedSearches();
+  } catch (error) {
+    setSavedNote(`${t.savedRenameFailed}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function deleteSavedSearchFromUi(
+  button: HTMLButtonElement,
+  id: string,
+): Promise<void> {
+  const search = savedSearches?.find((row) => row.id === id);
+  const name = search?.name ?? id;
+  if (!window.confirm(format(t.savedDeleteConfirm, { name }))) return;
+  try {
+    await api(`/api/saved-searches/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await loadSavedSearches();
+  } catch (error) {
+    setSavedNote(`${t.savedDeleteFailed}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/* ---------- save-search entry point (search view rail) ---------- */
+
+/**
+ * The current non-default filters, in the saved-search contract's shape:
+ * string values only, so the hash expansion and the server's validation see
+ * exactly one canonical form.
+ */
+function currentSearchFilters(): Record<string, string> {
+  const filters: Record<string, string> = {};
+  if (state.agents.length > 0) filters.agents = state.agents.join(",");
+  if (state.project) filters.project = state.project;
+  if (state.role !== "all") filters.role = state.role;
+  if (state.scope !== "qa") filters.scope = state.scope;
+  if (state.range !== "all") filters.range = state.range;
+  if (state.sessionView !== "all") filters.view = state.sessionView;
+  return filters;
+}
+
+/** True when anything is set that a saved search should remember. */
+function hasNonDefaultFilters(): boolean {
+  return (
+    state.q.trim() !== "" || Object.keys(currentSearchFilters()).length > 0
+  );
+}
+
+const saveSearchNoteResetter = { timer: 0 };
+function setSaveSearchNote(text: string): void {
+  const note = byId<HTMLElement>("save-search-note");
+  if (!note) return;
+  note.textContent = text;
+  window.clearTimeout(saveSearchNoteResetter.timer);
+  saveSearchNoteResetter.timer = window.setTimeout(() => {
+    if (note.textContent === text) note.textContent = "";
+  }, 2400);
+}
+
+async function saveCurrentSearch(): Promise<void> {
+  const input = byId<HTMLInputElement>("save-search-name");
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) {
+    setSaveSearchNote(t.saveSearchNameRequired);
+    input.focus();
+    return;
+  }
+  try {
+    await api("/api/saved-searches", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        query: state.q,
+        filters: currentSearchFilters(),
+      }),
+    });
+    input.value = "";
+    setSaveSearchNote(t.saveSearchSaved);
+    if (settingsOpen) await loadSavedSearches();
+  } catch (error) {
+    setSaveSearchNote(`${t.saveSearchFailed}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /** Repaints the drawer body; the open/closed state lives outside it. */
@@ -2970,6 +3466,10 @@ function renderSettings(): void {
   body.innerHTML = settingsHtml();
   bindSettingsBody();
   void loadHotkeyStatus();
+  void loadUpdateStatus();
+  void loadCheckUpdates();
+  renderSavedList();
+  void loadSavedSearches();
   if (!focus) return;
   // Scoped to the drawer on purpose: `applyTheme` puts `data-theme-mode` on
   // <html> too, and a document-wide lookup would match that instead of the
@@ -3391,6 +3891,7 @@ async function renderSession(
   content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
   try {
     const detail = await api<SessionDetail>(`/api/session/${encodeURIComponent(id)}`);
+    sessionTurns = detail.turns;
     const session = detail.session;
     const query = state.q.trim();
     // A deep link carries the search that produced it: it wins over whatever
@@ -3432,6 +3933,7 @@ async function renderSession(
       <div class="session-actionbar">
         ${resumeBlock(session)}
         <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="${escapeAttr(t.handoffButtonTitle)}">${t.handoffCopy}</button>
+        <button class="handoff-button" type="button" data-copy-conversation title="${escapeAttr(t.copyConversationTitle)}">${t.copyConversation}</button>
         <button class="star-button${starred ? " is-active" : ""}" type="button" data-star="${escapeAttr(session.id)}"
           aria-pressed="${starred}" title="${escapeAttr(starred ? t.starButtonTitleActive : t.starButtonTitle)}">
           <svg viewBox="0 0 20 20" aria-hidden="true" class="star-icon"><path d="M10 2.6l2.24 4.8 5.26.63-3.9 3.6 1.03 5.2L10 14.2l-4.63 2.63 1.03-5.2-3.9-3.6 5.26-.63z" fill="${starred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
@@ -3494,6 +3996,7 @@ async function renderSession(
       });
     }
   } catch (error) {
+    sessionTurns = [];
     renderError(error);
   }
 }
@@ -3538,7 +4041,14 @@ function turnBlock(
       </section>`
     : `<section class="msg msg-assistant" id="turn-${turn.idx}-assistant"><div class="msg-label">${t.answerLabel}${modelBadge}</div><p class="muted">${t.noAnswerRecorded}</p></section>`;
   return `<article class="turn${target ? " is-target" : ""}" id="turn-${turn.idx}">
-    <div class="turn-rail" aria-hidden="true">${number}</div>
+    <div class="turn-rail">
+      <span aria-hidden="true">${number}</span>
+      <button class="turn-copy" type="button" data-turn-copy="${turn.idx}"
+        aria-label="${escapeAttr(t.copyQa)}" title="${escapeAttr(t.copyQaTitle)}">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="11" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12.6 4.5H6a1.8 1.8 0 0 0-1.8 1.8v8.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="turn-copy-check" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.5 3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
     <div class="turn-main">${user}${assistant}${processBlock(turn)}</div>
   </article>`;
 }
@@ -3754,6 +4264,10 @@ async function boot(): Promise<void> {
     if (button) void copyCommand(button);
     const handoff = target.closest<HTMLButtonElement>(".handoff-button");
     if (handoff) void copyHandoff(handoff);
+    const conversation = target.closest<HTMLButtonElement>("[data-copy-conversation]");
+    if (conversation) void copyConversationFromUi(conversation);
+    const turnCopy = target.closest<HTMLButtonElement>(".turn-copy[data-turn-copy]");
+    if (turnCopy) void copyTurnFromUi(turnCopy);
     const forget = target.closest<HTMLButtonElement>(".forget-button");
     if (forget) void forgetSessionFromUi(forget);
     const star = target.closest<HTMLButtonElement>(".star-button[data-star]");

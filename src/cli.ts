@@ -9,6 +9,7 @@ import {
 } from "./brief.ts";
 import type { BriefFormat, BriefLang } from "./brief.ts";
 import { runSearchCli } from "./cli-search.ts";
+import { runSavedCli } from "./cli-saved.ts";
 import { forgetSession, openDb, splitSessionId, unforgetSession } from "./db.ts";
 import { runMcpServer } from "./mcp.ts";
 import { readPrefs } from "./prefs.ts";
@@ -177,6 +178,8 @@ if (command === "scan") {
   serve();
 } else if (command === "search") {
   process.exitCode = runSearchCli(process.argv.slice(3));
+} else if (command === "saved") {
+  process.exitCode = runSavedCli(process.argv.slice(3));
 } else if (command === "mcp") {
   await runMcpServer();
 } else if (command === "forget" || command === "unforget") {
@@ -228,7 +231,7 @@ if (command === "scan") {
   }
 } else {
   console.error(
-    "usage: bun run src/cli.ts [scan|serve|brief|search|mcp|forget <agent>:<id>|unforget <agent>:<id>]",
+    "usage: bun run src/cli.ts [scan|serve|brief|search|saved|mcp|forget <agent>:<id>|unforget <agent>:<id>]",
   );
   process.exit(1);
 }

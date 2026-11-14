@@ -35,6 +35,8 @@ export interface Prefs {
   language: LanguagePref;
   /** Absent means "the default shortcut"; see {@link effectiveHotkey}. */
   hotkey?: Hotkey;
+  /** Absent means `true`; only an explicit `false` turns the check off. */
+  checkUpdates?: boolean;
   [key: string]: unknown;
 }
 
@@ -119,6 +121,15 @@ function isHotkeyKey(token: string): boolean {
   return match !== null;
 }
 
+/**
+ * Whether `value` is a usable `checkUpdates` preference. Only a real boolean
+ * counts; `null`, `"true"` and `0` are all refused rather than coerced, so a
+ * typo in a hand-edited file can never silently change the behaviour.
+ */
+export function isCheckUpdates(value: unknown): value is boolean {
+  return typeof value === "boolean";
+}
+
 export function isThemeMode(value: unknown): value is ThemeMode {
   return (
     typeof value === "string" && (THEME_MODES as readonly string[]).includes(value)
@@ -153,6 +164,11 @@ function normalize(value: unknown): Prefs {
   // "the default shortcut", which is what the shell falls back to as well.
   if ("hotkey" in normalized && !isHotkey(normalized.hotkey)) {
     delete normalized.hotkey;
+  }
+  // Same for the update toggle: absent means enabled, so an unusable value is
+  // dropped rather than guessed into either direction.
+  if ("checkUpdates" in normalized && !isCheckUpdates(normalized.checkUpdates)) {
+    delete normalized.checkUpdates;
   }
   return normalized;
 }
@@ -201,9 +217,24 @@ export function updatePrefs(
       `invalid hotkey: ${JSON.stringify(patch.hotkey)} (expected null, or a shortcut such as ${JSON.stringify(DEFAULT_HOTKEY)})`,
     );
   }
+  if ("checkUpdates" in patch && !isCheckUpdates(patch.checkUpdates)) {
+    throw new InvalidPrefsError(
+      `invalid checkUpdates: ${JSON.stringify(patch.checkUpdates)} (expected true or false)`,
+    );
+  }
   const merged: Prefs = { ...readPrefs(dir), ...patch } as Prefs;
   persist(merged, dir);
   return merged;
+}
+
+/**
+ * Whether the shell should look for updates on launch. Only an explicit
+ * `false` disables it; absent, `true` and every unusable value mean enabled —
+ * mirroring `prefs_check_updates` in `src-tauri/src/main.rs`, so the drawer's
+ * toggle can never disagree with what the shell actually does.
+ */
+export function effectiveCheckUpdates(dir = APP_DIR): boolean {
+  return readPrefs(dir).checkUpdates !== false;
 }
 
 /**
@@ -311,6 +342,74 @@ export function hotkeyStatus(
   return state.error === null
     ? { hotkey, registered: state.registered }
     : { hotkey, registered: state.registered, error: state.error };
+}
+
+/** The file the shell writes after every update check (see main.rs). */
+const UPDATE_STATE_FILE = "update-state.json";
+
+/** The file this sidecar writes to ask the shell to install an update. */
+const UPDATE_REQUEST_FILE = "update-install-request.json";
+
+/** What the shell recorded after an update check or an install attempt. */
+export interface UpdateStatus {
+  /** True when the shell saw a newer release on its last check. */
+  available: boolean;
+  /** The version the shell would install, when one was seen. */
+  version?: string;
+  /** The release notes the shell saw, when one was seen. */
+  notes?: string;
+  /** Why the last check or install failed, in the shell's words. */
+  error?: string;
+  /** When the last check ran, as epoch milliseconds (the shell's clock). */
+  checkedAt?: number;
+  /** True while the shell is downloading and installing an update. */
+  installing?: boolean;
+}
+
+/**
+ * The shell's update record, for `GET /api/update`.
+ *
+ * A missing file means the shell has not checked yet (it waits ten seconds
+ * after the window opens), so the status is `{ available: false }` with no
+ * timestamp rather than an error — nothing has failed.
+ */
+export function updateStatus(dir = APP_DIR): UpdateStatus {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, UPDATE_STATE_FILE), "utf8");
+  } catch {
+    return { available: false };
+  }
+  try {
+    const raw = JSON.parse(text) as Record<string, unknown>;
+    if (typeof raw.available !== "boolean") return { available: false };
+    const status: UpdateStatus = { available: raw.available };
+    if (typeof raw.version === "string") status.version = raw.version;
+    if (typeof raw.notes === "string") status.notes = raw.notes;
+    if (typeof raw.error === "string") status.error = raw.error;
+    if (typeof raw.checkedAt === "number") status.checkedAt = raw.checkedAt;
+    if (raw.installing === true) status.installing = true;
+    return status;
+  } catch {
+    // A corrupt file must not read as a failure of the update system itself.
+    return { available: false, error: "the update state file is corrupt" };
+  }
+}
+
+/**
+ * Ask the shell to download and install the announced update.
+ *
+ * The shell has no IPC channel to the sidecar, so the request travels as a
+ * file it polls (every couple of seconds, see main.rs). Writing it is gated on
+ * an update actually being announced; the shell still re-checks before it
+ * downloads, so a stale announcement cannot install the wrong package.
+ */
+export function requestUpdateInstall(
+  dir = APP_DIR,
+): "requested" | "no-update-available" {
+  if (!updateStatus(dir).available) return "no-update-available";
+  writeFileSync(join(dir, UPDATE_REQUEST_FILE), "{}\n", "utf8");
+  return "requested";
 }
 
 function persist(prefs: Prefs, dir: string): void {

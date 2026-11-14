@@ -13,18 +13,26 @@
 //! 3. open the window once the server is actually listening,
 //! 4. answer `sessionrecall://` deep links — the one address that outlives the
 //!    random port — by driving the UI's own hash router,
-//! 5. own the global shortcut that summons the window from any app.
+//! 5. own the global shortcut that summons the window from any app,
+//! 6. check for app updates in the background and install one on request.
 //!
 //!    Known macOS limitation: duplicate registrations can silently co-exist on
 //!    some macOS builds — a second app (or a second copy of this one) asking for
 //!    the same combination gets no error, so `/api/hotkey` surfaces only this
 //!    app's own registration state, never who else may be listening.
+//!
+//! The sidecar learns nothing from the shell over IPC: the two processes share
+//! small state files in the app directory instead (`hotkey-state.json` written
+//! by the shell and read by the sidecar; `update-state.json` likewise; and
+//! `update-install-request.json` written by the sidecar and consumed by the
+//! shell). Keeping every cross-process fact in a file keeps both halves
+//! inspectable by hand and testable without the other half running.
 
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant};
 
 use tauri::menu::Menu;
@@ -32,6 +40,7 @@ use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_updater::UpdaterExt;
 
 const WINDOW_LABEL: &str = "main";
 const WINDOW_TITLE: &str = "Session Recall";
@@ -50,8 +59,23 @@ const DEFAULT_HOTKEY: &str = "Option+Command+R";
 const HOTKEY_ENV: &str = "SESSION_RECALL_HOTKEY";
 /// Env values that mean "no shortcut" instead of a key combination.
 const DISABLED_HOTKEY_VALUES: [&str; 4] = ["", "off", "none", "false"];
-/// Where this launch records its registration outcome, for `GET /api/hotkey`.
+/// The file the shell writes after registering the shortcut, for `GET /api/hotkey`.
 const HOTKEY_STATE_FILE: &str = "hotkey-state.json";
+/// The file the shell writes after every update check, for `GET /api/update`.
+const UPDATE_STATE_FILE: &str = "update-state.json";
+/// Written by the sidecar when the user clicks "install"; the shell consumes it.
+const UPDATE_REQUEST_FILE: &str = "update-install-request.json";
+/// Overrides the update endpoint for one launch; what the tests and the local
+/// dry run use instead of touching GitHub.
+const UPDATE_ENDPOINT_ENV: &str = "SESSION_RECALL_UPDATE_ENDPOINT";
+/// How long the shell waits after the window opens before the first update
+/// check, so boot and the sidecar handshake are never delayed by it.
+const UPDATE_CHECK_DELAY: Duration = Duration::from_secs(10);
+/// How often the shell looks for an install request from the sidecar.
+const UPDATE_POLL_INTERVAL: Duration = Duration::from_secs(2);
+/// Guards the update watcher so whichever path opens the window first starts
+/// it exactly once.
+static UPDATE_WATCHER: Once = Once::new();
 /// Appended to every registration failure: on macOS an unapproved app is the
 /// likeliest reason, and the dialog that explains it never appears on its own.
 const HOTKEY_FAILURE_HINT: &str = "Another app may already own this shortcut, or macOS may be withholding it: allow Session Recall under System Settings → Privacy & Security → Accessibility and Input Monitoring, then restart the app.";
@@ -353,18 +377,23 @@ fn is_key_token(token: &str) -> bool {
     }
 }
 
+/// The stored preferences as parsed JSON, or `None` when they cannot be read.
+///
+/// Both `prefs_hotkey` and `prefs_check_updates` read through this: a missing,
+/// unreadable or unparseable file must degrade to defaults, never fail the boot.
+fn stored_prefs() -> Option<serde_json::Value> {
+    let text = app_dir()
+        .map(|dir| dir.join("prefs.json"))
+        .and_then(|path| std::fs::read_to_string(path).ok())?;
+    serde_json::from_str(&text).ok()
+}
+
 /// The stored preference, reduced to "register this" or "disabled".
 ///
 /// Mirrors `effectiveHotkey` in `src/prefs.ts`: absent or unusable means the
 /// default, `null` means the user turned the shortcut off.
 fn prefs_hotkey() -> Option<String> {
-    let Some(text) = app_dir()
-        .map(|dir| dir.join("prefs.json"))
-        .and_then(|path| std::fs::read_to_string(path).ok())
-    else {
-        return Some(DEFAULT_HOTKEY.to_string());
-    };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+    let Some(value) = stored_prefs() else {
         return Some(DEFAULT_HOTKEY.to_string());
     };
     match value.get("hotkey") {
@@ -382,6 +411,16 @@ fn prefs_hotkey() -> Option<String> {
         }
         _ => Some(DEFAULT_HOTKEY.to_string()),
     }
+}
+
+/// Whether the shell should look for updates: only an explicit
+/// `checkUpdates: false` disables it, everything else (absent, non-boolean)
+/// means enabled — mirroring `effectiveCheckUpdates` in `src/prefs.ts`.
+fn prefs_check_updates() -> bool {
+    stored_prefs()
+        .and_then(|value| value.get("checkUpdates").cloned())
+        .map(|value| !matches!(value, serde_json::Value::Bool(false)))
+        .unwrap_or(true)
 }
 
 /// The shortcut this launch should register: the environment first, then the
@@ -407,8 +446,23 @@ fn effective_hotkey() -> Option<String> {
 /// reserves a new one every time, so a stale file is recognisable. Best effort
 /// throughout — a state file that cannot be written must not stop the boot.
 fn record_hotkey_state(port: u16, hotkey: Option<&str>, registered: bool, error: Option<&str>) {
+    let state = serde_json::json!({
+        "hotkey": hotkey,
+        "registered": registered,
+        "error": error,
+        "port": port,
+    });
+    write_app_state(HOTKEY_STATE_FILE, &state, "hotkey state");
+}
+
+/// Atomically replace a state file in the app directory, temp file + rename.
+///
+/// Shared by the hotkey and update state files: both are read by the sidecar
+/// and neither write may ever be observed half-done. Purely best effort —
+/// callers log the failure and carry on.
+fn write_app_state(filename: &str, value: &serde_json::Value, what: &str) {
     let Some(dir) = app_dir() else {
-        eprintln!("session-recall: HOME is unset; nowhere to record the hotkey state");
+        eprintln!("session-recall: HOME is unset; nowhere to record {what}");
         return;
     };
     if let Err(failure) = std::fs::create_dir_all(&dir) {
@@ -418,16 +472,10 @@ fn record_hotkey_state(port: u16, hotkey: Option<&str>, registered: bool, error:
         );
         return;
     }
-    let state = serde_json::json!({
-        "hotkey": hotkey,
-        "registered": registered,
-        "error": error,
-        "port": port,
-    });
-    let target = dir.join(HOTKEY_STATE_FILE);
-    let temp = dir.join(format!("{HOTKEY_STATE_FILE}.{}.tmp", std::process::id()));
+    let target = dir.join(filename);
+    let temp = dir.join(format!("{filename}.{}.tmp", std::process::id()));
     let write =
-        std::fs::write(&temp, format!("{state}\n")).and_then(|()| std::fs::rename(&temp, &target));
+        std::fs::write(&temp, format!("{value}\n")).and_then(|()| std::fs::rename(&temp, &target));
     if let Err(failure) = write {
         let _ = std::fs::remove_file(&temp);
         eprintln!(
@@ -505,6 +553,173 @@ fn register_hotkey(app: &AppHandle, port: u16) {
             record_hotkey_state(port, Some(&spec), false, Some(&message));
         }
     }
+}
+
+/// Start the update watcher, once, after the window exists.
+///
+/// The check itself is delayed another [`UPDATE_CHECK_DELAY`], so neither boot
+/// nor the first paint wait on the network. `checkUpdates: false` in prefs
+/// stops the check before it starts; the updater plugin stays registered, so a
+/// preference change still applies after a restart.
+fn spawn_update_watcher(app: &AppHandle) {
+    UPDATE_WATCHER.call_once(|| {
+        let handle = app.clone();
+        std::thread::spawn(move || update_watcher(handle));
+    });
+}
+
+/// Check for an update, then serve install requests, forever.
+///
+/// There is no IPC channel between the shell and the sidecar, so the drawer's
+/// "install" button travels the same way every other cross-process fact does:
+/// the sidecar writes `update-install-request.json`, this loop consumes it,
+/// downloads the update and restarts the app into it.
+fn update_watcher(app: AppHandle) {
+    std::thread::sleep(UPDATE_CHECK_DELAY);
+    if !prefs_check_updates() {
+        eprintln!("session-recall: the update check is disabled by prefs");
+        return;
+    }
+    run_update_check(&app);
+    loop {
+        std::thread::sleep(UPDATE_POLL_INTERVAL);
+        if take_install_request() {
+            install_pending_update(&app);
+        }
+    }
+}
+
+/// The updater for this launch: the configured endpoint, or the environment
+/// override when one is set (what the tests and the local dry run use).
+fn updater_for(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, tauri_plugin_updater::Error> {
+    if let Some(raw) = std::env::var_os(UPDATE_ENDPOINT_ENV) {
+        let raw = raw.to_string_lossy();
+        let url: tauri::Url = raw.trim().parse()?;
+        eprintln!("session-recall: update check overridden to {url}");
+        return app.updater_builder().endpoints(vec![url])?.build();
+    }
+    app.updater()
+}
+
+/// One check, published to `update-state.json` however it ends.
+fn run_update_check(app: &AppHandle) {
+    let checked_at = checked_at_now();
+    let result = updater_for(app).and_then(|updater| {
+        tauri::async_runtime::block_on(updater.check())
+    });
+    match result {
+        Ok(Some(update)) => {
+            eprintln!(
+                "session-recall: update {} available (current {})",
+                update.version, update.current_version
+            );
+            record_update_state(
+                /* available */ true,
+                Some(&update.version),
+                update.body.as_deref(),
+                None,
+                checked_at,
+                false,
+            );
+        }
+        Ok(None) => {
+            eprintln!("session-recall: no update available");
+            record_update_state(false, None, None, None, checked_at, false);
+        }
+        Err(error) => {
+            let message = format!("update check failed: {error}");
+            eprintln!("session-recall: {message}");
+            record_update_state(false, None, None, Some(&message), checked_at, false);
+        }
+    }
+}
+
+/// Download and install the update the drawer asked for, then restart into it.
+///
+/// The check is run fresh so the signed package matches what is live right
+/// now, not what was announced up to minutes ago. On macOS the install swaps
+/// the bundle without relaunching, so the shell restarts itself afterwards.
+fn install_pending_update(app: &AppHandle) {
+    eprintln!("session-recall: installing the pending update");
+    let checked_at = checked_at_now();
+    let outcome = updater_for(app).and_then(|updater| {
+        tauri::async_runtime::block_on(async {
+            match updater.check().await {
+                Ok(Some(update)) => {
+                    let version = update.version.clone();
+                    let notes = update.body.clone();
+                    update.download_and_install(|_chunk, _total| {}, || {}).await?;
+                    Ok(Some((version, notes)))
+                }
+                Ok(None) => Ok(None),
+                Err(error) => Err(error),
+            }
+        })
+    });
+    match outcome {
+        Ok(Some((version, notes))) => {
+            eprintln!("session-recall: update {version} installed; restarting");
+            record_update_state(true, Some(&version), notes.as_deref(), None, checked_at, true);
+            app.restart();
+        }
+        Ok(None) => {
+            // The release vanished between the drawer's view and this install.
+            eprintln!("session-recall: the announced update is no longer available");
+            record_update_state(false, None, None, None, checked_at, false);
+        }
+        Err(error) => {
+            let message = format!("update install failed: {error}");
+            eprintln!("session-recall: {message}");
+            record_update_state(true, None, None, Some(&message), checked_at, false);
+        }
+    }
+}
+
+/// Publish the outcome of a check or an install, for `GET /api/update`.
+///
+/// Same contract as the hotkey state: best effort, atomic, and shaped so the
+/// sidecar can pass it through without interpreting it.
+#[allow(clippy::too_many_arguments)]
+fn record_update_state(
+    available: bool,
+    version: Option<&str>,
+    notes: Option<&str>,
+    error: Option<&str>,
+    checked_at: u64,
+    installing: bool,
+) {
+    let state = serde_json::json!({
+        "available": available,
+        "version": version,
+        "notes": notes,
+        "error": error,
+        "checkedAt": checked_at,
+        "installing": installing,
+    });
+    write_app_state(UPDATE_STATE_FILE, &state, "update state");
+}
+
+/// Consume an install request written by the sidecar, if one is waiting.
+fn take_install_request() -> bool {
+    let Some(path) = app_dir().map(|dir| dir.join(UPDATE_REQUEST_FILE)) else {
+        return false;
+    };
+    match std::fs::remove_file(&path) {
+        Ok(()) => true,
+        Err(failure) if failure.kind() == std::io::ErrorKind::NotFound => false,
+        Err(failure) => {
+            eprintln!("session-recall: could not clear {}: {failure}", path.display());
+            false
+        }
+    }
+}
+
+/// Wall-clock time as epoch milliseconds; the sidecar renders it.
+fn checked_at_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// Reserve an ephemeral loopback port by binding and immediately releasing it.
@@ -795,6 +1010,8 @@ fn open_window(app: &AppHandle, port: u16) {
                     }
                 }
             });
+            // The window is up: the background update check may start counting.
+            spawn_update_watcher(app);
         }
         Err(error) => eprintln!("session-recall: failed to create the window: {error}"),
     }
@@ -847,6 +1064,9 @@ fn main() {
         // No shortcut is configured on the plugin itself: `register_hotkey`
         // registers the one prefs ask for, and attaches its handler there.
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        // Registered even when the check is disabled: the preference only
+        // governs the background check, and applies after a restart.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(Sidecar::new());
             app.manage(Routes::new());

@@ -174,11 +174,11 @@ test("a v5 index gains starred/hidden on upgrade and keeps its rows", () => {
 
   const reopened = openDb(path);
   try {
-    expect(SCHEMA_VERSION).toBe(6);
+    expect(SCHEMA_VERSION).toBe(7);
     const version = reopened.query("PRAGMA user_version").get() as {
       user_version: number;
     };
-    expect(version.user_version).toBe(6);
+    expect(version.user_version).toBe(7);
 
     const columns = reopened.query("PRAGMA table_info(session)").all() as {
       name: string;

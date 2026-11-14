@@ -315,6 +315,7 @@ test("JSON-RPC: initialize, tools/list and tools/call", async () => {
     "recall_facets",
     "recall_handoff",
     "recall_scan",
+    "recall_saved_searches",
   ]);
 
   const call = await handleRpcMessage(ctx, {

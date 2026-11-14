@@ -1543,11 +1543,57 @@ mark {
 }
 
 .turn-rail {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
   padding-top: 5px;
   color: var(--faint);
   font-family: var(--mono);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Per-turn copy: a quiet icon beside the turn number, inked on hover, and
+   green for the moment the copy landed. */
+.turn-copy {
+  flex: none;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.turn-copy svg {
+  width: 13px;
+  height: 13px;
+}
+
+.turn-copy:hover {
+  color: var(--accent);
+}
+
+.turn-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.turn-copy .turn-copy-check {
+  display: none;
+}
+
+.turn-copy.is-copied {
+  color: var(--accent);
+}
+
+.turn-copy.is-copied .turn-copy-check {
+  display: inline;
+}
+
+.turn-copy.is-copied svg:not(.turn-copy-check) {
+  display: none;
 }
 
 .turn-main {
@@ -2111,6 +2157,10 @@ mark {
     padding: 0 0 6px;
   }
 
+  .turn-copy {
+    padding: 4px 6px;
+  }
+
   .project {
     max-width: 180px;
   }
@@ -2492,6 +2542,141 @@ mark {
 }
 
 .settings-help {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ---- 1.7.0: saved searches ---- */
+.saved-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12px;
+}
+
+.saved-row.is-renaming {
+  flex-wrap: wrap;
+}
+
+.saved-open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.saved-open:hover {
+  color: var(--accent);
+}
+
+.saved-open:focus-visible,
+.saved-row .text-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.saved-query {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-row .text-btn {
+  flex: none;
+  font-size: 11px;
+}
+
+.saved-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.saved-rename-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.saved-empty {
+  padding: 4px 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.settings-toggle input {
+  flex: none;
+  accent-color: var(--accent);
+}
+
+/* ---- 1.7.0: save-search entry point in the rail ---- */
+.save-search-row {
+  display: flex;
+  gap: 6px;
+}
+
+.save-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.save-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.save-search-btn {
+  flex: none;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.save-search-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.save-search-note {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 11px;

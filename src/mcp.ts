@@ -15,6 +15,7 @@ import {
 import type { RefreshState } from "./freshness.ts";
 import { generateHandoff } from "./handoff.ts";
 import { openIndexReadOnly } from "./index-read.ts";
+import { listSavedSearches } from "./db.ts";
 import { DEFAULT_STALE_MS, scanLockPath } from "./scan-lock.ts";
 import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchScope } from "./search.ts";
@@ -435,6 +436,21 @@ export function recallFacets(ctx: McpContext, rawArgs: unknown): ToolCallResult 
   });
 }
 
+export function recallSavedSearches(ctx: McpContext): ToolCallResult {
+  return withIndex(ctx, (db) => {
+    const { indexAgeMs: age, refresh } = freshness(db, ctx);
+    const searches = listSavedSearches(db).map((search) => ({
+      id: search.id,
+      name: clipText(search.name, 120),
+      query: clipText(search.query, 200),
+      filters: search.filters,
+      createdAt: search.createdAt,
+      date: day(search.createdAt),
+    }));
+    return ok({ indexAgeMs: age, refresh, total: searches.length, searches });
+  });
+}
+
 export function recallHandoff(ctx: McpContext, rawArgs: unknown): ToolCallResult {
   let sessionId: string;
   let targetAgent: AgentId | undefined;
@@ -577,6 +593,15 @@ export const TOOLS = [
     description: "Rescan the local agent stores now and return index statistics.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
+  {
+    name: "recall_saved_searches",
+    description:
+      "List the saved searches the user bookmarked (name, query, filter params). " +
+      "Read-only: creating, renaming and deleting happens in the app or via " +
+      "`bun run src/cli.ts saved`; to run one, expand its filters into recall_search " +
+      "arguments (booleans are encoded as \"1\"/\"0\").",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
 ];
 
 const HANDLERS: Record<
@@ -588,6 +613,7 @@ const HANDLERS: Record<
   recall_facets: recallFacets,
   recall_handoff: recallHandoff,
   recall_scan: recallScan,
+  recall_saved_searches: recallSavedSearches,
 };
 
 export interface JsonRpcResponse {

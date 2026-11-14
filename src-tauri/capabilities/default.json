@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal capability for the Session Recall main window. The UI is served over http://127.0.0.1 and uses no Tauri APIs, so only the core defaults are granted.",
+  "description": "Capability for the Session Recall main window. The UI is served over http://127.0.0.1 and drives updates through the sidecar's /api routes (the shell polls a request file), so the updater permission is granted for completeness but the drawer never calls updater IPC directly.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "updater:default"]
 }

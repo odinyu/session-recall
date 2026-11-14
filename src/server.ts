@@ -12,17 +12,30 @@ import {
 import type { BriefFormat, BriefLang, BriefResult } from "./brief.ts";
 import { isBriefLang } from "./brief-lang.ts";
 import {
+  createSavedSearch,
+  deleteSavedSearch,
   eventCountsFor,
   eventsForTurn,
   forgetSession,
+  getSavedSearch,
+  InvalidSavedSearchError,
+  listSavedSearches,
   openDb,
   setSessionFlag,
   splitSessionId,
   unforgetSession,
+  updateSavedSearch,
 } from "./db.ts";
 import type { IndexedDatabase, SessionFlag } from "./db.ts";
 import { generateHandoff } from "./handoff.ts";
-import { InvalidPrefsError, hotkeyStatus, readPrefs, updatePrefs } from "./prefs.ts";
+import {
+  InvalidPrefsError,
+  hotkeyStatus,
+  readPrefs,
+  requestUpdateInstall,
+  updatePrefs,
+  updateStatus,
+} from "./prefs.ts";
 import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
@@ -290,6 +303,82 @@ export async function api(
     if (!outcome) return json({ error: "session not found" }, 404);
     return json({ id: outcome.id, [flag]: outcome.value });
   }
+  if (
+    url.pathname === "/api/saved-searches" ||
+    url.pathname.startsWith("/api/saved-searches/")
+  ) {
+    if (!db) return json({ error: "index not open" }, 500);
+    // Saved searches are plain rows, so they need no scan lock; the web UI
+    // expands `filters` into hash-router params, the server never resolves it.
+    const rest = url.pathname.slice("/api/saved-searches".length);
+    if (rest === "" || rest === "/") {
+      if (request.method === "GET") {
+        return json({ searches: listSavedSearches(db) });
+      }
+      if (request.method === "POST") {
+        let body: unknown;
+        try {
+          body = await request.json();
+        } catch {
+          return json({ error: "invalid JSON body" }, 400);
+        }
+        if (typeof body !== "object" || body === null || Array.isArray(body)) {
+          return json({ error: "expected a JSON object" }, 400);
+        }
+        const record = body as Record<string, unknown>;
+        try {
+          const search = createSavedSearch(db, {
+            name: record.name,
+            query: record.query,
+            filters: record.filters,
+          });
+          return json(search, 201);
+        } catch (error) {
+          if (error instanceof InvalidSavedSearchError) {
+            return json({ error: error.message }, 400);
+          }
+          throw error;
+        }
+      }
+      return json({ error: "method not allowed" }, 405);
+    }
+    const id = decodeIdSegment(rest.slice(1));
+    if (id === null) return json({ error: "invalid saved search id" }, 400);
+    if (request.method === "PATCH") {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return json({ error: "invalid JSON body" }, 400);
+      }
+      if (typeof body !== "object" || body === null || Array.isArray(body)) {
+        return json({ error: "expected a JSON object" }, 400);
+      }
+      const record = body as Record<string, unknown>;
+      if (
+        record.name === undefined &&
+        record.query === undefined &&
+        record.filters === undefined
+      ) {
+        return json({ error: "expected at least one of name, query or filters" }, 400);
+      }
+      try {
+        const search = updateSavedSearch(db, id, record);
+        if (!search) return json({ error: "saved search not found" }, 404);
+        return json(search);
+      } catch (error) {
+        if (error instanceof InvalidSavedSearchError) {
+          return json({ error: error.message }, 400);
+        }
+        throw error;
+      }
+    }
+    if (request.method === "DELETE") {
+      if (!deleteSavedSearch(db, id)) return json({ error: "saved search not found" }, 404);
+      return json({ deleted: id });
+    }
+    return json({ error: "method not allowed" }, 405);
+  }
   if (request.method === "GET" && url.pathname.startsWith("/api/session/")) {
     const rest = url.pathname.slice("/api/session/".length);
     if (rest.endsWith("/handoff")) {
@@ -429,6 +518,17 @@ export async function api(
     // Read-only by design: the shell registers the shortcut once at launch, so
     // this reports what that attempt did rather than changing anything.
     return json(hotkeyStatus());
+  }
+  if (request.method === "GET" && url.pathname === "/api/update") {
+    // Read-only view of the shell's last check; the drawer renders it.
+    return json(updateStatus());
+  }
+  if (request.method === "POST" && url.pathname === "/api/update/install") {
+    // The shell polls for this request file and does the download itself.
+    const outcome = requestUpdateInstall();
+    return outcome === "requested"
+      ? json({ ok: true }, 202)
+      : json({ error: outcome }, 409);
   }
   if (request.method === "GET" && url.pathname === "/api/status") {
     return json({

@@ -1,8 +1,14 @@
-import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const dist = join(root, "web", "dist");
+
+// The drawer's update group shows the running version; the only source of
+// truth is package.json, injected as a build-time constant.
+const pkgVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+  version?: string;
+};
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
@@ -13,6 +19,7 @@ const result = await Bun.build({
   target: "browser",
   minify: false,
   sourcemap: "linked",
+  define: { __APP_VERSION__: JSON.stringify(pkgVersion.version ?? "0.0.0") },
 });
 
 if (!result.success) {
