@@ -312,6 +312,10 @@ brief/
   **from the DB by date range**, not by concatenating daily files, so days
   without a generated brief still count.
 
+Reports skip hidden sessions: hiding a session drops it from daily, weekly and
+archive output and from their counts, while a handoff card still opens it by id
+when you ask for it.
+
 Report templates exist in Chinese and English. The app writes the report in
 its interface language (`auto` follows the browser); the CLI's `--lang zh|en`
 overrides the stored preference; and the front matter records the choice as
@@ -530,7 +534,7 @@ doc/              long-form docs, each in English and zh-CN
 ## Development
 
 ```bash
-bun test          # 186 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose
+bun test          # 224 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

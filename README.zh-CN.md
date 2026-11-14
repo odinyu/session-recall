@@ -188,6 +188,8 @@ brief/
 - **archive**：和以前的 dump 完全一样——按项目的提问、工具/推理计数、恢复命令和深链——仍写到旧的 `<date>.md` 路径。
 - **week**：front-matter 带 `kind: weekly`、`week`、`range`、`active_days`，然后是 `亮点 / 按项目 / 主题与决策 / 指标 / 风险 / 下周计划`。它**按日期范围从 DB 聚合**，不是拼接日报文件，所以没有生成日报的日子也会计入。
 
+报告跳过隐藏的会话：隐藏后，日报、周报和 archive 的内容与计数都不再包含它；交接卡不受影响，按会话 id 仍可打开。
+
 报告模板有中文和英文两套。应用按界面语言生成，`auto` 时跟随浏览器语言；CLI 用 `--lang zh|en` 覆盖保存的偏好；front matter 的 `lang:` 记录实际使用的语言。都没有指定时用中文。
 
 推导是确定性的——不调用模型：
@@ -322,7 +324,7 @@ doc/              长篇文档，每篇都有英文和中文版
 ## 开发
 
 ```bash
-bun test          # 186 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose, pi
+bun test          # 224 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose, pi
 bun run build     # bundle web/app.ts -> web/dist
 ```
 

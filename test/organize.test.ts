@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { generateBrief, generateWeekReport } from "../src/brief.ts";
 import {
   forgetSession,
   openDb,
@@ -414,6 +415,85 @@ test("forgetting drops the flags and unforget does not restore them", async () =
     expect(indexedFlags(db, "omp:flagged")).toEqual({ starred: 0, hidden: 0 });
     expect(facets(db).starredCount).toBe(0);
     expect(facets(db).hiddenCount).toBe(0);
+  } finally {
+    db.close();
+  }
+});
+
+// --- generated reports ------------------------------------------------------
+
+test("a report skips hidden sessions and its own counts agree", () => {
+  const { db } = freshDb();
+  const outDir = mkdtempSync(join(tmpdir(), "session-recall-brief-hidden-"));
+  dirs.push(outDir);
+  try {
+    // Local-time stamps so the dated-day lookup is timezone-independent.
+    const at = (hour: number) => new Date(2026, 10, 13, hour, 0, 0, 0).getTime();
+    writeSession(db, {
+      ...fixture("report-visible"),
+      startedAt: at(9),
+      updatedAt: at(10),
+      turns: [{ idx: 0, ts: at(9), userText: "report visible work", assistantText: "done" }],
+    });
+    writeSession(db, {
+      ...fixture("report-hidden", {
+        agent: "opencode",
+        projectPath: "/tmp/organize-hidden-project",
+      }),
+      startedAt: at(9),
+      updatedAt: at(11),
+      turns: [{ idx: 0, ts: at(9), userText: "report shielded work", assistantText: "done" }],
+    });
+
+    const generate = () =>
+      generateBrief(db, "2026-11-13", { format: "standup", outDir, lang: "en" });
+
+    const before = generate();
+    expect(before.sessions).toBe(2);
+    expect(before.turns).toBe(2);
+    expect(before.projects).toBe(2);
+    expect([...before.agents].sort()).toEqual(["omp", "opencode"]);
+    expect(before.markdown).toContain("report-visible");
+    expect(before.markdown).toContain("report-hidden");
+
+    setSessionFlag(db, "opencode", "report-hidden", "hidden", true);
+    const after = generate();
+    expect(after.sessions).toBe(1);
+    // The report's counts describe what it actually printed.
+    expect(after.turns).toBe(1);
+    expect(after.projects).toBe(1);
+    expect(after.agents).toEqual(["omp"]);
+    expect(after.markdown).toContain("report-visible");
+    expect(after.markdown).not.toContain("report-hidden");
+    expect(after.markdown).not.toContain("organize-hidden-project");
+
+    // The weekly rollup reads the same query, so it filters the same way.
+    const weekHidden = generateWeekReport(db, "2026-W46", { outDir, lang: "en" });
+    expect(weekHidden.sessions).toBe(1);
+    expect(weekHidden.markdown).not.toContain("report-hidden");
+
+    // Unhiding puts it straight back on the next generation.
+    setSessionFlag(db, "opencode", "report-hidden", "hidden", false);
+    const restored = generate();
+    expect(restored.sessions).toBe(2);
+    expect(restored.projects).toBe(2);
+    expect(restored.markdown).toContain("report-hidden");
+    expect(generateWeekReport(db, "2026-W46", { outDir, lang: "en" }).sessions).toBe(2);
+  } finally {
+    db.close();
+  }
+});
+
+test("a hidden session still yields a handoff card when asked by id", async () => {
+  const { db } = freshDb();
+  try {
+    writeSession(db, fixture("handoff"));
+    setSessionFlag(db, "omp", "handoff", "hidden", true);
+    // Hiding is a default-view filter, not a delete: an explicit request for a
+    // known session id must keep working.
+    const res = await callApi(db, "GET", "/api/session/omp:handoff/handoff");
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("fixture handoff");
   } finally {
     db.close();
   }

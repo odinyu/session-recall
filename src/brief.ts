@@ -324,16 +324,21 @@ function loadSessions(db: Database, range: BriefDate | BriefWeek): BriefSession[
                 WHERE t.session_id = s.id AND t.ts >= ? AND t.ts < ?
               ) AS has_day_turn
        FROM session s
-       WHERE EXISTS (
-               SELECT 1 FROM turn t
-               WHERE t.session_id = s.id AND t.ts >= ? AND t.ts < ?
-             )
-          OR (
-               s.updated_at >= ? AND s.updated_at < ?
-               AND NOT EXISTS (
+       -- Hidden is a default-view filter, like search: a report must not quote
+       -- a session the owner hid, on either the dated-turn or the fallback path.
+       WHERE s.hidden = 0
+         AND (
+               EXISTS (
                  SELECT 1 FROM turn t
-                 WHERE t.session_id = s.id AND t.ts > 0
+                 WHERE t.session_id = s.id AND t.ts >= ? AND t.ts < ?
                )
+               OR (
+                    s.updated_at >= ? AND s.updated_at < ?
+                    AND NOT EXISTS (
+                      SELECT 1 FROM turn t
+                      WHERE t.session_id = s.id AND t.ts > 0
+                    )
+                  )
              )
        ORDER BY s.updated_at DESC`,
     )
