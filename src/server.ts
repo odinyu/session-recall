@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
-import { DB_PATH, PORT, WEB_DIST } from "./config.ts";
+import { APP_DIR, DB_PATH, PORT, WEB_DIST } from "./config.ts";
 import {
   briefFilesMentioning,
   generateBrief,
@@ -33,6 +33,7 @@ import {
   hotkeyStatus,
   readPrefs,
   requestUpdateInstall,
+  requestChangelogOpen,
   updatePrefs,
   updateStatus,
 } from "./prefs.ts";
@@ -529,6 +530,17 @@ export async function api(
     return outcome === "requested"
       ? json({ ok: true }, 202)
       : json({ error: outcome }, 409);
+  }
+  if (request.method === "POST" && url.pathname === "/api/open-changelog") {
+    // Same request-file pattern as the install route: the shell polls for the
+    // file, deletes it, and opens the changelog URL it has compiled in. The
+    // dir re-reads the same SESSION_RECALL_HOME env config.ts resolves APP_DIR
+    // from, so a launcher (and the tests) can point it at another home.
+    const home = process.env.SESSION_RECALL_HOME ?? APP_DIR;
+    const outcome = requestChangelogOpen(home);
+    return outcome === "requested"
+      ? json({ ok: true }, 202)
+      : json({ error: "could not write the changelog request" }, 500);
   }
   if (request.method === "GET" && url.pathname === "/api/status") {
     return json({

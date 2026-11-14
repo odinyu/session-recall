@@ -412,6 +412,34 @@ export function requestUpdateInstall(
   return "requested";
 }
 
+/** File that asks the shell to open the changelog (see main.rs). */
+const CHANGELOG_REQUEST_FILE = "open-changelog-request.json";
+
+/**
+ * Ask the shell to open the changelog. Same request-file pattern as {@link
+ * requestUpdateInstall}: `{}` is all the shell reads — the URL is compiled
+ * into the shell, so nothing caller-supplied is ever opened. Written
+ * atomically (temp + rename) exactly like prefs, so the watcher never reads
+ * a half-written file.
+ */
+export function requestChangelogOpen(dir = APP_DIR): "requested" | "failed" {
+  try {
+    mkdirSync(dir, { recursive: true });
+    const target = join(dir, CHANGELOG_REQUEST_FILE);
+    const temp = `${target}.${process.pid}.tmp`;
+    writeFileSync(temp, "{}\n", "utf8");
+    try {
+      renameSync(temp, target);
+    } catch (error) {
+      rmSync(temp, { force: true });
+      throw error;
+    }
+    return "requested";
+  } catch {
+    return "failed";
+  }
+}
+
 function persist(prefs: Prefs, dir: string): void {
   mkdirSync(dir, { recursive: true });
   const target = prefsPath(dir);

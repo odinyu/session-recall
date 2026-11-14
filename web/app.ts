@@ -1037,15 +1037,29 @@ function resumeBlock(session: SessionDetail["session"]): string {
   const selected =
     continuations.find((row) => row.targetAgent === session.agent) ??
     continuations[0];
-  const options = continuations
-    .map(
-      (row) =>
-        `<option value="${row.targetAgent}"${row === selected ? " selected" : ""}>${escapeHtml(row.label)}</option>`,
-    )
-    .join("");
-  return `<div class="resume" data-resume>
+  // The target picker is the app's own combobox, not the last native <select>:
+  // a trigger button plus a fixed-position listbox, like the agent and project
+  // pickers. With no continuations there is nothing to pick, so no control.
+  const combobox =
+    continuations.length === 0
+      ? ""
+      : `<div class="resume-combobox" id="resume-combobox">
+      <button class="resume-trigger" id="resume-select" type="button"
+        role="combobox" aria-haspopup="listbox" aria-expanded="false"
+        aria-controls="resume-listbox" aria-label="${escapeAttr(t.resumeTargetAria)}">
+        <span class="resume-value">${escapeHtml(selected?.label ?? "")}</span>
+        <svg class="resume-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 7.5 4.5 5 4.5-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="resume-popup" id="resume-listbox" role="listbox" aria-label="${escapeAttr(t.resumeTargetAria)}" hidden>${continuations
+        .map(
+          (row, index) =>
+            `<div class="resume-option${row === selected ? " is-selected" : ""}" role="option" aria-selected="${row === selected}" tabindex="-1" id="resume-option-${index}" data-index="${index}" data-resume-option="${escapeAttr(row.targetAgent)}">${escapeHtml(row.label)}</div>`,
+        )
+        .join("")}</div>
+    </div>`;
+  return `<div class="resume" data-resume data-resume-target="${escapeAttr(selected?.targetAgent ?? "")}">
     <span class="resume-label">${t.resumeLabel}</span>
-    <select class="resume-target" aria-label="${escapeAttr(t.resumeTargetAria)}">${options}</select>
+    ${combobox}
     <span class="resume-detail" data-resume-detail>${selected ? continuationDetail(selected) : ""}</span>
   </div>`;
 }
@@ -1092,7 +1106,248 @@ async function copyCommand(button: HTMLButtonElement): Promise<void> {
 
 /** The resume target the action bar currently shows; `null` when it has none. */
 function handoffTargetFor(scope: Element | null): string | null {
-  return scope?.querySelector<HTMLSelectElement>(".resume-target")?.value ?? null;
+  const target =
+    scope?.querySelector<HTMLElement>("[data-resume]")?.dataset.resumeTarget ?? null;
+  return target ? target : null;
+}
+
+/* ---------- resume-target combobox ---------- */
+
+let resumeOpen = false;
+let activeResumeIndex = 0;
+
+function resumeOptionCount(): number {
+  return (
+    byId<HTMLDivElement>("resume-listbox")?.querySelectorAll('[role="option"]')
+      .length ?? 0
+  );
+}
+
+/** The trigger's popup, clamped to the viewport around it like the other pickers. */
+function positionResumePopup(): void {
+  const trigger = byId<HTMLButtonElement>("resume-select");
+  const popup = byId<HTMLDivElement>("resume-listbox");
+  if (!trigger || !popup || popup.hidden) return;
+  const rect = trigger.getBoundingClientRect();
+  const gap = 6;
+  const margin = 16;
+  const limit = 320;
+  const width = Math.max(rect.width, 200);
+  const left = Math.min(
+    Math.max(margin, rect.left),
+    window.innerWidth - width - margin,
+  );
+  popup.style.left = `${Math.round(left)}px`;
+  popup.style.width = `${Math.round(width)}px`;
+  const below = window.innerHeight - rect.bottom - gap - margin;
+  const above = rect.top - gap - margin;
+  if (below >= Math.min(limit, 160) || below >= above) {
+    popup.style.top = `${Math.round(rect.bottom + gap)}px`;
+    popup.style.bottom = "auto";
+    popup.style.maxHeight = `${Math.round(Math.max(90, Math.min(limit, below)))}px`;
+  } else {
+    popup.style.bottom = `${Math.round(window.innerHeight - rect.top + gap)}px`;
+    popup.style.top = "auto";
+    popup.style.maxHeight = `${Math.round(Math.max(90, Math.min(limit, above)))}px`;
+  }
+}
+
+function openResumePopup(): void {
+  const trigger = byId<HTMLButtonElement>("resume-select");
+  const popup = byId<HTMLDivElement>("resume-listbox");
+  if (!trigger || !popup || resumeOpen) return;
+  resumeOpen = true;
+  const options = [...popup.querySelectorAll<HTMLElement>('[role="option"]')];
+  const selected = options.findIndex((option) => option.classList.contains("is-selected"));
+  activeResumeIndex = selected >= 0 ? selected : 0;
+  popup.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+  positionResumePopup();
+  paintActiveResume(true);
+}
+
+function closeResumePopup(focusTrigger = false): void {
+  if (!resumeOpen) return;
+  resumeOpen = false;
+  const trigger = byId<HTMLButtonElement>("resume-select");
+  const popup = byId<HTMLDivElement>("resume-listbox");
+  if (popup) popup.hidden = true;
+  if (trigger) {
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.removeAttribute("aria-activedescendant");
+    if (focusTrigger) trigger.focus();
+  }
+}
+
+/** Marks the keyboard-active row, distinct from the selected one. */
+function paintActiveResume(scrollIntoView = false): void {
+  const trigger = byId<HTMLButtonElement>("resume-select");
+  const popup = byId<HTMLDivElement>("resume-listbox");
+  if (!trigger || !popup) return;
+  const options = [...popup.querySelectorAll<HTMLElement>('[role="option"]')];
+  const active = options[activeResumeIndex];
+  options.forEach((option) => option.classList.toggle("is-active", option === active));
+  if (!active) {
+    trigger.removeAttribute("aria-activedescendant");
+    return;
+  }
+  trigger.setAttribute("aria-activedescendant", active.id);
+  if (scrollIntoView) active.scrollIntoView({ block: "nearest" });
+}
+
+function moveActiveResume(delta: number): void {
+  activeResumeIndex = Math.min(
+    resumeOptionCount() - 1,
+    Math.max(0, activeResumeIndex + delta),
+  );
+  paintActiveResume(true);
+}
+
+/**
+ * The one update path for a target switch: repaint the command line, record the
+ * target on the block and warm the handoff card. `prepareHandoff`/`loadHandoff`
+ * dedupe by `${id}|${target}` cache key, so a switch fires exactly one prefetch
+ * and re-picking a target whose card is cached fetches nothing.
+ */
+function applyResumeTarget(session: SessionDetail["session"], target: string): void {
+  const continuation = session.continuations?.find(
+    (row) => row.targetAgent === target,
+  );
+  const detail = byId<HTMLDivElement>("content")?.querySelector<HTMLElement>(
+    "[data-resume-detail]",
+  );
+  if (detail) detail.innerHTML = continuation ? continuationDetail(continuation) : "";
+  const scope = byId<HTMLDivElement>("content")?.querySelector<HTMLElement>("[data-resume]");
+  if (scope) scope.dataset.resumeTarget = target;
+  prepareHandoff(session.id, target);
+}
+
+/** Update the trigger label and the rows' selected state, then the update path. */
+function selectResume(session: SessionDetail["session"], target: string): void {
+  closeResumePopup();
+  const row = session.continuations?.find((entry) => entry.targetAgent === target);
+  const value = byId<HTMLButtonElement>("resume-select")?.querySelector<HTMLElement>(
+    ".resume-value",
+  );
+  if (row && value) value.textContent = row.label;
+  byId<HTMLDivElement>("resume-listbox")
+    ?.querySelectorAll<HTMLElement>('[role="option"]')
+    .forEach((option) => {
+      const picked = option.dataset.resumeOption === target;
+      option.classList.toggle("is-selected", picked);
+      option.setAttribute("aria-selected", String(picked));
+    });
+  applyResumeTarget(session, target);
+}
+
+function onResumeKeydown(event: KeyboardEvent, session: SessionDetail["session"]): void {
+  const open = resumeOpen;
+  switch (event.key) {
+    case "ArrowDown":
+    case "ArrowUp": {
+      event.preventDefault();
+      if (open) {
+        moveActiveResume(event.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
+      openResumePopup();
+      if (event.key === "ArrowUp") {
+        activeResumeIndex = Math.max(0, resumeOptionCount() - 1);
+        paintActiveResume(true);
+      }
+      return;
+    }
+    case "Home":
+    case "End": {
+      if (!open) return;
+      event.preventDefault();
+      activeResumeIndex =
+        event.key === "Home" ? 0 : Math.max(0, resumeOptionCount() - 1);
+      paintActiveResume(true);
+      return;
+    }
+    case "Enter":
+    case " ": {
+      // Cancelling the native activation keeps one code path: the browser
+      // would otherwise also fire `click` on the trigger.
+      event.preventDefault();
+      if (!open) {
+        openResumePopup();
+        return;
+      }
+      const option = byId<HTMLDivElement>("resume-listbox")?.querySelectorAll<HTMLElement>(
+        '[role="option"]',
+      )[activeResumeIndex];
+      const target = option?.dataset.resumeOption;
+      if (target) selectResume(session, target);
+      return;
+    }
+    case "Escape": {
+      if (!open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeResumePopup(true);
+      return;
+    }
+    case "Tab": {
+      if (open) closeResumePopup();
+      return;
+    }
+    default:
+  }
+}
+
+function bindResumeCombobox(session: SessionDetail["session"]): void {
+  const trigger = byId<HTMLButtonElement>("resume-select");
+  const popup = byId<HTMLDivElement>("resume-listbox");
+  const combo = byId<HTMLDivElement>("resume-combobox");
+  if (!trigger || !popup || !combo) return;
+  // A fresh page render starts closed; the old element (and its state) is gone.
+  resumeOpen = false;
+  trigger.addEventListener("click", () => {
+    if (resumeOpen) closeResumePopup();
+    else openResumePopup();
+  });
+  trigger.addEventListener("keydown", (event) => onResumeKeydown(event, session));
+
+  popup.addEventListener("click", (event) => {
+    const option = (event.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    const target = option?.dataset.resumeOption;
+    if (target) selectResume(session, target);
+  });
+
+  combo.addEventListener("focusout", (event) => {
+    const next = (event as FocusEvent).relatedTarget;
+    if (next instanceof Node && combo.contains(next)) return;
+    closeResumePopup();
+  });
+
+  if (globalHandlersBound) return;
+
+  // The same document/window pair the project combobox uses: pointer and focus
+  // movement close it, and a fixed-position panel closes when anything outside
+  // the popup scrolls.
+  document.addEventListener("mousedown", (event) => {
+    if (!resumeOpen) return;
+    const target = event.target;
+    const current = byId<HTMLDivElement>("resume-combobox");
+    if (target instanceof Node && current?.contains(target)) return;
+    closeResumePopup();
+  });
+  window.addEventListener("resize", () => {
+    if (resumeOpen) positionResumePopup();
+  });
+  window.addEventListener(
+    "scroll",
+    (event) => {
+      if (!resumeOpen) return;
+      const target = event.target;
+      const current = byId<HTMLDivElement>("resume-listbox");
+      if (target instanceof Node && current?.contains(target)) return;
+      closeResumePopup();
+    },
+    { passive: true, capture: true },
+  );
 }
 
 /**
@@ -1658,6 +1913,7 @@ function renderShell(): void {
             <h2>${t.timeHeading}</h2>
             <div class="segmented range-filters" id="range-filters"></div>
           </section>
+          <section class="filter-block" id="brief-block"></section>
           <section class="filter-block" id="save-search-block" hidden>
             <h2>${t.saveThisSearch}</h2>
             <div class="save-search-row">
@@ -1713,6 +1969,31 @@ function renderShell(): void {
           </button>
         </header>
         <div class="settings-body" id="settings-body"></div>
+      </div>
+    </div>
+    <div class="settings update-modal" id="update-modal" hidden>
+      <div class="settings-panel update-panel" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+        <header class="settings-head">
+          <h2 class="settings-title" id="update-modal-title">${t.updateAvailableTitle}</h2>
+          <button class="icon-btn settings-close" id="update-modal-close" type="button" aria-label="${escapeAttr(t.settingsClose)}">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.5 5.5 9 9M14.5 5.5l-9 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </header>
+        <div class="settings-body">
+          <p class="update-modal-version">v<span id="update-modal-version"></span></p>
+          <div class="update-modal-notes" id="update-modal-notes"></div>
+          <div class="update-modal-actions">
+            <a class="update-modal-changelog" id="update-modal-changelog" href="${UPDATE_CHANGELOG_URL}" target="_blank" rel="noopener">
+              ${t.updateChangelog}
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8m0 0-3.2-3.2M12 8l-3.2 3.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <div class="update-modal-buttons">
+              <button class="settings-action" type="button" id="update-modal-install">${t.updateNow}</button>
+              <button class="text-btn" type="button" id="update-modal-later">${t.updateLater}</button>
+            </div>
+          </div>
+          <p class="settings-help" id="update-modal-note" aria-live="polite"></p>
+        </div>
       </div>
     </div>
   `;
@@ -1897,6 +2178,16 @@ function bindShell(): void {
   document.addEventListener("keydown", (event) => {
     // The settings drawer is modal: it owns Escape and Tab, and no other view
     // may take focus behind it while it is open.
+    if (updateModalOpen) {
+      // The announcement modal sits on top of everything, including settings.
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeUpdateModal();
+      } else if (event.key === "Tab") {
+        trapUpdateModalFocus(event);
+      }
+      return;
+    }
     if (settingsOpen) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -2889,28 +3180,6 @@ function settingsHtml(): string {
         <span class="settings-value">${t.shortcutFocusSearch}</span>
       </div>
     </section>
-    <section class="settings-group" aria-labelledby="settings-updates">
-      <h3 class="settings-group-title" id="settings-updates">${t.settingsUpdates}</h3>
-      <div class="settings-line">
-        <span>${t.updateCurrent}</span>
-        <span class="settings-value">v${__APP_VERSION__}</span>
-      </div>
-      <div class="settings-line">
-        <span id="update-state-label">${t.updateNotChecked}</span>
-        <span class="settings-value" id="update-state">${t.readingIndex}</span>
-      </div>
-      <p class="settings-help" id="update-notes" hidden></p>
-      <button class="settings-action" type="button" id="update-install" hidden>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m0 0 3.3-3.3M10 12 6.7 8.7M4 15.5h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>${t.updateNow}</span>
-      </button>
-      <p class="settings-help" id="update-note" aria-live="polite"></p>
-      <label class="settings-line settings-toggle">
-        <span>${t.checkUpdatesLabel}</span>
-        <input type="checkbox" id="check-updates">
-      </label>
-      <p class="settings-help">${t.hotkeyPendingRestart}</p>
-    </section>
     <section class="settings-group" aria-labelledby="settings-saved">
       <h3 class="settings-group-title" id="settings-saved">${t.settingsSaved}</h3>
       <ul class="saved-list" id="saved-list"></ul>
@@ -3104,35 +3373,156 @@ function bindSettingsBody(): void {
     if (input) input.value = DEFAULT_HOTKEY;
     void saveHotkey(DEFAULT_HOTKEY);
   });
-  bindUpdateGroup(body);
   bindSavedList(body);
 }
 
-/** Drawer-only listeners for the update group; fresh nodes on every repaint. */
-function bindUpdateGroup(body: HTMLElement): void {
-  body.querySelector("#update-install")?.addEventListener("click", () => {
-    void installUpdate();
-  });
-  const box = body.querySelector<HTMLInputElement>("#check-updates");
-  if (box) {
-    box.checked = checkUpdatesValue;
-    box.addEventListener("change", () => {
-      checkUpdatesValue = box.checked;
-      void api("/api/prefs", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ checkUpdates: box.checked }),
-      }).catch((error) => {
-        console.error("checkUpdates preference not saved", error);
-      });
-    });
+/** The changelog every update surface links to (owner's repo, main branch). */
+const UPDATE_CHANGELOG_URL =
+  "https://github.com/odinyu/session-recall/blob/main/CHANGELOG.md";
+
+/* ---------- update-available modal ---------- */
+
+let updateModalOpen = false;
+/** The check cycle (version+checkedAt) the user put off; session-scope only. */
+let updateDismissedKey: string | null = null;
+
+/** Open the announcement modal for a known-available update. */
+function openUpdateModal(): void {
+  const modal = byId<HTMLElement>("update-modal");
+  if (!modal || !updateInfo?.available) return;
+  updateModalOpen = true;
+  modal.hidden = false;
+  byId<HTMLElement>("update-modal-version")!.textContent = updateInfo.version ?? "";
+  const notes = byId<HTMLElement>("update-modal-notes");
+  if (notes) {
+    notes.textContent = updateInfo.notes ?? "";
+    notes.hidden = notes.textContent === "";
+  }
+  const install = byId<HTMLButtonElement>("update-modal-install");
+  if (install) install.disabled = false;
+  const note = byId<HTMLElement>("update-modal-note");
+  if (note) note.textContent = "";
+  byId<HTMLButtonElement>("update-modal-close")?.focus();
+}
+
+function closeUpdateModal(): void {
+  if (!updateModalOpen) return;
+  updateModalOpen = false;
+  const modal = byId<HTMLElement>("update-modal");
+  if (modal) modal.hidden = true;
+  // Any close without an install means "not now" for THIS check cycle; a new
+  // check writes a new checkedAt and re-arms the dialog.
+  updateDismissedKey = updateStateKey(updateInfo);
+}
+
+/**
+ * A check cycle is one state file: the same (version, checkedAt) pair never
+ * auto-opens twice, while a fresh check — the six-hour watcher or the app
+ * menu's ⌘U — writes a new checkedAt and re-arms the dialog.
+ */
+function updateStateKey(info: UpdateInfo | null): string | null {
+  if (!info?.version) return null;
+  return `${info.version}|${info.checkedAt ?? ""}`;
+}
+
+function announceUpdate(): void {
+  if (!updateInfo?.available || updateInfo.installing) return;
+  if (updateModalOpen || settingsOpen) return;
+  const key = updateStateKey(updateInfo);
+  if (key && key === updateDismissedKey) return;
+  openUpdateModal();
+}
+
+/**
+ * The dialog is the only update surface: read the shell's state file on boot,
+ * on window focus, and on a low-frequency timer, so a check that runs outside
+ * the page's control still surfaces here.
+ */
+async function pollUpdateAnnouncement(): Promise<void> {
+  try {
+    updateInfo = await api<UpdateInfo>("/api/update");
+  } catch {
+    return;
+  }
+  renderUpdateModalState();
+  announceUpdate();
+}
+
+function scheduleUpdatePolling(): void {
+  void pollUpdateAnnouncement();
+  window.setInterval(() => void pollUpdateAnnouncement(), 30_000);
+  window.addEventListener("focus", () => void pollUpdateAnnouncement());
+}
+
+/**
+ * Open the changelog in the system browser. The webview is served from an
+ * external http origin without `withGlobalTauri`, so `window.__TAURI__` may
+ * not exist and `window.open` is a known silent no-op there — the sanctioned
+ * path is the request file the shell polls for, written by the sidecar route.
+ * Decision order: Tauri opener global (if the shell ever injects it) →
+ * request file → plain `window.open` (a plain browser context). The anchor
+ * itself never navigates the webview.
+ */
+async function openChangelog(event: Event): Promise<void> {
+  event.preventDefault();
+  const opener = (
+    window as unknown as {
+      __TAURI?: { opener?: { openUrl?: (url: string) => void } };
+    }
+  ).__TAURI?.opener;
+  if (typeof opener?.openUrl === "function") {
+    opener.openUrl(UPDATE_CHANGELOG_URL);
+    return;
+  }
+  try {
+    await api("/api/open-changelog", { method: "POST" });
+  } catch {
+    window.open(UPDATE_CHANGELOG_URL, "_blank", "noopener");
   }
 }
 
-/* ---------- update settings ---------- */
+/** Keep the open dialog in step: installing state, or gone after a restart. */
+function renderUpdateModalState(): void {
+  if (!updateModalOpen) return;
+  const note = byId<HTMLElement>("update-modal-note");
+  const install = byId<HTMLButtonElement>("update-modal-install");
+  if (updateInfo?.installing) {
+    if (note) note.textContent = t.updateInstalling;
+    if (install) install.disabled = true;
+    return;
+  }
+  if (!updateInfo?.available) {
+    // Installed (the shell restarts) or withdrawn: nothing to announce.
+    closeUpdateModal();
+    return;
+  }
+  if (note) note.textContent = "";
+  if (install) install.disabled = false;
+}
 
-/** Injected by scripts/build.ts from package.json's version field. */
-declare const __APP_VERSION__: string;
+function bindUpdateModal(): void {
+  const modal = byId<HTMLElement>("update-modal");
+  if (!modal) return;
+  byId<HTMLButtonElement>("update-modal-close")?.addEventListener("click", closeUpdateModal);
+  // Backdrop click = put it off, same as 稍后.
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeUpdateModal();
+  });
+  byId<HTMLButtonElement>("update-modal-later")?.addEventListener("click", closeUpdateModal);
+  byId<HTMLAnchorElement>("update-modal-changelog")?.addEventListener("click", (event) => {
+    void openChangelog(event);
+  });
+  byId<HTMLButtonElement>("update-modal-install")?.addEventListener("click", () => {
+    void installUpdate("update-modal-note");
+  });
+}
+
+/** Tab must cycle inside the announcement modal while it is on top. */
+function trapUpdateModalFocus(event: KeyboardEvent): void {
+  trapFocusWithin(byId<HTMLElement>("update-modal")?.querySelector(".settings-panel") ?? null, event);
+}
+
+/* ---------- update settings ---------- */
 
 /** Mirrors `GET /api/update`; see `UpdateStatus` in src/prefs.ts. */
 interface UpdateInfo {
@@ -3160,94 +3550,24 @@ let savedSearches: SavedSearch[] | null = null;
 /** The row currently being renamed; survives drawer repaints. */
 let renamingSavedId = "";
 /** `checkUpdates` is a per-shell pref; the checkbox mirrors the server's value. */
-let checkUpdatesValue = true;
-
-async function loadUpdateStatus(): Promise<void> {
-  try {
-    updateInfo = await api<UpdateInfo>("/api/update");
-  } catch {
-    updateInfo = null;
-  }
-  renderUpdateGroup();
-}
-
-function renderUpdateGroup(): void {
-  const stateLabel = byId<HTMLElement>("update-state-label");
-  const state = byId<HTMLElement>("update-state");
-  const notes = byId<HTMLElement>("update-notes");
-  const install = byId<HTMLButtonElement>("update-install");
-  if (!stateLabel || !state || !notes || !install) return;
-  if (!updateInfo) {
-    stateLabel.textContent = t.updateCheckFailed;
-    state.textContent = "";
-    notes.hidden = true;
-    install.hidden = true;
-    return;
-  }
-  if (updateInfo.installing) {
-    stateLabel.textContent = t.updateInstalling;
-    state.textContent = "";
-    notes.hidden = true;
-    install.hidden = true;
-    return;
-  }
-  if (updateInfo.available) {
-    stateLabel.textContent = t.updateAvailable;
-    state.textContent = updateInfo.version ? `v${updateInfo.version}` : "";
-    notes.textContent = updateInfo.notes ?? "";
-    notes.hidden = notes.textContent === "";
-    install.hidden = false;
-    return;
-  }
-  install.hidden = true;
-  if (updateInfo.checkedAt === undefined) {
-    // No state file yet: the shell checks ten seconds after launch. Absence
-    // is not a failure, so this renders as a state, not an error.
-    stateLabel.textContent = t.updateNotChecked;
-    state.textContent = "";
-    notes.hidden = true;
-    return;
-  }
-  stateLabel.textContent = t.updateLatest;
-  state.textContent = "";
-  notes.textContent = updateInfo.error
-    ? updateInfo.error
-    : format(t.updateLastChecked, {
-        time: new Date(updateInfo.checkedAt).toLocaleTimeString(DATE_LOCALE[lang], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      });
-  notes.hidden = notes.textContent === "";
-}
-
 async function installUpdate(): Promise<void> {
-  const note = byId<HTMLElement>("update-note");
+  const note = byId<HTMLElement>("update-modal-note");
+  const install = byId<HTMLButtonElement>("update-modal-install");
   try {
     await api("/api/update/install", { method: "POST" });
     if (note) note.textContent = t.updateInstallRequested;
+    if (install) install.disabled = true;
     // The shell does the download itself; watch its state file flip to
     // `installing` (and then to a restart) rather than guessing.
     window.clearInterval(updatePollTimer);
-    updatePollTimer = window.setInterval(() => void loadUpdateStatus(), 2000);
-    window.setTimeout(() => window.clearInterval(updatePollTimer), 60_000);
+    updatePollTimer = window.setInterval(() => void pollUpdateAnnouncement(), 2000);
+    window.setTimeout(() => window.clearInterval(updatePollTimer), 120_000);
   } catch (error) {
     if (note) {
       note.textContent = error instanceof Error ? error.message : String(error);
     }
+    if (install) install.disabled = false;
   }
-}
-
-async function loadCheckUpdates(): Promise<void> {
-  const box = byId<HTMLInputElement>("check-updates");
-  if (!box) return;
-  try {
-    const prefs = await api<{ checkUpdates?: unknown }>("/api/prefs");
-    checkUpdatesValue = prefs.checkUpdates !== false;
-  } catch {
-    checkUpdatesValue = true;
-  }
-  box.checked = checkUpdatesValue;
 }
 
 /* ---------- saved searches ---------- */
@@ -3478,8 +3798,6 @@ function renderSettings(): void {
   body.innerHTML = settingsHtml();
   bindSettingsBody();
   void loadHotkeyStatus();
-  void loadUpdateStatus();
-  void loadCheckUpdates();
   renderSavedList();
   void loadSavedSearches();
   if (!focus) return;
@@ -3517,7 +3835,11 @@ function closeSettings(): void {
  * the content behind the backdrop.
  */
 function trapSettingsFocus(event: KeyboardEvent): void {
-  const panel = byId<HTMLElement>("settings-panel");
+  trapFocusWithin(byId<HTMLElement>("settings-panel"), event);
+}
+
+/** Shared Tab-cycling for the two modals; each panel owns its focusables. */
+function trapFocusWithin(panel: HTMLElement | null, event: KeyboardEvent): void {
   if (!panel) return;
   const focusable = Array.from(
     panel.querySelectorAll<HTMLElement>(
@@ -3963,20 +4285,11 @@ async function renderSession(
     if (turnsEl) markRenderedTerms(turnsEl, terms);
     window.scrollTo({ top: 0, behavior: "auto" });
     syncTopbarHeight();
-    const resumeSelect = content.querySelector<HTMLSelectElement>(".resume-target");
-    resumeSelect?.addEventListener("change", () => {
-      const continuation = session.continuations?.find(
-        (row) => row.targetAgent === resumeSelect.value,
-      );
-      const detail = content.querySelector<HTMLElement>("[data-resume-detail]");
-      if (continuation && detail) detail.innerHTML = continuationDetail(continuation);
-      // Each target renders its own card; warm this one and keep the button
-      // preparing until it is cached, so its first click copies.
-      prepareHandoff(session.id, resumeSelect.value);
-    });
-    // The card is part of the page's data, not a click-time fetch: loading it now
-    // is what lets `copyHandoff` write to the clipboard synchronously on click.
-    prepareHandoff(session.id, resumeSelect?.value ?? null);
+    // The combobox for "Continue in <agent>" and its initial prefetch: the
+    // picker opens/updates via bindResumeCombobox, and `prepareHandoff` warms
+    // the currently shown target exactly once per render.
+    if (session.continuations?.length) bindResumeCombobox(session);
+    prepareHandoff(session.id, handoffTargetFor(content));
     if (turnIdx !== null) {
       requestAnimationFrame(() => {
         const target = document.getElementById(
@@ -4307,11 +4620,15 @@ async function boot(): Promise<void> {
       void runSearch();
     }
   });
+  bindUpdateModal();
   state = parseHash();
   renderControls();
   syncTopbarHeight();
   await loadFacets();
   route();
+  // The shell checks for updates on its own schedule (boot + every six hours);
+  // the dialog is the only update surface, so the page follows the state file.
+  scheduleUpdatePolling();
 }
 
 void boot();

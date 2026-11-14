@@ -1370,16 +1370,94 @@ mark {
   text-transform: uppercase;
 }
 
-.resume-target {
+/* The target picker is the app's own combobox — trigger + fixed popup — styled
+   on the agent/project pickers, compacted for the action bar. */
+.resume-combobox {
+  position: relative;
   flex: none;
-  max-width: 132px;
-  padding: 2px 4px;
+}
+
+.resume-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 3px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 7px;
   background: var(--surface);
-  color: var(--muted);
+  color: var(--ink);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.resume-trigger:hover,
+.resume-trigger[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
+
+.resume-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--muted);
+}
+
+.resume-trigger[aria-expanded="true"] .resume-chevron {
+  transform: rotate(180deg);
+}
+
+.resume-popup {
+  position: fixed;
+  z-index: 40;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.resume-popup[hidden] {
+  display: none;
+}
+
+/* Row metrics match the agent picker's options. */
+.resume-option {
+  padding: 6px 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.resume-option:hover {
+  background: var(--surface-2);
+}
+
+.resume-option.is-selected {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.resume-option.is-active {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
 }
 
 .resume-detail {
@@ -2693,6 +2771,14 @@ mark {
 
 /* ---- 1.7.0: role/scope chips (their always-visible toggles are gone; saved
    searches and deep links can still narrow them, and a chip is the way back) ---- */
+/* `hidden` must win over the explicit display: an empty chip would paint as
+   a stray pill (the display override defeats the attribute otherwise). */
+/* `hidden` must always win: several components set an explicit display that
+   would otherwise defeat the attribute and paint an empty control. */
+[hidden] {
+  display: none !important;
+}
+
 .role-chip {
   display: inline-flex;
   align-items: center;
@@ -2719,4 +2805,62 @@ mark {
 /* ---- 1.7.0: brief block at the rail top ---- */
 .brief-block .brief-status {
   margin-top: 6px;
+}
+
+/* ---- update-available announcement modal ---- */
+.update-panel {
+  width: min(440px, 100%);
+}
+
+.update-modal-version {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.update-modal-notes {
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.update-modal-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.update-modal-changelog {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  width: fit-content;
+}
+
+.update-modal-changelog:hover {
+  color: var(--ink);
+}
+
+.update-modal-buttons {
+  display: grid;
+  gap: 6px;
+}
+
+.update-modal-buttons .settings-action {
+  justify-content: center;
 }

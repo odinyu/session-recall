@@ -35,11 +35,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant};
 
-use tauri::menu::Menu;
+use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
 const WINDOW_LABEL: &str = "main";
@@ -50,6 +51,12 @@ const WINDOW_TITLE: &str = "Session Recall";
 const DEEP_LINK_SCHEME: &str = "sessionrecall";
 /// Deep-linked sections that address a single record, i.e. `#/<section>/<id>`.
 const DEEP_LINK_SECTIONS: [&str; 2] = ["session", "brief"];
+/// Menu ids; the handler dispatches on them.
+const MENU_CHECK_UPDATES: &str = "check-updates";
+const MENU_CHANGELOG: &str = "view-changelog";
+/// Where `View Changelog` goes; the same file the landing page renders.
+const CHANGELOG_URL: &str =
+    "https://github.com/odinyu/session-recall/blob/main/CHANGELOG.md";
 /// The shortcut this build registers when prefs say nothing else.
 ///
 /// `Option+Space` is deliberately avoided: Raycast and Spotlight claim it on
@@ -65,6 +72,9 @@ const HOTKEY_STATE_FILE: &str = "hotkey-state.json";
 const UPDATE_STATE_FILE: &str = "update-state.json";
 /// Written by the sidecar when the user clicks "install"; the shell consumes it.
 const UPDATE_REQUEST_FILE: &str = "update-install-request.json";
+/// Written by the sidecar when the user clicks the changelog link (the webview
+/// has no IPC and `window.open` is a no-op in Tauri v2); the shell consumes it.
+const CHANGELOG_REQUEST_FILE: &str = "open-changelog-request.json";
 /// Overrides the update endpoint for one launch; what the tests and the local
 /// dry run use instead of touching GitHub.
 const UPDATE_ENDPOINT_ENV: &str = "SESSION_RECALL_UPDATE_ENDPOINT";
@@ -488,6 +498,25 @@ fn write_app_state(filename: &str, value: &serde_json::Value, what: &str) {
     }
 }
 
+/// Bring the window forward: unminimize, show, focus.
+///
+/// Shared by the hotkey summon, the deep-link navigation and the menu's
+/// check-then-summon, so all three present the window the same way.
+fn summon_main_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        eprintln!("session-recall: no window to summon");
+        return;
+    };
+    let _ = window.unminimize();
+    if let Err(error) = window.show() {
+        eprintln!("session-recall: could not show the window: {error}");
+        return;
+    }
+    if let Err(error) = window.set_focus() {
+        eprintln!("session-recall: could not focus the window: {error}");
+    }
+}
+
 /// Show and focus the window, or hide it when it is already the front window.
 ///
 /// A press that arrives before the window exists is ignored: `bootstrap` opens
@@ -506,13 +535,89 @@ fn toggle_main_window(app: &AppHandle) {
         }
         return;
     }
-    let _ = window.unminimize();
-    if let Err(error) = window.show() {
-        eprintln!("session-recall: could not show the window: {error}");
-        return;
-    }
-    if let Err(error) = window.set_focus() {
-        eprintln!("session-recall: could not focus the window: {error}");
+    summon_main_window(app);
+}
+
+/// The menu, built by hand so updates get a menu item while keeping the
+/// standard groups `Menu::default` used to provide.
+///
+/// The first submenu is macOS's application menu: About, the two update
+/// entries, the usual Hide/Show All group and Quit. The update entries work
+/// while the window is hidden — that is what makes "check, then summon"
+/// possible. After it come the groups macOS users expect in the usual order
+/// (Edit, Window, Help), all predefined items.
+fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let check_updates = MenuItemBuilder::with_id(MENU_CHECK_UPDATES, "Check for Updates…")
+        // ⌘U; ⌥⌘R is the global hotkey and must stay out of the menu.
+        .accelerator("CommandOrControl+U")
+        .build(app)?;
+    let changelog = MenuItemBuilder::with_id(MENU_CHANGELOG, "View Changelog").build(app)?;
+    let edit_menu = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let window_menu = SubmenuBuilder::new(app, "Window")
+        .minimize()
+        // `maximize` renders as "Zoom" on macOS.
+        .maximize()
+        .separator()
+        .bring_all_to_front()
+        .build()?;
+    let help_menu = SubmenuBuilder::new(app, "Help").build()?;
+    MenuBuilder::new(app)
+        .about(Some(AboutMetadata {
+            name: Some(WINDOW_TITLE.to_string()),
+            version: Some(app.package_info().version.to_string()),
+            ..Default::default()
+        }))
+        .separator()
+        .item(&check_updates)
+        .item(&changelog)
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .item(&edit_menu)
+        .item(&window_menu)
+        .item(&help_menu)
+        .build()
+}
+
+/// `Check for Updates…`: run the same check the watcher runs, then surface the
+/// result.
+///
+/// The check is network work, so it runs on its own thread and never stalls the
+/// menu. If it finds an update while the window is hidden, the window is
+/// summoned so the owner actually sees the announcement; a visible window keeps
+/// its focus untouched (the drawer shows the same state either way).
+fn check_updates_menu(app: &AppHandle) {
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        let available = run_update_check(&handle);
+        if available.is_none() {
+            return;
+        }
+        let Some(window) = handle.get_webview_window(WINDOW_LABEL) else {
+            return;
+        };
+        if !window.is_visible().unwrap_or(true) {
+            eprintln!("session-recall: summoning the window to show the update");
+            summon_main_window(&handle);
+        }
+    });
+}
+
+/// `View Changelog`: hand the URL to the OS opener (browser).
+fn open_changelog_menu(app: &AppHandle) {
+    if let Err(error) = app.opener().open_url(CHANGELOG_URL, None::<&str>) {
+        eprintln!("session-recall: could not open the changelog: {error}");
     }
 }
 
@@ -571,29 +676,39 @@ fn spawn_update_watcher(app: &AppHandle) {
     });
 }
 
-/// Check for an update, then serve install requests, forever.
+/// Check for an update, then serve the sidecar's requests, forever.
 ///
-/// There is no IPC channel between the shell and the sidecar, so the drawer's
-/// "install" button travels the same way every other cross-process fact does:
-/// the sidecar writes `update-install-request.json`, this loop consumes it,
-/// downloads the update and restarts the app into it.
+/// There is no IPC channel between the shell and the sidecar, so everything the
+/// drawer needs from the shell travels as request files in the app directory:
+/// `update-install-request.json` (download + install) and
+/// `open-changelog-request.json` (open the changelog in the system browser).
+/// The poll loop runs unconditionally — the changelog must work even when the
+/// update check is disabled by prefs — and only the checks themselves are gated.
 fn update_watcher(app: AppHandle) {
     std::thread::sleep(UPDATE_CHECK_DELAY);
-    if !prefs_check_updates() {
+    if prefs_check_updates() {
+        run_update_check(&app);
+    } else {
         eprintln!("session-recall: the update check is disabled by prefs");
-        return;
     }
-    run_update_check(&app);
     let mut since_last_check = UPDATE_POLL_INTERVAL;
     loop {
         std::thread::sleep(UPDATE_POLL_INTERVAL);
         if take_install_request() {
             install_pending_update(&app);
+        } else if take_changelog_request() {
+            eprintln!("session-recall: opening the changelog from the drawer request");
+            open_changelog_menu(&app);
         }
-        since_last_check += UPDATE_POLL_INTERVAL;
-        if since_last_check >= UPDATE_CHECK_INTERVAL {
-            since_last_check = Duration::ZERO;
-            run_update_check(&app);
+        if prefs_check_updates() {
+            since_last_check += UPDATE_POLL_INTERVAL;
+            if since_last_check >= UPDATE_CHECK_INTERVAL {
+                since_last_check = Duration::ZERO;
+                run_update_check(&app);
+            }
+        } else {
+            // Held at the threshold, so re-enabling the check runs it promptly.
+            since_last_check = UPDATE_CHECK_INTERVAL;
         }
     }
 }
@@ -611,11 +726,15 @@ fn updater_for(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, tauri_p
 }
 
 /// One check, published to `update-state.json` however it ends.
-fn run_update_check(app: &AppHandle) {
+///
+/// Returns the announced version when an update is available — the menu's
+/// check-then-summon wants to know whether there is something to show — and
+/// `None` for "up to date" and "check failed" alike (both are already recorded
+/// in the state file).
+fn run_update_check(app: &AppHandle) -> Option<String> {
     let checked_at = checked_at_now();
-    let result = updater_for(app).and_then(|updater| {
-        tauri::async_runtime::block_on(updater.check())
-    });
+    let result =
+        updater_for(app).and_then(|updater| tauri::async_runtime::block_on(updater.check()));
     match result {
         Ok(Some(update)) => {
             eprintln!(
@@ -630,15 +749,18 @@ fn run_update_check(app: &AppHandle) {
                 checked_at,
                 false,
             );
+            Some(update.version)
         }
         Ok(None) => {
             eprintln!("session-recall: no update available");
             record_update_state(false, None, None, None, checked_at, false);
+            None
         }
         Err(error) => {
             let message = format!("update check failed: {error}");
             eprintln!("session-recall: {message}");
             record_update_state(false, None, None, Some(&message), checked_at, false);
+            None
         }
     }
 }
@@ -710,7 +832,23 @@ fn record_update_state(
 
 /// Consume an install request written by the sidecar, if one is waiting.
 fn take_install_request() -> bool {
-    let Some(path) = app_dir().map(|dir| dir.join(UPDATE_REQUEST_FILE)) else {
+    take_request_file(UPDATE_REQUEST_FILE)
+}
+
+/// Consume a changelog request written by the sidecar, if one is waiting.
+///
+/// The content is ignored: the URL the shell opens is the compiled-in
+/// [`CHANGELOG_URL`], never anything a file could carry.
+fn take_changelog_request() -> bool {
+    take_request_file(CHANGELOG_REQUEST_FILE)
+}
+
+/// Remove a request file, reporting whether one was waiting.
+///
+/// A file that exists but cannot be removed is logged and reported as absent,
+/// so a stuck file can never spin the loop.
+fn take_request_file(filename: &str) -> bool {
+    let Some(path) = app_dir().map(|dir| dir.join(filename)) else {
         return false;
     };
     match std::fs::remove_file(&path) {
@@ -1076,21 +1214,29 @@ fn main() {
         // Registered even when the check is disabled: the preference only
         // governs the background check, and applies after a restart.
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // `View Changelog` and anything else that belongs in the right app.
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             app.manage(Sidecar::new());
             app.manage(Routes::new());
-            // No window is declared in tauri.conf.json, and without a menu the
-            // standard macOS shortcuts (Cmd+Q, Cmd+W) would not exist.
-            match Menu::default(app.handle()) {
+            // No window is declared in tauri.conf.json, so without a menu the
+            // standard macOS shortcuts (Cmd+Q, Cmd+W) would not exist. The
+            // hand-built menu adds the update entries to the app menu.
+            match build_app_menu(app.handle()) {
                 Ok(menu) => {
                     if let Err(error) = app.set_menu(menu) {
-                        eprintln!("session-recall: could not install the default menu: {error}");
+                        eprintln!("session-recall: could not install the menu: {error}");
                     }
                 }
                 Err(error) => {
-                    eprintln!("session-recall: could not build the default menu: {error}")
+                    eprintln!("session-recall: could not build the menu: {error}")
                 }
             }
+            app.on_menu_event(|app, event| match event.id().as_ref() {
+                MENU_CHECK_UPDATES => check_updates_menu(app),
+                MENU_CHANGELOG => open_changelog_menu(app),
+                _ => {}
+            });
             register_deep_links(app.handle());
             let handle = app.handle().clone();
             std::thread::spawn(move || bootstrap(handle));

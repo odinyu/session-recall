@@ -21,6 +21,8 @@ tauri-plugin-global-shortcut = "2"
 # In-app update check against the GitHub release's latest.json. Registration is
 # passive; the check itself only runs when prefs allow it.
 tauri-plugin-updater = "2"
+# Opens the changelog (and anything else that may need it) in the right app.
+tauri-plugin-opener = "2"
 serde_json = "1"
 
 [profile.release]
