@@ -89,6 +89,12 @@ jobs:
 
       # A GitHub Release cannot carry a directory, so each .app is archived with
       # ditto — which keeps the ad-hoc signature, ACLs and resource forks intact.
+      #
+      # One zip per architecture, under the stable (version-less) name: the
+      # landing page links to /releases/latest/download/session-recall_macos-*.zip,
+      # a path that only resolves when the newest release carries exactly those
+      # names. A second versioned copy would be the same bytes twice, so the
+      # stable name IS the record — the release page shows its tag next to it.
       - name: Package zips and checksums
         id: package
         run: |
@@ -98,8 +104,8 @@ jobs:
           intel="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Session Recall.app"
           test -d "$arm"   || { echo "expected bundle missing: $arm" >&2; exit 1; }
           test -d "$intel" || { echo "expected bundle missing: $intel" >&2; exit 1; }
-          zip_arm="session-recall_${version}_macos-arm64.zip"
-          zip_intel="session-recall_${version}_macos-intel.zip"
+          zip_arm="session-recall_macos-arm64.zip"
+          zip_intel="session-recall_macos-intel.zip"
           ditto -c -k --sequesterRsrc --keepParent "$arm" "$zip_arm"
           ditto -c -k --sequesterRsrc --keepParent "$intel" "$zip_intel"
           shasum -a 256 "$zip_arm" > "$zip_arm.sha256"
@@ -148,36 +154,18 @@ jobs:
             echo "updater_intel=$up_intel"
           } >> "$GITHUB_OUTPUT"
 
-      # The landing page links to /releases/latest/download/session-recall_macos-*.zip,
-      # a path that only resolves when the newest release carries exactly those
-      # names. Copy each versioned asset (kept as the record) to a stable alias
-      # and checksum the copy; shasum writes the same `<hash>  <name>` format.
-      - name: Create version-less download aliases
-        run: |
-          set -euo pipefail
-          cp "${{ steps.package.outputs.arm_zip }}" session-recall_macos-arm64.zip
-          cp "${{ steps.package.outputs.intel_zip }}" session-recall_macos-intel.zip
-          shasum -a 256 session-recall_macos-arm64.zip > session-recall_macos-arm64.zip.sha256
-          shasum -a 256 session-recall_macos-intel.zip > session-recall_macos-intel.zip.sha256
-          cat session-recall_macos-arm64.zip.sha256 session-recall_macos-intel.zip.sha256
-          # The alias must stay byte-identical to the asset it stands in for.
-          cmp "${{ steps.package.outputs.arm_zip }}" session-recall_macos-arm64.zip
-          cmp "${{ steps.package.outputs.intel_zip }}" session-recall_macos-intel.zip
-
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           name: Session Recall ${{ github.ref_name }}
           fail_on_unmatched_files: true
+          # Seven assets, no duplicate bytes: two zips + their checksums, the
+          # two signed updater archives latest.json points at, and latest.json.
           files: |
             ${{ steps.package.outputs.arm_zip }}
             ${{ steps.package.outputs.arm_zip }}.sha256
             ${{ steps.package.outputs.intel_zip }}
             ${{ steps.package.outputs.intel_zip }}.sha256
-            session-recall_macos-arm64.zip
-            session-recall_macos-arm64.zip.sha256
-            session-recall_macos-intel.zip
-            session-recall_macos-intel.zip.sha256
             ${{ steps.package.outputs.updater_arm }}
             ${{ steps.package.outputs.updater_intel }}
             latest.json
@@ -186,8 +174,8 @@ jobs:
 
             | Asset | What it is |
             | --- | --- |
-            | `session-recall_${{ steps.package.outputs.version }}_macos-arm64.zip` | Apple silicon (M1/M2/M3/M4…) |
-            | `session-recall_${{ steps.package.outputs.version }}_macos-intel.zip` | Intel Macs |
+            | `session-recall_macos-arm64.zip` | Apple silicon (M1/M2/M3/M4…), this release (${{ github.ref_name }}) |
+            | `session-recall_macos-intel.zip` | Intel Macs, this release (${{ github.ref_name }}) |
             | `….sha256` | SHA-256 checksum for each zip |
 
             Pick the zip that matches your Mac ( About This Mac says Apple silicon or Intel). Unzip it and move the app to `/Applications`.
@@ -198,7 +186,7 @@ jobs:
             The build is ad-hoc signed rather than notarized, so macOS quarantines it on the first launch. Clear that flag once:
 
             ```bash
-            unzip session-recall_${{ steps.package.outputs.version }}_macos-arm64.zip
+            unzip session-recall_macos-arm64.zip
             xattr -dr com.apple.quarantine "Session Recall.app"
             open "Session Recall.app"
             ```
