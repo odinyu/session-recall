@@ -14,6 +14,11 @@
 //! 4. answer `sessionrecall://` deep links — the one address that outlives the
 //!    random port — by driving the UI's own hash router,
 //! 5. own the global shortcut that summons the window from any app.
+//!
+//!    Known macOS limitation: duplicate registrations can silently co-exist on
+//!    some macOS builds — a second app (or a second copy of this one) asking for
+//!    the same combination gets no error, so `/api/hotkey` surfaces only this
+//!    app's own registration state, never who else may be listening.
 
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};

@@ -44,6 +44,13 @@ Build a double-clickable macOS `.app`:
 bash scripts/make-app.sh
 ```
 
+The packaged app registers a global shortcut, `⌥⌘R` by default, that shows or
+hides the window from any app; change it with the `hotkey` preference (`null`
+disables it) and read its state from `GET /api/hotkey`. Known macOS limitation:
+duplicate registrations can silently co-exist on some macOS builds, so another
+app (or a second copy of this one) can hold the same combination without any
+error — `/api/hotkey` reports only this app's own registration state.
+
 It builds the web UI, compiles the Bun CLI into a self-contained sidecar binary
 (~63 MB, named for the host target triple), and lets Tauri bundle both:
 

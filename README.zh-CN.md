@@ -31,6 +31,8 @@ bun run start     # 构建 UI 并服务 http://127.0.0.1:4319
 bash scripts/make-app.sh
 ```
 
+打包后的 app 会注册一个全局快捷键（默认 `⌥⌘R`），在任何应用里都能显示或隐藏窗口；可通过 `hotkey` 偏好修改（设为 `null` 即关闭），当前状态可从 `GET /api/hotkey` 读取。已知的 macOS 限制：在某些 macOS 版本上，重复注册可以静默共存——另一个应用（或本应用的第二个副本）占用同一组合键时不会报错，`/api/hotkey` 只报告本应用自己的注册状态。
+
 它会构建 Web UI，把 Bun CLI 编译成自包含的 sidecar 二进制（约 63 MB，按宿主 target triple 命名），再交给 Tauri 打包：
 
 ```text
