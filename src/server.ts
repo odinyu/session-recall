@@ -16,12 +16,13 @@ import {
   eventsForTurn,
   forgetSession,
   openDb,
+  setSessionFlag,
   splitSessionId,
   unforgetSession,
 } from "./db.ts";
-import type { IndexedDatabase } from "./db.ts";
+import type { IndexedDatabase, SessionFlag } from "./db.ts";
 import { generateHandoff } from "./handoff.ts";
-import { InvalidPrefsError, readPrefs, updatePrefs } from "./prefs.ts";
+import { InvalidPrefsError, hotkeyStatus, readPrefs, updatePrefs } from "./prefs.ts";
 import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchParams, SearchRole, SearchScope } from "./search.ts";
 import { scan } from "./scan.ts";
@@ -40,7 +41,9 @@ function parseBriefFormat(value: string | null): BriefFormat | null {
   return BRIEF_FORMATS.includes(value as BriefFormat) ? (value as BriefFormat) : null;
 }
 
-let db: IndexedDatabase | null = null;
+// The open index, set by serve(); `api` takes it as an argument so a test can
+// drive the routes against its own database.
+let openIndex: IndexedDatabase | null = null;
 let scanning = false;
 let lastReport: ScanReport | null = null;
 
@@ -67,6 +70,11 @@ function parseScope(value: string | null): SearchScope {
   return SCOPES.includes(value as SearchScope) ? (value as SearchScope) : "qa";
 }
 
+/** Query-string switch: `1` or `true` (the UI may send either) turns it on. */
+function parseBool(value: string | null): boolean {
+  return value === "1" || value === "true" || value === "yes";
+}
+
 function parseTime(value: string | null): number | null {
   if (!value) return null;
   const numeric = Number(value);
@@ -86,17 +94,19 @@ function searchParams(url: URL): SearchParams {
     scope: parseScope(url.searchParams.get("scope")),
     limit: Number(url.searchParams.get("limit") ?? 30),
     offset: Number(url.searchParams.get("offset") ?? 0),
+    starred: parseBool(url.searchParams.get("starred")),
+    includeHidden: parseBool(url.searchParams.get("includeHidden")),
   };
 }
 
 async function runScan(): Promise<ScanReport | null> {
-  if (!db || scanning) return lastReport;
+  if (!openIndex || scanning) return lastReport;
   // Another process (CLI, MCP) may be scanning; skip this cycle and keep serving.
   const lock = tryAcquireScanLock(scanLockPath(DB_PATH));
   if (!lock) return lastReport;
   scanning = true;
   try {
-    lastReport = await scan(db, undefined, {
+    lastReport = await scan(openIndex, undefined, {
       onProgress: (message) => console.log(message),
     });
     return lastReport;
@@ -109,9 +119,9 @@ async function runScan(): Promise<ScanReport | null> {
   }
 }
 
-function sessionDetail(id: string): Response {
-  if (!db) return json({ error: "index not open" }, 500);
-  const raw = getSessionDetail(db, id) as {
+function sessionDetail(index: IndexedDatabase | null, id: string): Response {
+  if (!index) return json({ error: "index not open" }, 500);
+  const raw = getSessionDetail(index, id) as {
     session: {
       id: string;
       agent: AgentId;
@@ -123,6 +133,8 @@ function sessionDetail(id: string): Response {
       turn_count: number;
       source_kind: string;
       source_path: string;
+      starred: number;
+      hidden: number;
     };
     turns: {
       idx: number;
@@ -134,7 +146,7 @@ function sessionDetail(id: string): Response {
     }[];
   } | null;
   if (!raw) return json({ error: "session not found" }, 404);
-  const counts = eventCountsFor(db, raw.session.id);
+  const counts = eventCountsFor(index, raw.session.id);
   return json({
     session: {
       id: raw.session.id,
@@ -145,6 +157,8 @@ function sessionDetail(id: string): Response {
       updatedAt: raw.session.updated_at,
       turnCount: raw.session.turn_count,
       sourceKind: raw.session.source_kind,
+      starred: raw.session.starred === 1,
+      hidden: raw.session.hidden === 1,
       continuations: AGENT_IDS.map((agent) => ({
         targetAgent: agent,
         label: AGENT_LABELS[agent],
@@ -167,7 +181,23 @@ function sessionDetail(id: string): Response {
   });
 }
 
-async function api(request: Request, url: URL): Promise<Response> {
+const FLAG_ROUTES: { suffix: string; flag: SessionFlag }[] = [
+  { suffix: "/star", flag: "starred" },
+  { suffix: "/hide", flag: "hidden" },
+];
+
+function sessionFlagRoute(
+  pathname: string,
+): { suffix: string; flag: SessionFlag } | null {
+  if (!pathname.startsWith("/api/session/")) return null;
+  return FLAG_ROUTES.find((route) => pathname.endsWith(route.suffix)) ?? null;
+}
+
+export async function api(
+  request: Request,
+  url: URL,
+  db: IndexedDatabase | null = openIndex,
+): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/search") {
     if (!db) return json({ error: "index not open" }, 500);
     return json(searchTurns(db, searchParams(url)));
@@ -208,6 +238,35 @@ async function api(request: Request, url: URL): Promise<Response> {
       lock.release();
     }
   }
+  const flagRoute = sessionFlagRoute(url.pathname);
+  if (flagRoute) {
+    if (request.method !== "POST") return json({ error: "method not allowed" }, 405);
+    if (!db) return json({ error: "index not open" }, 500);
+    const { suffix, flag } = flagRoute;
+    const rawId = decodeURIComponent(
+      url.pathname.slice("/api/session/".length, -suffix.length),
+    );
+    const target = splitSessionId(rawId);
+    if (!target) return json({ error: `invalid session id "${rawId}"` }, 400);
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid JSON body" }, 400);
+    }
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return json({ error: "expected a JSON object" }, 400);
+    }
+    const value = (body as Record<string, unknown>)[flag];
+    if (typeof value !== "boolean") {
+      return json({ error: `${flag} must be a boolean` }, 400);
+    }
+    // One-column UPDATE, so it does not need the scan lock: the scan upsert
+    // never writes these columns and cannot undo this write.
+    const outcome = setSessionFlag(db, target.agent, target.externalId, flag, value);
+    if (!outcome) return json({ error: "session not found" }, 404);
+    return json({ id: outcome.id, [flag]: outcome.value });
+  }
   if (request.method === "GET" && url.pathname.startsWith("/api/session/")) {
     const rest = url.pathname.slice("/api/session/".length);
     if (rest.endsWith("/handoff")) {
@@ -240,7 +299,7 @@ async function api(request: Request, url: URL): Promise<Response> {
       return json({ turn, events: eventsForTurn(db, id, turn) });
     }
     const id = decodeURIComponent(rest);
-    return sessionDetail(id);
+    return sessionDetail(db, id);
   }
   if (request.method === "GET" && url.pathname === "/api/facets") {
     if (!db) return json({ error: "index not open" }, 500);
@@ -343,6 +402,11 @@ async function api(request: Request, url: URL): Promise<Response> {
     }
     return json({ error: "method not allowed" }, 405);
   }
+  if (request.method === "GET" && url.pathname === "/api/hotkey") {
+    // Read-only by design: the shell registers the shortcut once at launch, so
+    // this reports what that attempt did rather than changing anything.
+    return json(hotkeyStatus());
+  }
   if (request.method === "GET" && url.pathname === "/api/status") {
     return json({
       scanning,
@@ -391,7 +455,7 @@ function staticResponse(pathname: string): Response {
 }
 
 export function serve(): void {
-  db = openDb(DB_PATH);
+  openIndex = openDb(DB_PATH);
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: PORT,
@@ -421,7 +485,7 @@ export function serve(): void {
 
   process.on("SIGINT", () => {
     server.stop();
-    db?.close();
+    openIndex?.close();
     process.exit(0);
   });
 }

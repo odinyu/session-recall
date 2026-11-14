@@ -15,6 +15,9 @@ tauri = { version = "2", features = [] }
 # Registers the `sessionrecall://` scheme so a brief's link has one stable
 # address that opens (or focuses) this app instead of a browser.
 tauri-plugin-deep-link = "2"
+# System-wide shortcut that summons the window from any app. Registered for the
+# whole app, so it also works while the window is hidden in the background.
+tauri-plugin-global-shortcut = "2"
 serde_json = "1"
 
 [profile.release]

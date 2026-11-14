@@ -16,6 +16,10 @@ export interface SearchParams {
   scope: SearchScope;
   limit: number;
   offset: number;
+  /** Only sessions the user starred. */
+  starred?: boolean;
+  /** Include sessions the user hid; hidden ones are excluded by default. */
+  includeHidden?: boolean;
 }
 
 export interface SearchHit {
@@ -44,6 +48,8 @@ export interface SearchSession {
   title: string;
   projectPath: string;
   updatedAt: number;
+  starred: boolean;
+  hidden: boolean;
   hits: SearchHit[];
   hitCount: number;
   processHits: ProcessHit[];
@@ -73,6 +79,8 @@ interface TurnRow {
   title: string;
   project_path: string;
   updated_at: number;
+  starred: number;
+  hidden: number;
   session_hits: number;
 }
 
@@ -109,8 +117,14 @@ interface Clause {
 }
 
 function baseClause(params: SearchParams): Clause {
-  const clauses = ["1 = 1"];
+  // Hidden sessions are user data that stays indexed but never surfaces in a
+  // default result; every executor (qa/process, fts/like/recent) shares this
+  // clause, so the rule cannot drift between modes.
+  const clauses = [params.includeHidden ? "1 = 1" : "s.hidden = 0"];
   const values: (string | number)[] = [];
+  if (params.starred) {
+    clauses.push("s.starred = 1");
+  }
   if (params.agents.length > 0) {
     clauses.push(`s.agent IN (${params.agents.map(() => "?").join(", ")})`);
     values.push(...params.agents);
@@ -161,6 +175,7 @@ function rowQuery(ftsTable: string | null): string {
   const rank = ftsTable ? `bm25(${ftsTable}) AS rank` : `0 AS rank`;
   return `SELECT t.id AS turnId, t.session_id, t.idx, t.ts, t.user_text, t.assistant_text,
                  s.agent, s.title, s.project_path, s.updated_at,
+                 s.starred, s.hidden,
                  0 AS session_hits, ${rank}
           FROM ${source}
           JOIN session s ON s.id = t.session_id`;
@@ -225,6 +240,8 @@ function groupRows(rows: TurnRow[], terms: string[], params: SearchParams): Sear
         title: row.title,
         projectPath: row.project_path,
         updatedAt: row.updated_at,
+        starred: row.starred === 1,
+        hidden: row.hidden === 1,
         hits: [],
         hitCount: row.session_hits,
         processHits: [],
@@ -394,6 +411,8 @@ interface ProcessRow {
   title: string;
   project_path: string;
   updated_at: number;
+  starred: number;
+  hidden: number;
   ts: number;
   rank: number;
   session_hits: number;
@@ -409,7 +428,7 @@ function processRowQuery(ftsTable: string | null): string {
   const rank = ftsTable ? `bm25(${ftsTable}) AS rank` : "0 AS rank";
   return `SELECT es.session_id, es.turn_idx, es.seq, es.name, es.input,
                  es.error_text, es.status, s.agent, s.title, s.project_path,
-                 s.updated_at,
+                 s.updated_at, s.starred, s.hidden,
                  COALESCE(NULLIF(t.ts, 0), s.updated_at) AS ts, ${rank},
                  0 AS session_hits
           FROM ${processSource(ftsTable)}
@@ -514,6 +533,8 @@ function groupProcessRows(
         title: row.title,
         projectPath: row.project_path,
         updatedAt: row.updated_at,
+        starred: row.starred === 1,
+        hidden: row.hidden === 1,
         hits: [],
         hitCount: 0,
         processHits: [],
@@ -771,6 +792,10 @@ export interface FacetResult {
   agents: { id: AgentId; sessions: number }[];
   projects: { path: string; sessions: number }[];
   total: { sessions: number; turns: number; chars: number };
+  /** Sessions the user starred; a subset of `total.sessions`. */
+  starredCount: number;
+  /** Sessions hidden from search; still part of `total.sessions`. */
+  hiddenCount: number;
   lastScanMs: number;
   lastScanTookMs: number;
   errors: { source: string; message: string; at: number }[];
@@ -790,10 +815,21 @@ export function facets(db: Database): FacetResult {
   const errors = db
     .query("SELECT source, message, at FROM scan_error ORDER BY at DESC LIMIT 20")
     .all() as { source: string; message: string; at: number }[];
+  // Facet counts describe the whole index; `hiddenCount` is how many of those
+  // sessions search leaves out by default.
+  const flags = db
+    .query(
+      `SELECT
+         (SELECT count(*) FROM session WHERE starred = 1) AS starredCount,
+         (SELECT count(*) FROM session WHERE hidden = 1) AS hiddenCount`,
+    )
+    .get() as { starredCount: number; hiddenCount: number };
   return {
     agents,
     projects,
     total: indexStats(db),
+    starredCount: flags.starredCount,
+    hiddenCount: flags.hiddenCount,
     lastScanMs: Number(getMeta(db, "last_scan_ms") ?? 0),
     lastScanTookMs: Number(getMeta(db, "last_scan_took_ms") ?? 0),
     errors,

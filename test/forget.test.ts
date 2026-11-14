@@ -323,7 +323,7 @@ test("unforget lets the next scan index the session again", async () => {
   }
 });
 
-test("opening a v4 index upgrades it to v5 without losing rows", () => {
+test("opening a v4 index upgrades it to the current schema without losing rows", () => {
   const { db: legacy, path } = freshDb();
   writeSession(legacy, fixture("legacy"));
   // A real v4 index has no marker table at all.
@@ -333,9 +333,9 @@ test("opening a v4 index upgrades it to v5 without losing rows", () => {
 
   const reopened = openDb(path);
   try {
-    expect(SCHEMA_VERSION).toBe(5);
+    expect(SCHEMA_VERSION).toBe(6);
     const row = reopened.query("PRAGMA user_version").get() as { user_version: number };
-    expect(row.user_version).toBe(5);
+    expect(row.user_version).toBe(6);
     expect(detail(reopened, "omp:legacy")).not.toBeNull();
     expect(forgottenIds(reopened).size).toBe(0);
     // The migration created the marker table, so forgetting works right away.

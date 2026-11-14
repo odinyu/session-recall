@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { localDateKey } from "../src/brief.ts";
-import { openDb, writeSession } from "../src/db.ts";
+import { openDb, setSessionFlag, writeSession } from "../src/db.ts";
+import { USAGE } from "../src/cli-search.ts";
 import type { ParsedSession } from "../src/adapters/types.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "session-recall-cli-"));
@@ -53,7 +54,30 @@ const newer: ParsedSession = {
 
 writeSession(db, older);
 writeSession(db, newer);
+// Starred only; nothing is hidden, so the unflagged assertions above still hold.
+setSessionFlag(db, "omp", "tvbox-one", "starred", true);
 db.close();
+
+/**
+ * A separate index for the hidden/starred flags: hiding a session changes what
+ * the shared fixture above returns, so this lives in its own database.
+ */
+const flagsPath = join(dir, "flags.db");
+const flagsDb = openDb(flagsPath);
+function flagSession(externalId: string, userText: string): ParsedSession {
+  return {
+    ...older,
+    externalId,
+    title: externalId,
+    sourcePath: `/tmp/${externalId}.jsonl`,
+    turns: [{ idx: 0, ts: older.startedAt, userText, assistantText: "ok" }],
+  };
+}
+writeSession(flagsDb, flagSession("visible-flag", "hiddenmarker visible"));
+writeSession(flagsDb, flagSession("hidden-flag", "hiddenmarker shielded"));
+setSessionFlag(flagsDb, "omp", "hidden-flag", "hidden", true);
+setSessionFlag(flagsDb, "omp", "hidden-flag", "starred", true);
+flagsDb.close();
 
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -151,6 +175,33 @@ test("rejects invalid arguments with exit code 2", () => {
   const missing = run([]);
   expect(missing.code).toBe(2);
   expect(missing.stderr).toContain("missing query");
+});
+
+test("--starred narrows the result set to starred sessions", () => {
+  const data = JSON.parse(run(["tvbox", "--starred", "--json"]).stdout);
+  expect(data.starred).toBe(true);
+  expect(data.results.map((row: { sessionId: string }) => row.sessionId)).toEqual([
+    "omp:tvbox-one",
+  ]);
+  // The flag pair is reported either way, so a script can tell them apart.
+  expect(data.includeHidden).toBe(false);
+});
+
+test("--include-hidden brings hidden sessions back, and composes with --starred", () => {
+  const search = (...args: string[]) =>
+    JSON.parse(
+      run(["hiddenmarker", "--json", ...args], { SESSION_RECALL_DB: flagsPath }).stdout,
+    ).results.map((row: { sessionId: string }) => row.sessionId).sort();
+
+  expect(search()).toEqual(["omp:visible-flag"]);
+  expect(search("--include-hidden")).toEqual(["omp:hidden-flag", "omp:visible-flag"]);
+  expect(search("--include-hidden", "--starred")).toEqual(["omp:hidden-flag"]);
+});
+
+test("help documents the organization flags", () => {
+  expect(USAGE).toContain("--starred");
+  expect(USAGE).toContain("--include-hidden");
+  expect(run(["--help"]).stdout).toContain("--include-hidden");
 });
 
 test("missing index gives a clear message instead of throwing", () => {

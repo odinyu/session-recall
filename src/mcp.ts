@@ -170,6 +170,16 @@ interface SearchArgs {
   from: number | null;
   to: number | null;
   limit: number;
+  starred: boolean;
+  includeHidden: boolean;
+}
+
+function booleanArg(value: unknown, name: string): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value !== "boolean") {
+    throw new ToolArgsError(`${name} must be a boolean`);
+  }
+  return value;
 }
 
 function searchArgs(raw: unknown): SearchArgs {
@@ -204,6 +214,8 @@ function searchArgs(raw: unknown): SearchArgs {
     from: timeArg(args.from, "from"),
     to: timeArg(args.to, "to"),
     limit,
+    starred: booleanArg(args.starred, "starred"),
+    includeHidden: booleanArg(args.includeHidden, "includeHidden"),
   };
 }
 
@@ -224,6 +236,8 @@ interface CompactHit {
   title: string;
   turn: number;
   deepLink: string;
+  /** Present only when the user starred the session. */
+  starred?: true;
   question?: string;
   answer?: string;
   tool?: string;
@@ -253,6 +267,8 @@ export function recallSearch(ctx: McpContext, rawArgs: unknown): ToolCallResult 
       // enough rows to fill `limit` sessions, then slice.
       limit: Math.min(5000, args.limit * 3),
       offset: 0,
+      starred: args.starred,
+      includeHidden: args.includeHidden,
     };
     const result = searchTurns(db, params);
 
@@ -268,6 +284,8 @@ export function recallSearch(ctx: McpContext, rawArgs: unknown): ToolCallResult 
         title: clipText(session.title, 120),
         turn: "idx" in turn ? turn.idx : turn.turnIdx,
         deepLink: deepLink(session.id, "idx" in turn ? turn.idx : turn.turnIdx),
+        // Kept out of the payload unless set: an agent pays for every token.
+        ...(session.starred ? { starred: true as const } : {}),
       };
       if ("idx" in turn) {
         results.push({
@@ -397,6 +415,8 @@ export function recallFacets(ctx: McpContext, rawArgs: unknown): ToolCallResult 
       indexAgeMs: age,
       refresh,
       total: result.total,
+      starredCount: result.starredCount,
+      hiddenCount: result.hiddenCount,
       lastScanMs: result.lastScanMs,
       agents: result.agents,
       projectCount: result.projects.length,
@@ -478,6 +498,16 @@ export const TOOLS = [
         from: { type: "string", description: "ISO date or epoch milliseconds, inclusive." },
         to: { type: "string", description: "ISO date or epoch milliseconds, inclusive." },
         limit: { type: "integer", minimum: 1, maximum: 50, default: 5 },
+        starred: {
+          type: "boolean",
+          default: false,
+          description: "Only sessions the user starred.",
+        },
+        includeHidden: {
+          type: "boolean",
+          default: false,
+          description: "Also search sessions the user hid; hidden ones are skipped by default.",
+        },
       },
       required: ["query"],
       additionalProperties: false,

@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS session (
   source_kind TEXT NOT NULL,
   source_path TEXT NOT NULL,
   source_fingerprint TEXT NOT NULL DEFAULT '',
+  -- User data. The scan upsert never writes these, so a rescan cannot undo them.
+  starred INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0,
   UNIQUE (agent, external_id)
 );
 
@@ -190,7 +193,7 @@ CREATE TABLE IF NOT EXISTS forgotten_session (
 );
 `;
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /**
  * Revision of the write-path redaction. It is part of the scan fingerprint, so
@@ -215,6 +218,23 @@ export function secureIndexFiles(path: string): void {
       // A missing sidecar or an exotic filesystem is not an error here.
     }
   }
+}
+
+/**
+ * Adds the v6 session flags and their indexes. A fresh install already has the
+ * columns (they are in SCHEMA), so the ALTERs are skipped when they are present;
+ * an upgraded install gets them here, and both end up with the same shape.
+ */
+function addSessionFlagColumns(db: IndexedDatabase): void {
+  const columns = db.query("PRAGMA table_info(session)").all() as { name: string }[];
+  const present = new Set(columns.map((column) => column.name));
+  for (const column of ["starred", "hidden"]) {
+    if (!present.has(column)) {
+      db.run(`ALTER TABLE session ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`);
+    }
+  }
+  db.run("CREATE INDEX IF NOT EXISTS session_starred ON session(starred)");
+  db.run("CREATE INDEX IF NOT EXISTS session_hidden ON session(hidden)");
 }
 
 export function openDb(path: string): IndexedDatabase {
@@ -299,6 +319,12 @@ export function openDb(path: string): IndexedDatabase {
       // fingerprint carries REDACTION_VERSION, so the next scan re-reads every
       // source and rewrites it through the redactor.
     }
+    if (version < 6) {
+      // v6 adds the user-owned session flags. They cannot be part of SCHEMA's
+      // index list: on an upgrade SCHEMA runs before this ALTER, and an index
+      // on a column that does not exist yet would abort the migration.
+      addSessionFlagColumns(db);
+    }
     db.run(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
   return db;
@@ -338,6 +364,9 @@ export function writeSession(db: IndexedDatabase, raw: ParsedSession): void {
   const events = limitEvents(session.events ?? []);
 
   const write = db.transaction(() => {
+    // `starred` and `hidden` are user data, so they are absent from both the
+    // insert list and the DO UPDATE clause: a rescan keeps whatever the user
+    // set, and a newly indexed session starts from the column defaults.
     db.run(
       `INSERT INTO session(
          id, agent, external_id, parent_id, project_path, title,
@@ -439,6 +468,35 @@ export function deleteSession(db: IndexedDatabase, agent: AgentId, externalId: s
     db.run("DELETE FROM session WHERE id = ?", [id]);
   });
   remove();
+}
+
+/** The two user-owned flags on a session row. */
+export type SessionFlag = "starred" | "hidden";
+
+export interface FlagUpdate {
+  id: string;
+  value: boolean;
+}
+
+/**
+ * Sets one user flag; null when the session is not indexed. The column name is
+ * chosen from the union above, never interpolated from caller input.
+ */
+export function setSessionFlag(
+  db: IndexedDatabase,
+  agent: AgentId,
+  externalId: string,
+  flag: SessionFlag,
+  value: boolean,
+): FlagUpdate | null {
+  const id = `${agent}:${externalId}`;
+  const column = flag === "starred" ? "starred" : "hidden";
+  const result = db.run(`UPDATE session SET ${column} = ? WHERE id = ?`, [
+    value ? 1 : 0,
+    id,
+  ]);
+  if (result.changes === 0) return null;
+  return { id, value };
 }
 
 /** Every id the user asked to forget; scans drop them before loading a source. */

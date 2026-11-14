@@ -6,13 +6,14 @@
 //! The window is a thin wrapper: it points a `WKWebView` at
 //! `http://127.0.0.1:<port>` served by the Bun sidecar that ships next to the
 //! main executable. All indexing, search and asset serving stays in Bun, so the
-//! Rust side owns exactly four responsibilities:
+//! Rust side owns exactly five responsibilities:
 //!
 //! 1. reserve a free loopback port,
 //! 2. spawn + supervise the sidecar (and reap it on exit),
 //! 3. open the window once the server is actually listening,
 //! 4. answer `sessionrecall://` deep links — the one address that outlives the
-//!    random port — by driving the UI's own hash router.
+//!    random port — by driving the UI's own hash router,
+//! 5. own the global shortcut that summons the window from any app.
 
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -25,6 +26,7 @@ use tauri::menu::Menu;
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 const WINDOW_LABEL: &str = "main";
 const WINDOW_TITLE: &str = "Session Recall";
@@ -34,6 +36,20 @@ const WINDOW_TITLE: &str = "Session Recall";
 const DEEP_LINK_SCHEME: &str = "sessionrecall";
 /// Deep-linked sections that address a single record, i.e. `#/<section>/<id>`.
 const DEEP_LINK_SECTIONS: [&str; 2] = ["session", "brief"];
+/// The shortcut this build registers when prefs say nothing else.
+///
+/// `Option+Space` is deliberately avoided: Raycast and Spotlight claim it on
+/// most Macs, and taking it over would break them for everyone who uses them.
+const DEFAULT_HOTKEY: &str = "Option+Command+R";
+/// Overrides the shortcut for one launch; also what the tests use.
+const HOTKEY_ENV: &str = "SESSION_RECALL_HOTKEY";
+/// Env values that mean "no shortcut" instead of a key combination.
+const DISABLED_HOTKEY_VALUES: [&str; 4] = ["", "off", "none", "false"];
+/// Where this launch records its registration outcome, for `GET /api/hotkey`.
+const HOTKEY_STATE_FILE: &str = "hotkey-state.json";
+/// Appended to every registration failure: on macOS an unapproved app is the
+/// likeliest reason, and the dialog that explains it never appears on its own.
+const HOTKEY_FAILURE_HINT: &str = "Another app may already own this shortcut, or macOS may be withholding it: allow Session Recall under System Settings → Privacy & Security → Accessibility and Input Monitoring, then restart the app.";
 /// How long we give the sidecar to start answering on its port.
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const READY_INTERVAL: Duration = Duration::from_millis(150);
@@ -241,6 +257,251 @@ fn navigate(window: &WebviewWindow, route: &str) {
     }
 }
 
+/// The directory the sidecar calls `APP_DIR` (see `src/config.ts`).
+///
+/// The shell and the sidecar are separate processes sharing `prefs.json` and
+/// the hotkey state file, so both derive the path the same way —
+/// `SESSION_RECALL_HOME` first, then the macOS Application Support location.
+fn app_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("SESSION_RECALL_HOME") {
+        return Some(PathBuf::from(dir));
+    }
+    let home = std::env::var_os("HOME").map(PathBuf::from)?;
+    Some(
+        home.join("Library")
+            .join("Application Support")
+            .join("session-recall"),
+    )
+}
+
+/// Parse `Option+Command+R` into a shortcut that can be registered.
+///
+/// Only what `isHotkey` in `src/prefs.ts` accepts gets through, so a preference
+/// the UI stores is never rejected here: at least one of Option/Alt, Command,
+/// Ctrl/Control and Shift — each at most once, all of them before the key — and
+/// one key out of `A`–`Z`, `0`–`9` or `F1`–`F12`. The string is rebuilt in a
+/// canonical order before the plugin's own parser sees it, so a spelling the
+/// plugin does not know (such as `Opt`) cannot slip through.
+fn parse_hotkey_spec(spec: &str) -> Option<Shortcut> {
+    let mut mods = Modifiers::empty();
+    let mut key: Option<String> = None;
+    for raw in spec.split('+') {
+        let token = raw.trim();
+        if token.is_empty() {
+            return None;
+        }
+        let upper = token.to_ascii_uppercase();
+        let modifier = match upper.as_str() {
+            "OPTION" | "ALT" => Some(Modifiers::ALT),
+            "COMMAND" | "CMD" => Some(Modifiers::SUPER),
+            "CONTROL" | "CTRL" => Some(Modifiers::CONTROL),
+            "SHIFT" => Some(Modifiers::SHIFT),
+            _ => None,
+        };
+        match modifier {
+            Some(bit) => {
+                // `Option+Alt` is one modifier written twice, not two modifiers.
+                if key.is_some() || mods.contains(bit) {
+                    return None;
+                }
+                mods |= bit;
+            }
+            None => {
+                if key.is_some() || !is_key_token(&upper) {
+                    return None;
+                }
+                key = Some(upper);
+            }
+        }
+    }
+    if mods.is_empty() {
+        return None;
+    }
+    let mut names: Vec<&str> = Vec::new();
+    if mods.contains(Modifiers::CONTROL) {
+        names.push("Control");
+    }
+    if mods.contains(Modifiers::ALT) {
+        names.push("Alt");
+    }
+    if mods.contains(Modifiers::SUPER) {
+        names.push("Super");
+    }
+    if mods.contains(Modifiers::SHIFT) {
+        names.push("Shift");
+    }
+    format!("{}+{}", names.join("+"), key?).parse().ok()
+}
+
+/// One key of a hotkey, in the narrow set a preference may name.
+fn is_key_token(token: &str) -> bool {
+    let bytes = token.as_bytes();
+    if bytes.len() == 1 {
+        return bytes[0].is_ascii_uppercase() || bytes[0].is_ascii_digit();
+    }
+    match token.strip_prefix('F') {
+        Some(number) => number
+            .parse::<u8>()
+            .map(|n| (1..=12).contains(&n))
+            .unwrap_or(false),
+        None => false,
+    }
+}
+
+/// The stored preference, reduced to "register this" or "disabled".
+///
+/// Mirrors `effectiveHotkey` in `src/prefs.ts`: absent or unusable means the
+/// default, `null` means the user turned the shortcut off.
+fn prefs_hotkey() -> Option<String> {
+    let Some(text) = app_dir()
+        .map(|dir| dir.join("prefs.json"))
+        .and_then(|path| std::fs::read_to_string(path).ok())
+    else {
+        return Some(DEFAULT_HOTKEY.to_string());
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Some(DEFAULT_HOTKEY.to_string());
+    };
+    match value.get("hotkey") {
+        Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(spec)) => {
+            let spec = spec.trim();
+            if parse_hotkey_spec(spec).is_some() {
+                Some(spec.to_string())
+            } else {
+                eprintln!(
+                    "session-recall: prefs.json has an unusable hotkey {spec:?}; using {DEFAULT_HOTKEY}"
+                );
+                Some(DEFAULT_HOTKEY.to_string())
+            }
+        }
+        _ => Some(DEFAULT_HOTKEY.to_string()),
+    }
+}
+
+/// The shortcut this launch should register: the environment first, then the
+/// preference, then [`DEFAULT_HOTKEY`]. `None` means "do not register one".
+fn effective_hotkey() -> Option<String> {
+    if let Some(raw) = std::env::var_os(HOTKEY_ENV) {
+        let raw = raw.to_string_lossy().trim().to_string();
+        if DISABLED_HOTKEY_VALUES.contains(&raw.to_ascii_lowercase().as_str()) {
+            return None;
+        }
+        if parse_hotkey_spec(&raw).is_some() {
+            return Some(raw);
+        }
+        eprintln!("session-recall: {HOTKEY_ENV}={raw:?} is not a usable shortcut; ignoring it");
+    }
+    prefs_hotkey()
+}
+
+/// Publish what this launch did with the shortcut, for `GET /api/hotkey`.
+///
+/// Written before the sidecar starts, so the endpoint can never observe a
+/// half-initialised state. The port identifies the launch: the packaged app
+/// reserves a new one every time, so a stale file is recognisable. Best effort
+/// throughout — a state file that cannot be written must not stop the boot.
+fn record_hotkey_state(port: u16, hotkey: Option<&str>, registered: bool, error: Option<&str>) {
+    let Some(dir) = app_dir() else {
+        eprintln!("session-recall: HOME is unset; nowhere to record the hotkey state");
+        return;
+    };
+    if let Err(failure) = std::fs::create_dir_all(&dir) {
+        eprintln!(
+            "session-recall: could not create {}: {failure}",
+            dir.display()
+        );
+        return;
+    }
+    let state = serde_json::json!({
+        "hotkey": hotkey,
+        "registered": registered,
+        "error": error,
+        "port": port,
+    });
+    let target = dir.join(HOTKEY_STATE_FILE);
+    let temp = dir.join(format!("{HOTKEY_STATE_FILE}.{}.tmp", std::process::id()));
+    let write =
+        std::fs::write(&temp, format!("{state}\n")).and_then(|()| std::fs::rename(&temp, &target));
+    if let Err(failure) = write {
+        let _ = std::fs::remove_file(&temp);
+        eprintln!(
+            "session-recall: could not write {}: {failure}",
+            target.display()
+        );
+    }
+}
+
+/// Show and focus the window, or hide it when it is already the front window.
+///
+/// A press that arrives before the window exists is ignored: `bootstrap` opens
+/// it as soon as the server listens, so the window is never more than a second
+/// away and there is nothing to summon yet.
+fn toggle_main_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
+        eprintln!("session-recall: the hotkey fired before the window existed; ignoring it");
+        return;
+    };
+    let focused = window.is_focused().unwrap_or(false);
+    let visible = window.is_visible().unwrap_or(true);
+    if visible && focused {
+        if let Err(error) = window.hide() {
+            eprintln!("session-recall: could not hide the window: {error}");
+        }
+        return;
+    }
+    let _ = window.unminimize();
+    if let Err(error) = window.show() {
+        eprintln!("session-recall: could not show the window: {error}");
+        return;
+    }
+    if let Err(error) = window.set_focus() {
+        eprintln!("session-recall: could not focus the window: {error}");
+    }
+}
+
+/// Register the summon shortcut, once per launch.
+///
+/// A `hotkey` written while the app runs therefore needs a restart to take
+/// effect (live re-registration is out of scope for 1.6.0); `/api/hotkey`
+/// reports that gap instead of pretending the new key works. Registration
+/// failures are never fatal — the window still opens, the reason is logged, and
+/// the same sentence is served to the UI.
+fn register_hotkey(app: &AppHandle, port: u16) {
+    let Some(spec) = effective_hotkey() else {
+        eprintln!("session-recall: the global shortcut is disabled");
+        record_hotkey_state(port, None, false, None);
+        return;
+    };
+    let Some(shortcut) = parse_hotkey_spec(&spec) else {
+        // `effective_hotkey` already vetted the string, so this cannot happen
+        // from a file; it keeps the two validators honest if they ever drift.
+        let error = format!("could not parse the shortcut {spec}");
+        eprintln!("session-recall: {error}");
+        record_hotkey_state(port, Some(&spec), false, Some(&error));
+        return;
+    };
+    let result = app
+        .global_shortcut()
+        .on_shortcut(shortcut, |app, _shortcut, event| {
+            // Only the press matters; the release would hide it straight again.
+            if event.state == ShortcutState::Pressed {
+                toggle_main_window(app);
+            }
+        });
+    match result {
+        Ok(()) => {
+            eprintln!("session-recall: {spec} summons the window");
+            record_hotkey_state(port, Some(&spec), true, None);
+        }
+        Err(error) => {
+            let message = format!("could not register {spec}: {error}. {HOTKEY_FAILURE_HINT}");
+            eprintln!("session-recall: {message}");
+            record_hotkey_state(port, Some(&spec), false, Some(&message));
+        }
+    }
+}
+
 /// Reserve an ephemeral loopback port by binding and immediately releasing it.
 fn free_port() -> Option<u16> {
     for _ in 0..8 {
@@ -416,6 +677,10 @@ fn bootstrap(app: AppHandle) {
         }
     };
 
+    // Before the sidecar exists: `GET /api/hotkey` then reports a settled state
+    // from its very first request.
+    register_hotkey(&app, port);
+
     let web_dist = web_dist_dir(&app);
 
     let Some(sidecar) = sidecar_path() else {
@@ -504,8 +769,29 @@ fn open_window(app: &AppHandle, port: u16) {
             }
         })
         .build();
-    if let Err(error) = result {
-        eprintln!("session-recall: failed to create the window: {error}");
+    match result {
+        Ok(window) => {
+            // Closing must not destroy the only window: the global shortcut has
+            // nothing to summon afterwards, and the window is built here rather
+            // than declared in `tauri.conf.json`, so it would not come back.
+            // Hiding keeps the app and its sidecar running, like a tray app.
+            // A quit is allowed through, or Cmd+Q would only hide the window.
+            let handle = window.clone();
+            window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    let quitting = handle
+                        .try_state::<Sidecar>()
+                        .is_some_and(|state| state.quitting());
+                    if !quitting {
+                        api.prevent_close();
+                        if let Err(error) = handle.hide() {
+                            eprintln!("session-recall: could not hide the window: {error}");
+                        }
+                    }
+                }
+            });
+        }
+        Err(error) => eprintln!("session-recall: failed to create the window: {error}"),
     }
 }
 
@@ -553,6 +839,9 @@ fn register_deep_links(app: &AppHandle) {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
+        // No shortcut is configured on the plugin itself: `register_hotkey`
+        // registers the one prefs ask for, and attaches its handler there.
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             app.manage(Sidecar::new());
             app.manage(Routes::new());
@@ -582,13 +871,29 @@ fn main() {
                 state.kill();
             }
         }
+        // A hidden window is still "the app", so clicking the dock icon has to
+        // bring it back — otherwise hiding it would look like a crash.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen {
+            has_visible_windows,
+            ..
+        } = event
+        {
+            if !has_visible_windows {
+                if let Some(window) = app_handle.get_webview_window(WINDOW_LABEL) {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        }
     });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::route_for;
+    use super::{is_key_token, parse_hotkey_spec, route_for};
     use tauri::Url;
+    use tauri_plugin_global_shortcut::{Code, Modifiers};
 
     fn route(link: &str) -> Option<String> {
         route_for(&Url::parse(link).expect("valid deep link"))
@@ -652,5 +957,71 @@ mod tests {
             route("sessionrecall://brief/2026-11-10?turn=2").as_deref(),
             Some("#/brief/2026-11-10")
         );
+    }
+
+    #[test]
+    fn parses_the_default_shortcut() {
+        let shortcut = parse_hotkey_spec("Option+Command+R").expect("the default hotkey parses");
+        assert_eq!(shortcut.mods, Modifiers::ALT | Modifiers::SUPER);
+        assert_eq!(shortcut.key, Code::KeyR);
+    }
+
+    #[test]
+    fn accepts_aliases_case_and_any_modifier_order() {
+        for spec in [
+            "option+command+r",
+            "Command+Option+R",
+            "Option+Cmd+R",
+            "Alt+Command+R",
+            "  Option + Command + R  ",
+        ] {
+            let shortcut = parse_hotkey_spec(spec).unwrap_or_else(|| panic!("{spec} should parse"));
+            assert_eq!(
+                shortcut.mods,
+                Modifiers::ALT | Modifiers::SUPER,
+                "modifiers of {spec}"
+            );
+            assert_eq!(shortcut.key, Code::KeyR, "key of {spec}");
+        }
+
+        let digits = parse_hotkey_spec("Shift+Ctrl+1").expect("a digit key parses");
+        assert_eq!(digits.mods, Modifiers::SHIFT | Modifiers::CONTROL);
+        assert_eq!(digits.key, Code::Digit1);
+
+        let f_key = parse_hotkey_spec("Control+Alt+F12").expect("an F-key parses");
+        assert_eq!(f_key.key, Code::F12);
+    }
+
+    #[test]
+    fn rejects_shortcuts_the_prefs_validator_rejects() {
+        for spec in [
+            "",
+            "R",      // a bare key would be grabbed system-wide
+            "Option", // a modifier with no key
+            "Option+",
+            "Option++R",
+            "Option+R+Shift",     // modifiers come first
+            "Option+Alt+R",       // the same modifier twice
+            "Super+R",            // not one of the four accepted names
+            "Option+Command+Rr",  // not a key
+            "Option+Command+F13", // only F1–F12
+            "Option+Command+F0",
+            "Option+Command+Return",
+        ] {
+            assert!(
+                parse_hotkey_spec(spec).is_none(),
+                "{spec:?} should be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_only_letter_digit_and_function_key_tokens() {
+        for token in ["A", "Z", "0", "9", "F", "F1", "F9", "F12"] {
+            assert!(is_key_token(token), "{token} should be a key");
+        }
+        for token in ["", "F0", "F13", "F99", "AB", "RETURN", "?", "SPACE"] {
+            assert!(!is_key_token(token), "{token} should not be a key");
+        }
     }
 }

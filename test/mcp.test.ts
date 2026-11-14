@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openDb, setMeta, writeSession } from "../src/db.ts";
+import { openDb, setMeta, setSessionFlag, writeSession } from "../src/db.ts";
 import {
   handleRpcMessage,
   recallFacets,
@@ -10,6 +10,7 @@ import {
   recallScan,
   recallSearch,
   recallSession,
+  TOOLS,
 } from "../src/mcp.ts";
 import type { McpContext, ToolCallResult } from "../src/mcp.ts";
 import type { ParsedSession } from "../src/adapters/types.ts";
@@ -66,6 +67,8 @@ const second: ParsedSession = {
 
 writeSession(db, first);
 writeSession(db, second);
+// Nothing is hidden, so every existing expectation above still sees both.
+setSessionFlag(db, "opencode", "mcp-b", "starred", true);
 setMeta(db, "last_scan_ms", String(Date.now()));
 db.close();
 
@@ -122,6 +125,33 @@ test("recall_search reports an empty result without erroring", () => {
   expect(data.results).toEqual([]);
 });
 
+test("recall_search filters by starred and only marks starred hits", () => {
+  const starred = payload(recallSearch(ctx, { query: "mcp", starred: true }));
+  expect(starred.totalSessions).toBe(1);
+  const results = starred.results as Record<string, unknown>[];
+  expect(results.map((row) => row.sessionId)).toEqual(["opencode:mcp-b"]);
+  expect(results[0]?.starred).toBe(true);
+
+  const plain = payload(recallSearch(ctx, { query: "mcp", limit: 2 }));
+  const firstHit = (plain.results as Record<string, unknown>[])[0];
+  // Unstarred hits stay compact: no `starred: false` in the payload.
+  expect(firstHit).not.toHaveProperty("starred");
+});
+
+test("recall_search accepts includeHidden and rejects non-boolean flags", () => {
+  const data = payload(recallSearch(ctx, { query: "mcp", includeHidden: true }));
+  expect(data.returned).toBe(2);
+  expect(recallSearch(ctx, { query: "mcp", starred: "yes" }).isError).toBe(true);
+  expect(recallSearch(ctx, { query: "mcp", includeHidden: 1 }).isError).toBe(true);
+});
+
+test("recall_search advertises the organization filters in its schema", () => {
+  const tool = TOOLS.find((entry) => entry.name === "recall_search");
+  const properties = tool?.inputSchema.properties as Record<string, { type: string }>;
+  expect(properties.starred?.type).toBe("boolean");
+  expect(properties.includeHidden?.type).toBe("boolean");
+});
+
 test("recall_session returns the whole session or one turn", () => {
   const whole = payload(recallSession(ctx, { sessionId: "omp:mcp-a" }));
   const turns = whole.turns as Record<string, unknown>[];
@@ -154,6 +184,8 @@ test("recall_facets lists agents and projects with counts", () => {
   const data = payload(recallFacets(ctx, {}));
   expect(typeof data.indexAgeMs).toBe("number");
   expect(data.projectCount).toBe(2);
+  expect(data.starredCount).toBe(1);
+  expect(data.hiddenCount).toBe(0);
   const agents = data.agents as { id: string; sessions: number }[];
   expect(agents.find((row) => row.id === "omp")?.sessions).toBe(1);
   expect(agents.find((row) => row.id === "opencode")?.sessions).toBe(1);
