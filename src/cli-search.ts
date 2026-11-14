@@ -248,6 +248,9 @@ export interface CliSessionJson {
   date: string;
   updatedAt: number;
   title: string;
+  /** The user's flags, so a mixed `--include-hidden` result stays readable. */
+  starred: boolean;
+  hidden: boolean;
   hits: CliHitJson[];
 }
 
@@ -314,6 +317,8 @@ export function toJsonResult(result: SearchResult, args: SearchArgs): CliSearchJ
       date: day(session.updatedAt),
       updatedAt: session.updatedAt,
       title: session.title,
+      starred: session.starred,
+      hidden: session.hidden,
       hits: [
         ...session.hits.map(qaHitJson),
         ...session.processHits.map(processHitJson),

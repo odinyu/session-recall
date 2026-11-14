@@ -791,10 +791,11 @@ export function getSessionDetail(db: Database, id: string): unknown {
 export interface FacetResult {
   agents: { id: AgentId; sessions: number }[];
   projects: { path: string; sessions: number }[];
+  /** Whole-index totals, hidden sessions included. */
   total: { sessions: number; turns: number; chars: number };
-  /** Sessions the user starred; a subset of `total.sessions`. */
+  /** Sessions the starred filter returns by default (starred and not hidden). */
   starredCount: number;
-  /** Sessions hidden from search; still part of `total.sessions`. */
+  /** Sessions hidden from search; left out of `agents`, `projects` and `starredCount`. */
   hiddenCount: number;
   lastScanMs: number;
   lastScanTookMs: number;
@@ -802,25 +803,28 @@ export interface FacetResult {
 }
 
 export function facets(db: Database): FacetResult {
+  // These feed the filter panel, so they count what a default search returns:
+  // hidden sessions are left out, and `hiddenCount` says how many there are.
   const agents = db
-    .query("SELECT agent AS id, count(*) AS sessions FROM session GROUP BY agent ORDER BY sessions DESC")
+    .query(
+      `SELECT agent AS id, count(*) AS sessions FROM session
+       WHERE hidden = 0 GROUP BY agent ORDER BY sessions DESC`,
+    )
     .all() as { id: AgentId; sessions: number }[];
   const projects = db
     .query(
       `SELECT project_path AS path, count(*) AS sessions
-       FROM session WHERE project_path <> ''
+       FROM session WHERE hidden = 0 AND project_path <> ''
        GROUP BY project_path ORDER BY sessions DESC, path ASC LIMIT 300`,
     )
     .all() as { path: string; sessions: number }[];
   const errors = db
     .query("SELECT source, message, at FROM scan_error ORDER BY at DESC LIMIT 20")
     .all() as { source: string; message: string; at: number }[];
-  // Facet counts describe the whole index; `hiddenCount` is how many of those
-  // sessions search leaves out by default.
   const flags = db
     .query(
       `SELECT
-         (SELECT count(*) FROM session WHERE starred = 1) AS starredCount,
+         (SELECT count(*) FROM session WHERE starred = 1 AND hidden = 0) AS starredCount,
          (SELECT count(*) FROM session WHERE hidden = 1) AS hiddenCount`,
     )
     .get() as { starredCount: number; hiddenCount: number };

@@ -487,7 +487,9 @@ export const TOOLS = [
     description:
       "Search past coding-agent sessions (omp, OpenCode, Cursor, Alma, Cindy) on this machine. " +
       "Returns one compact question/answer pair per session with a deep link. " +
-      "Scope qa searches prompts and answers; scope process searches tool calls and errors.",
+      "Scope qa searches prompts and answers; scope process searches tool calls and errors. " +
+      "Sessions the user hid are skipped unless includeHidden is true; starred: true " +
+      "restricts the search to the user's starred sessions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -529,7 +531,9 @@ export const TOOLS = [
   },
   {
     name: "recall_facets",
-    description: "List indexed agents and projects with session counts, plus index freshness.",
+    description:
+      "List indexed agents and projects with session counts (hidden sessions excluded), " +
+      "plus starred/hidden counts and index freshness.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
   {

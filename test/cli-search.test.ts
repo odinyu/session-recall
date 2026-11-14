@@ -188,14 +188,31 @@ test("--starred narrows the result set to starred sessions", () => {
 });
 
 test("--include-hidden brings hidden sessions back, and composes with --starred", () => {
-  const search = (...args: string[]) =>
+  interface Row {
+    sessionId: string;
+    starred: boolean;
+    hidden: boolean;
+  }
+  const rows = (...args: string[]) =>
     JSON.parse(
       run(["hiddenmarker", "--json", ...args], { SESSION_RECALL_DB: flagsPath }).stdout,
-    ).results.map((row: { sessionId: string }) => row.sessionId).sort();
+    ).results as Row[];
+  const ids = (...args: string[]) => rows(...args).map((row) => row.sessionId).sort();
 
-  expect(search()).toEqual(["omp:visible-flag"]);
-  expect(search("--include-hidden")).toEqual(["omp:hidden-flag", "omp:visible-flag"]);
-  expect(search("--include-hidden", "--starred")).toEqual(["omp:hidden-flag"]);
+  expect(ids()).toEqual(["omp:visible-flag"]);
+  expect(ids("--include-hidden")).toEqual(["omp:hidden-flag", "omp:visible-flag"]);
+  expect(ids("--include-hidden", "--starred")).toEqual(["omp:hidden-flag"]);
+
+  // A mixed result must say which row is which.
+  const mixed = rows("--include-hidden");
+  expect(mixed.find((row) => row.sessionId === "omp:hidden-flag")).toMatchObject({
+    starred: true,
+    hidden: true,
+  });
+  expect(mixed.find((row) => row.sessionId === "omp:visible-flag")).toMatchObject({
+    starred: false,
+    hidden: false,
+  });
 });
 
 test("help documents the organization flags", () => {

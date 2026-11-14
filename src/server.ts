@@ -193,6 +193,15 @@ function sessionFlagRoute(
   return FLAG_ROUTES.find((route) => pathname.endsWith(route.suffix)) ?? null;
 }
 
+/** A path segment decoded to a session id; null when the escapes are malformed. */
+function decodeIdSegment(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
 export async function api(
   request: Request,
   url: URL,
@@ -210,7 +219,10 @@ export async function api(
     if (!db) return json({ error: "index not open" }, 500);
     const forget = url.pathname.endsWith("/forget");
     const suffix = forget ? "/forget" : "/unforget";
-    const rawId = decodeURIComponent(url.pathname.slice("/api/session/".length, -suffix.length));
+    const rawId = decodeIdSegment(
+      url.pathname.slice("/api/session/".length, -suffix.length),
+    );
+    if (rawId === null) return json({ error: "invalid session id" }, 400);
     const target = splitSessionId(rawId);
     if (!target) return json({ error: `invalid session id "${rawId}"` }, 400);
     // Removing a session races the 90s background scan, which rewrites sessions
@@ -243,9 +255,10 @@ export async function api(
     if (request.method !== "POST") return json({ error: "method not allowed" }, 405);
     if (!db) return json({ error: "index not open" }, 500);
     const { suffix, flag } = flagRoute;
-    const rawId = decodeURIComponent(
+    const rawId = decodeIdSegment(
       url.pathname.slice("/api/session/".length, -suffix.length),
     );
+    if (rawId === null) return json({ error: "invalid session id" }, 400);
     const target = splitSessionId(rawId);
     if (!target) return json({ error: `invalid session id "${rawId}"` }, 400);
     let body: unknown;

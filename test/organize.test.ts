@@ -373,9 +373,14 @@ test("facets count the flags while the indexed total stays whole", () => {
   const db = organizedDb();
   try {
     const result = facets(db);
-    expect(result.starredCount).toBe(2);
+    // `star` is visible and starred, so the starred filter returns 1; `both`
+    // is starred but hidden and would not come back, so it is not counted.
+    expect(result.starredCount).toBe(1);
     expect(result.hiddenCount).toBe(2);
-    // Hiding is a view, not a delete: the rows are still indexed.
+    // Filter counts describe the default view ...
+    expect(result.agents).toEqual([{ id: "omp", sessions: 2 }]);
+    expect(result.projects).toEqual([{ path: PROJECT, sessions: 2 }]);
+    // ... while the index total still counts every row.
     expect(result.total.sessions).toBe(4);
   } finally {
     db.close();
@@ -537,6 +542,11 @@ test("flag routes reject unknown ids, bad bodies and wrong methods", async () =>
     // A path segment that is not a session id is a client error, like /forget.
     expect(
       (await callApi(db, "POST", "/api/session/nocolon/star", { starred: true })).status,
+    ).toBe(400);
+    // A malformed percent escape must be a client error, not a 500.
+    expect(
+      (await callApi(db, "POST", "/api/session/omp:%E0%A4%A/star", { starred: true }))
+        .status,
     ).toBe(400);
 
     expect((await callApi(db, "GET", "/api/session/omp:api/star")).status).toBe(405);

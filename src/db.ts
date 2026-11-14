@@ -229,8 +229,14 @@ function addSessionFlagColumns(db: IndexedDatabase): void {
   const columns = db.query("PRAGMA table_info(session)").all() as { name: string }[];
   const present = new Set(columns.map((column) => column.name));
   for (const column of ["starred", "hidden"]) {
-    if (!present.has(column)) {
+    if (present.has(column)) continue;
+    try {
       db.run(`ALTER TABLE session ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`);
+    } catch (error) {
+      // The app, the MCP server and a CLI scan can open the same v5 index at
+      // once. Both sides pass the table_info check, both ALTER, and the loser
+      // lands on an already-migrated row: that is done, not an error.
+      if (!/duplicate column name/i.test(String(error))) throw error;
     }
   }
   db.run("CREATE INDEX IF NOT EXISTS session_starred ON session(starred)");
@@ -479,8 +485,9 @@ export interface FlagUpdate {
 }
 
 /**
- * Sets one user flag; null when the session is not indexed. The column name is
- * chosen from the union above, never interpolated from caller input.
+ * Sets one user flag; null when the session is not indexed. An out-of-union
+ * flag is a programming error: mapping it to a column would silently write the
+ * wrong flag, so it throws before any SQL is built.
  */
 export function setSessionFlag(
   db: IndexedDatabase,
@@ -489,9 +496,11 @@ export function setSessionFlag(
   flag: SessionFlag,
   value: boolean,
 ): FlagUpdate | null {
+  if (flag !== "starred" && flag !== "hidden") {
+    throw new Error(`unknown session flag "${String(flag)}"`);
+  }
   const id = `${agent}:${externalId}`;
-  const column = flag === "starred" ? "starred" : "hidden";
-  const result = db.run(`UPDATE session SET ${column} = ? WHERE id = ?`, [
+  const result = db.run(`UPDATE session SET ${flag} = ? WHERE id = ?`, [
     value ? 1 : 0,
     id,
   ]);
