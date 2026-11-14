@@ -66,6 +66,8 @@ interface ResultSession {
   title: string;
   projectPath: string;
   updatedAt: number;
+  starred: boolean;
+  hidden: boolean;
   hits: Hit[];
   hitCount: number;
   processHits: ProcessHit[];
@@ -88,6 +90,8 @@ interface Facets {
   agents: { id: AgentId; sessions: number }[];
   projects: { path: string; sessions: number }[];
   total: { sessions: number; turns: number; chars: number };
+  starredCount: number;
+  hiddenCount: number;
   lastScanMs: number;
   lastScanTookMs: number;
   errors: { source: string; message: string; at: number }[];
@@ -121,6 +125,8 @@ interface SessionDetail {
     updatedAt: number;
     turnCount: number;
     sourceKind: string;
+    starred: boolean;
+    hidden: boolean;
     continuations: Continuation[];
   };
   turns: {
@@ -162,7 +168,12 @@ interface UiState {
   role: Role;
   scope: Scope;
   range: Range;
+  /** Rail view switch: default, starred only, or the hidden shelf. */
+  sessionView: SessionView;
 }
+
+const SESSION_VIEWS: SessionView[] = ["all", "starred", "hidden"];
+type SessionView = (typeof SESSION_VIEWS)[number];
 
 const AGENT_LABEL: Record<AgentId, string> = {
   omp: "omp",
@@ -562,6 +573,7 @@ function defaultState(): UiState {
     role: "all",
     scope: "qa",
     range: "all",
+    sessionView: "all",
   };
 }
 
@@ -716,6 +728,7 @@ function parseHash(): UiState {
   const role = params.get("role");
   const scope = params.get("scope");
   const range = params.get("range");
+  const view = params.get("view");
   return {
     view: "search",
     sessionId: "",
@@ -725,6 +738,7 @@ function parseHash(): UiState {
     role: role === "user" || role === "assistant" || role === "all" ? role : "all",
     scope: scope === "process" || scope === "qa" ? scope : "qa",
     range: range === "7d" || range === "30d" || range === "90d" ? range : "all",
+    sessionView: view === "starred" || view === "hidden" ? view : "all",
   };
 }
 
@@ -764,6 +778,7 @@ function syncHash(): void {
   if (state.role !== "all") params.set("role", state.role);
   if (state.scope !== "qa") params.set("scope", state.scope);
   if (state.range !== "all") params.set("range", state.range);
+  if (state.sessionView !== "all") params.set("view", state.sessionView);
   const query = params.toString();
   const hash = `#/search${query ? `?${query}` : ""}`;
   lastSearchHash = hash;
@@ -1366,6 +1381,130 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Post one session flag; the route is `/star` or `/hide`, the body keyed by the flag. */
+async function postSessionFlag(
+  id: string,
+  flag: "starred" | "hidden",
+  value: boolean,
+): Promise<void> {
+  const suffix = flag === "starred" ? "star" : "hide";
+  await api(`/api/session/${encodeURIComponent(id)}/${suffix}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ [flag]: value }),
+  });
+}
+
+/**
+ * Toggle the star in place: the button repaints itself and the facets refresh,
+ * so the rail's badge follows without leaving the page.
+ */
+async function toggleStarFromUi(button: HTMLButtonElement): Promise<void> {
+  const id = button.dataset.star ?? "";
+  if (!id || button.disabled) return;
+  button.disabled = true;
+  try {
+    const starred = !button.classList.contains("is-active");
+    await postSessionFlag(id, "starred", starred);
+    button.classList.toggle("is-active", starred);
+    button.setAttribute("aria-pressed", String(starred));
+    button.title = starred ? t.starButtonTitleActive : t.starButtonTitle;
+    const icon = button.querySelector<SVGPathElement>(".star-icon path");
+    if (icon) icon.setAttribute("fill", starred ? "currentColor" : "none");
+    // The header's meta marker flips too, so the page stays consistent without
+    // a full re-render.
+    const meta = document.querySelector(".session-page-head .session-meta");
+    if (meta) {
+      let mark = meta.querySelector<HTMLElement>(".star-mark");
+      if (starred && !mark) {
+        mark = document.createElement("span");
+        mark.className = "star-mark";
+        mark.title = t.starButton;
+        mark.setAttribute("aria-label", t.starButton);
+        mark.textContent = "★";
+        meta.prepend(mark);
+      } else if (!starred && mark) {
+        mark.remove();
+      }
+    }
+    // The rail badge lives elsewhere.
+    await loadFacets();
+  } catch (error) {
+    button.title = error instanceof Error ? error.message : String(error);
+    window.setTimeout(() => {
+      const starred = button.classList.contains("is-active");
+      button.title = starred ? t.starButtonTitleActive : t.starButtonTitle;
+    }, 2400);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/**
+ * Hide from the session page: back to the search view the user came from, with
+ * an undo in the status line — the same shape as the forget/undo flow, but the
+ * undo only flips the flag back, no scan needed.
+ */
+async function hideSessionFromUi(button: HTMLButtonElement): Promise<void> {
+  const id = button.dataset.hide ?? "";
+  if (!id || button.disabled) return;
+  const title = button.closest(".session-page-head")?.querySelector("h1")?.textContent ?? id;
+  if (!window.confirm(format(t.hideConfirm, { title }))) return;
+  button.disabled = true;
+  button.textContent = t.hideButton;
+  try {
+    await postSessionFlag(id, "hidden", true);
+    ensureSearchView();
+    const content = byId<HTMLDivElement>("content");
+    if (content) {
+      content.innerHTML = `<div class="skeleton"><span></span><span></span><span></span></div>`;
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+    await loadFacets();
+    await runSearch();
+    const status = byId<HTMLDivElement>("search-status");
+    if (status) {
+      status.textContent = "";
+      const text = document.createElement("span");
+      text.textContent = `${t.hiddenNotice} · `;
+      const undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "status-undo";
+      undo.textContent = t.undo;
+      undo.title = t.undoTitle;
+      undo.addEventListener("click", () => void unhideFromUi(undo, id));
+      status.append(text, undo);
+    }
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = t.hideFailed;
+    button.title = error instanceof Error ? error.message : String(error);
+    window.setTimeout(() => {
+      button.textContent = t.hideButton;
+      button.title = t.hideButtonTitle;
+    }, 2400);
+  }
+}
+
+/** Flip the hidden flag back and refresh what the current view shows. */
+async function unhideFromUi(button: HTMLButtonElement, id: string): Promise<void> {
+  button.disabled = true;
+  try {
+    await postSessionFlag(id, "hidden", false);
+    button.textContent = t.undone;
+    await loadFacets();
+    await runSearch();
+    const note = byId<HTMLElement>("session-hidden-note");
+    if (note) note.remove();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = t.unhideFailed;
+    button.title = error instanceof Error ? error.message : String(error);
+    const status = byId<HTMLDivElement>("search-status");
+    if (status) status.textContent = error instanceof Error ? error.message : String(error);
+  }
+}
+
 function renderShell(): void {
   const root = byId<HTMLDivElement>("app");
   if (!root) return;
@@ -1400,6 +1539,10 @@ function renderShell(): void {
               </div>
             </div>
             <div class="agent-chips" id="agent-chips"></div>
+          </section>
+          <section class="filter-block">
+            <h2>${t.sessionViewHeading}</h2>
+            <div class="segmented session-views" id="session-views" role="group" aria-label="${escapeAttr(t.sessionViewHeading)}"></div>
           </section>
           <section class="filter-block">
             <h2>${t.projectsHeading}</h2>
@@ -1518,6 +1661,17 @@ function bindShell(): void {
     void runSearch();
   });
 
+  byId<HTMLDivElement>("session-views")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-session-view]");
+    if (!button) return;
+    ensureSearchView();
+    state.sessionView = button.dataset.sessionView as SessionView;
+    syncHash();
+    renderControls();
+    closeFilters();
+    void runSearch();
+  });
+
   byId<HTMLDivElement>("scope-filters")?.addEventListener("click", (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-scope]");
     if (!button) return;
@@ -1543,6 +1697,7 @@ function bindShell(): void {
     state.agents = [];
     state.project = "";
     state.range = "all";
+    state.sessionView = "all";
     syncHash();
     renderControls();
     void runSearch();
@@ -2370,6 +2525,7 @@ const FOCUS_ATTRS = [
   "data-range",
   "data-scope",
   "data-role",
+  "data-session-view",
   "data-theme-mode",
   "data-lang",
 ];
@@ -2405,6 +2561,35 @@ function renderControls(): void {
   }
 
   renderAgentControl();
+
+  const sessionViews = byId<HTMLDivElement>("session-views");
+  if (sessionViews) {
+    // The badge counts what each view returns: the starred shelf counts sessions
+    // the starred filter shows (starred, not hidden), the hidden shelf the
+    // hidden ones — both straight from the facets endpoint.
+    const counts: Record<SessionView, string> = {
+      all: "",
+      starred:
+        facetsData && facetsData.starredCount > 0
+          ? String(facetsData.starredCount)
+          : "",
+      hidden:
+        facetsData && facetsData.hiddenCount > 0
+          ? String(facetsData.hiddenCount)
+          : "",
+    };
+    const labels: Record<SessionView, string> = {
+      all: t.viewAll,
+      starred: t.viewStarred,
+      hidden: t.viewHidden,
+    };
+    sessionViews.innerHTML = SESSION_VIEWS.map(
+      (view) =>
+        `<button class="seg${state.sessionView === view ? " is-active" : ""}" data-session-view="${view}" aria-pressed="${state.sessionView === view}">${labels[view]}${
+          counts[view] ? `<span class="seg-count">${counts[view]}</span>` : ""
+        }</button>`,
+    ).join("");
+  }
 
   renderProjectControl();
 
@@ -2563,11 +2748,218 @@ function settingsHtml(): string {
     </section>
     <section class="settings-group" aria-labelledby="settings-shortcuts">
       <h3 class="settings-group-title" id="settings-shortcuts">${t.settingsShortcuts}</h3>
-      <div class="settings-line is-disabled">
+      <div class="settings-line">
         <span>${t.shortcutGlobalWake}</span>
-        <span class="settings-badge">${t.comingSoon}</span>
+        <span class="settings-value" id="hotkey-current">${t.hotkeyLoading}</span>
+      </div>
+      <div class="settings-line" id="hotkey-state-line" hidden>
+        <span>${t.hotkeyCurrent}</span>
+        <span class="settings-value" id="hotkey-state"></span>
+      </div>
+      <p class="settings-help" id="hotkey-help" hidden></p>
+      <div class="hotkey-row">
+        <input class="hotkey-input" id="hotkey-input" type="text" autocomplete="off" spellcheck="false"
+          placeholder="${escapeAttr(t.hotkeyPlaceholder)}" aria-label="${escapeAttr(t.hotkeyInputAria)}">
+        <button class="settings-action hotkey-save" type="button" data-hotkey-save>${t.hotkeySave}</button>
+      </div>
+      <p class="settings-help" id="hotkey-note" aria-live="polite"></p>
+      <div class="hotkey-quick">
+        <button class="text-btn" type="button" data-hotkey-disable>${t.hotkeyDisable}</button>
+        <button class="text-btn" type="button" data-hotkey-reset>${t.hotkeyReset}</button>
+      </div>
+      <div class="settings-line">
+        <span>${t.shortcutInApp}</span>
+        <span class="settings-value">${t.shortcutFocusSearch}</span>
       </div>
     </section>`;
+}
+
+/* ---------- hotkey settings ---------- */
+
+/** Mirrors `GET /api/hotkey`; see `HotkeyStatus` in src/prefs.ts. */
+interface HotkeyInfo {
+  hotkey: string | null;
+  registered: boolean;
+  error?: string;
+  active?: string | null;
+}
+
+let hotkeyInfo: HotkeyInfo | null = null;
+/** What the user typed, kept across drawer repaints so a rerender keeps it. */
+let hotkeyDraft = "";
+
+/**
+ * The default is `DEFAULT_HOTKEY` in src/prefs.ts. It is spelled out here
+ * because the web bundle cannot import that module (it pulls in `node:fs`).
+ */
+const DEFAULT_HOTKEY = "Option+Command+R";
+
+const HOTKEY_MODIFIER_LABELS: Record<string, string> = {
+  ctrl: "Ctrl",
+  control: "Ctrl",
+  alt: "Option",
+  option: "Option",
+  shift: "Shift",
+  cmd: "Command",
+  command: "Command",
+};
+const HOTKEY_MODIFIER_ORDER = ["Ctrl", "Option", "Shift", "Command"];
+
+/**
+ * Client-side copy of the rules `isHotkey` enforces: at least one modifier, no
+ * modifier twice, a modifier may not follow the key, then a single key —
+ * `A`–`Z`, `0`–`9` or `F1`–`F12`. Returns the canonical spelling, or null when
+ * the input cannot be registered.
+ */
+function canonicalHotkey(raw: string): string | null {
+  const tokens = raw
+    .split("+")
+    .map((token) => token.trim())
+    .filter(Boolean);
+  if (tokens.length < 2) return null;
+  const modifiers: string[] = [];
+  let key: string | null = null;
+  for (const token of tokens) {
+    const modifier = HOTKEY_MODIFIER_LABELS[token.toLowerCase()];
+    if (modifier !== undefined) {
+      if (key !== null || modifiers.includes(modifier)) return null;
+      modifiers.push(modifier);
+      continue;
+    }
+    if (key !== null) return null;
+    const upper = token.toUpperCase();
+    const isKey =
+      upper.length === 1 ? /^[A-Z0-9]$/.test(upper) : /^F([1-9]|1[0-2])$/.test(upper);
+    if (!isKey) return null;
+    key = upper;
+  }
+  if (modifiers.length === 0 || key === null) return null;
+  return [...HOTKEY_MODIFIER_ORDER.filter((m) => modifiers.includes(m)), key].join("+");
+}
+
+/** Paint the fetched registration state into the drawer's live nodes. */
+function renderHotkeyStatus(): void {
+  const current = byId<HTMLElement>("hotkey-current");
+  const stateLine = byId<HTMLElement>("hotkey-state-line");
+  const stateNode = byId<HTMLElement>("hotkey-state");
+  const help = byId<HTMLElement>("hotkey-help");
+  if (!current || !stateLine || !stateNode || !help) return;
+  if (!hotkeyInfo) return;
+  const pending = hotkeyInfo.active !== undefined && hotkeyInfo.active !== hotkeyInfo.hotkey;
+  current.textContent = hotkeyInfo.hotkey ?? t.hotkeyNone;
+  if (pending) {
+    stateNode.textContent = t.hotkeyPendingRestart;
+    stateLine.hidden = false;
+    return;
+  }
+  if (hotkeyInfo.registered) {
+    stateNode.textContent = t.hotkeyRegistered;
+    stateLine.hidden = false;
+    help.hidden = true;
+    return;
+  }
+  stateNode.textContent = t.hotkeyNotRegistered;
+  stateLine.hidden = false;
+  const error = hotkeyInfo.error ?? "";
+  help.textContent = error.includes("not running") ? t.hotkeyNotRunning : error;
+  help.hidden = help.textContent === "";
+}
+
+async function loadHotkeyStatus(): Promise<void> {
+  try {
+    hotkeyInfo = await api<HotkeyInfo>("/api/hotkey");
+    renderHotkeyStatus();
+  } catch {
+    hotkeyInfo = null;
+  }
+}
+
+async function saveHotkey(value: string | null): Promise<void> {
+  const note = byId<HTMLElement>("hotkey-note");
+  const setNote = (text: string) => {
+    if (note) note.textContent = text;
+    window.setTimeout(() => {
+      if (note && note.textContent === text) note.textContent = "";
+    }, 2400);
+  };
+  try {
+    await api("/api/prefs", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ hotkey: value }),
+    });
+    setNote(t.hotkeySaved);
+  } catch (error) {
+    console.error("hotkey preference not saved", error);
+    setNote(t.hotkeySaveFailed);
+  }
+  await loadHotkeyStatus();
+}
+
+/** Save what the input holds; the canonical form is what gets stored. */
+async function saveHotkeyFromInput(): Promise<void> {
+  const input = byId<HTMLInputElement>("hotkey-input");
+  if (!input) return;
+  const raw = input.value.trim();
+  if (!raw) {
+    const note = byId<HTMLElement>("hotkey-note");
+    if (note) {
+      note.textContent = t.hotkeyInvalid;
+      window.setTimeout(() => {
+        if (note && note.textContent === t.hotkeyInvalid) note.textContent = "";
+      }, 2400);
+    }
+    return;
+  }
+  const canonical = canonicalHotkey(raw);
+  if (canonical === null) {
+    const note = byId<HTMLElement>("hotkey-note");
+    if (note) {
+      note.textContent = t.hotkeyInvalid;
+      window.setTimeout(() => {
+        if (note && note.textContent === t.hotkeyInvalid) note.textContent = "";
+      }, 2400);
+    }
+    input.focus();
+    return;
+  }
+  hotkeyDraft = canonical;
+  input.value = canonical;
+  await saveHotkey(canonical);
+}
+
+/** Drawer-only listeners; the body is repainted by every renderSettings call. */
+function bindSettingsBody(): void {
+  const body = byId<HTMLDivElement>("settings-body");
+  if (!body) return;
+  const input = body.querySelector<HTMLInputElement>("#hotkey-input");
+  if (input) {
+    input.value = hotkeyDraft;
+    input.addEventListener("input", () => {
+      hotkeyDraft = input.value;
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void saveHotkeyFromInput();
+      }
+    });
+  }
+  body.querySelector("[data-hotkey-save]")?.addEventListener("click", () => {
+    void saveHotkeyFromInput();
+  });
+  body.querySelector("[data-hotkey-disable]")?.addEventListener("click", () => {
+    hotkeyDraft = "";
+    const input = body.querySelector<HTMLInputElement>("#hotkey-input");
+    if (input) input.value = "";
+    void saveHotkey(null);
+  });
+  body.querySelector("[data-hotkey-reset]")?.addEventListener("click", () => {
+    hotkeyDraft = DEFAULT_HOTKEY;
+    const input = body.querySelector<HTMLInputElement>("#hotkey-input");
+    if (input) input.value = DEFAULT_HOTKEY;
+    void saveHotkey(DEFAULT_HOTKEY);
+  });
 }
 
 /** Repaints the drawer body; the open/closed state lives outside it. */
@@ -2576,6 +2968,8 @@ function renderSettings(): void {
   if (!body) return;
   const focus = focusedControlSelector();
   body.innerHTML = settingsHtml();
+  bindSettingsBody();
+  void loadHotkeyStatus();
   if (!focus) return;
   // Scoped to the drawer on purpose: `applyTheme` puts `data-theme-mode` on
   // <html> too, and a document-wide lookup would match that instead of the
@@ -2673,6 +3067,11 @@ function paramsForSearch(): string {
   params.set("role", state.role);
   params.set("scope", state.scope);
   params.set("limit", String(resultLimit));
+  // The hidden shelf is the server's `hiddenOnly`; the starred shelf reuses the
+  // default search plus its `starred` flag. The API rejects `hiddenOnly`
+  // combined with the other two flags, so neither is ever sent alongside it.
+  if (state.sessionView === "hidden") params.set("hiddenOnly", "1");
+  if (state.sessionView === "starred") params.set("starred", "1");
   if (state.range !== "all") {
     const days = state.range === "7d" ? 7 : state.range === "30d" ? 30 : 90;
     params.set("from", String(Date.now() - days * 864e5));
@@ -2689,6 +3088,7 @@ function searchCriteriaKey(): string {
     role: state.role,
     scope: state.scope,
     range: state.range,
+    sessionView: state.sessionView,
   });
 }
 
@@ -2864,6 +3264,8 @@ function sessionBlock(session: ResultSession, terms: string[]): string {
       <h2 class="session-title">${escapeHtml(session.title || t.untitledSession)}</h2>
       <div class="session-meta">
         ${agentBadge(session.agent)}
+        ${session.starred ? `<span class="star-mark" title="${escapeAttr(t.starButton)}" aria-label="${escapeAttr(t.starButton)}">★</span>` : ""}
+        ${session.hidden ? `<span class="hidden-badge">${t.hiddenBadge}</span>` : ""}
         ${showProject ? `<span class="project" title="${escapeAttr(session.projectPath)}">${escapeHtml(project)}</span><span class="dot-sep">·</span>` : ""}
         <time>${formatDate(session.updatedAt)}</time>
         ${more}
@@ -3002,6 +3404,12 @@ async function renderSession(
     const fromSearch = query
       ? `<p class="session-from-search">${format(t.fromSearch, { q: escapeHtml(query) })}<a href="${searchHash}">${t.viewSearchResults}</a></p>`
       : "";
+    // A hidden session stays reachable by deep link: hiding is a filter, not a
+    // lock, so the page renders fully and offers the way back.
+    const hiddenNote = session.hidden
+      ? `<p class="session-hidden-note" id="session-hidden-note"><span>${t.hiddenSessionNote}</span><button class="status-undo" type="button" data-unhide="${escapeAttr(session.id)}">${t.unhideButton}</button></p>`
+      : "";
+    const starred = session.starred;
     content.innerHTML = `
       <a class="back" href="${backHref}">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -3011,6 +3419,8 @@ async function renderSession(
         <h1>${escapeHtml(session.title || t.untitledSession)}</h1>
         <div class="session-meta">
           ${agentBadge(session.agent)}
+          ${starred ? `<span class="star-mark" title="${escapeAttr(t.starButton)}" aria-label="${escapeAttr(t.starButton)}">★</span>` : ""}
+          ${session.hidden ? `<span class="hidden-badge">${t.hiddenBadge}</span>` : ""}
           ${showProject ? `<span class="project" title="${escapeAttr(session.projectPath)}">${escapeHtml(project)}</span><span class="dot-sep">·</span>` : ""}
           <time>${formatDate(session.updatedAt)}</time>
           <span class="dot-sep">·</span>
@@ -3018,10 +3428,17 @@ async function renderSession(
         </div>
       </header>
       ${fromSearch}
+      ${hiddenNote}
       <div class="session-actionbar">
         ${resumeBlock(session)}
         <button class="handoff-button" type="button" data-handoff="${escapeAttr(session.id)}" title="${escapeAttr(t.handoffButtonTitle)}">${t.handoffCopy}</button>
+        <button class="star-button${starred ? " is-active" : ""}" type="button" data-star="${escapeAttr(session.id)}"
+          aria-pressed="${starred}" title="${escapeAttr(starred ? t.starButtonTitleActive : t.starButtonTitle)}">
+          <svg viewBox="0 0 20 20" aria-hidden="true" class="star-icon"><path d="M10 2.6l2.24 4.8 5.26.63-3.9 3.6 1.03 5.2L10 14.2l-4.63 2.63 1.03-5.2-3.9-3.6 5.26-.63z" fill="${starred ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+          <span>${t.starButton}</span>
+        </button>
         <button class="forget-button" type="button" data-forget="${escapeAttr(session.id)}" title="${escapeAttr(t.forgetButtonTitle)}">${t.forgetButton}</button>
+        <button class="hide-button" type="button" data-hide="${escapeAttr(session.id)}" title="${escapeAttr(t.hideButtonTitle)}">${t.hideButton}</button>
       </div>
       <div class="turns">
         ${detail.turns.map((turn) => turnBlock(turn, session.agent, terms, turnIdx, focus)).join("")}
@@ -3339,6 +3756,12 @@ async function boot(): Promise<void> {
     if (handoff) void copyHandoff(handoff);
     const forget = target.closest<HTMLButtonElement>(".forget-button");
     if (forget) void forgetSessionFromUi(forget);
+    const star = target.closest<HTMLButtonElement>(".star-button[data-star]");
+    if (star) void toggleStarFromUi(star);
+    const hide = target.closest<HTMLButtonElement>(".hide-button[data-hide]");
+    if (hide) void hideSessionFromUi(hide);
+    const unhide = target.closest<HTMLButtonElement>("[data-unhide]");
+    if (unhide instanceof HTMLButtonElement) void unhideFromUi(unhide, unhide.dataset.unhide ?? "");
     if (target.closest("[data-more]")) {
       resultLimit = Math.min(MAX_RESULT_LIMIT, resultLimit * 2);
       void runSearch();

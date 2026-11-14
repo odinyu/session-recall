@@ -2350,3 +2350,150 @@ mark {
     padding: 12px 10px 10px 16px;
   }
 }
+
+/* ---- 1.6.0: session view switch (rail) ---- */
+.session-views {
+  display: flex;
+  width: 100%;
+}
+
+.seg-count {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.seg.is-active .seg-count {
+  background: var(--surface);
+}
+
+/* ---- 1.6.0: star marker and hidden badge ---- */
+.star-mark {
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.hidden-badge {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+/* ---- 1.6.0: star and hide buttons on the session page ---- */
+.star-button,
+.hide-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.star-button .star-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.star-button:hover,
+.star-button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.star-button:focus-visible,
+.hide-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.star-button:disabled,
+.hide-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.hide-button:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---- 1.6.0: hidden-session note on a deep-linked page ---- */
+.session-hidden-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.session-hidden-note .status-undo {
+  flex: none;
+}
+
+/* ---- 1.6.0: hotkey settings ---- */
+.hotkey-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hotkey-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.hotkey-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.hotkey-save {
+  flex: none;
+  width: auto;
+  margin-top: 0;
+  justify-content: center;
+}
+
+.hotkey-quick {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.settings-help {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
