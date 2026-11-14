@@ -5,9 +5,10 @@
 [![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
 [![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
 
-A local, read-only full-text index over the coding-agent sessions on this Mac.
-Search a half-remembered Chinese phrase or a code identifier and get back the
-question, the answer, the agent, the project, and the date.
+**Total recall for all your AI agents.** A local, read-only full-text index
+over the coding-agent sessions on this Mac. Search a half-remembered Chinese
+phrase or a code identifier and get back the question, the answer, the agent,
+the project, and the date.
 
 Built for the sessions that pile up across **omp**, **pi**, **OpenCode**,
 **Cursor**, **Alma**, **Cindy**, **Claude Code**, **Codex**, **Gemini CLI**,

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
 [![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
 
-一个面向本机 coding agent 会话的本地、只读全文索引。想起半句中文或一个代码标识符，就能找回当时的提问、回答、agent、项目和日期。
+**所有会话，一搜即得。** 一个面向本机 coding agent 会话的本地、只读全文索引。想起半句中文或一个代码标识符，就能找回当时的提问、回答、agent、项目和日期。
 
 为 **omp**、**pi**、**OpenCode**、**Cursor**、**Alma**、**Cindy**、**Claude Code**、**Codex**、**Gemini CLI**、**Qwen Code**、**Kimi Code**、**Copilot CLI** 和 **Goose** 这些工具积累下来的会话而做。它从不写入 agent 自己的存储。
 

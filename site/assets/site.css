@@ -639,6 +639,16 @@ html:not(.js) .theme-btn {
   letter-spacing: -0.006em;
 }
 
+/* The owner's own tagline, under the h1. Lowercase reads as part of the
+   wordmark, not a sentence; the lede below stays prose. */
+.hero__tag {
+  margin-top: 14px;
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+}
+
 .hero__cta {
   display: flex;
   flex-wrap: wrap;
@@ -1014,10 +1024,10 @@ html:not(.js) .theme-btn {
 
 .workflows {
   display: grid;
-  /* two rows of two cards since 1.6.0 added the shortcut card: at 1440 a
-     single row of four would squeeze the long card copy into ~320px columns.
-     Rows still share a height, and the body copy starts on the same line
-     within each row. */
+  /* Two rows of two cards: at 1440 a single row of four would squeeze the long
+     card copy into ~320px columns. Rows still share a height (grid-auto-rows),
+     and 1.7.x grew the grid to three rows of two — the copy-per-turn, saved
+     searches and in-app update cards joined. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   gap: 1px;

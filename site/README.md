@@ -138,8 +138,9 @@ must carry those aliases: with `fail_on_unmatched_files: true`, a missing alias 
 release instead of leaving the site pointing at a 404.
 
 The only per-release edit is the visible version, in four places per page: the hero meta line
-(`v1.6.0 · macOS 11+ · 26.9 MB · MIT`), the footer, the FAQ answer that quotes the build
-sizes, and the `softwareVersion` field in the JSON-LD block. Find them with:
+(`v1.7.2 · macOS 11+ · 27.1 MB · MIT`), the footer, the FAQ answer that quotes the build
+sizes (27.1 MB Apple silicon, 29.8 MB Intel), and the `softwareVersion` field in the JSON-LD
+block. Find them with:
 
 ```sh
 grep -rn "1\.6\.0" site/index.html site/zh/index.html
