@@ -3,6 +3,30 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.7.2 — 2026-11-14
+
+- The sidebar now reads in the order the app is meant to be used: the scope
+  switch (Q&A / process) sits at the top of the rail, the daily/weekly report
+  block moved below the time filter, and the settings gear lives in the brand
+  row next to the wordmark. Settings itself is a centered modal now, the
+  read-only source list is gone, and so is every update control.
+- The “continue in” picker is no longer the OS-native `select`: it is a
+  custom popup with the same keyboard and accessibility behaviour as the project
+  and agent pickers, and it still starts exactly one handoff prefetch per target.
+- When a background check finds a new version the app shows a dialog with the
+  version, its release notes, a changelog link and Update now / Later — without
+  opening settings. “Later” is remembered per check, so a fresh check re-arms it,
+  and the app menu’s Check for Updates… (⌘U) summons the window when it is hidden.
+- The macOS app menu regains the standard Edit, Window and Help groups.
+- Fixed the changelog link: `window.open` is a silent no-op in the Tauri
+  webview, so the link is now handed to the shell through the request-file channel.
+- Fixed `[hidden]` being defeated by component `display` rules, which
+  painted an empty pill under the search box and left the Update now button
+  visible in the “not checked yet” state.
+- Releases now ship seven assets instead of eleven: the manual-download zips use
+  their stable, version-less names directly, so no asset is a byte-for-byte copy
+  of another.
+
 ## 1.7.1 — 2026-11-14
 
 - UI fixes from first real use: the agent combobox highlights the selected rows
