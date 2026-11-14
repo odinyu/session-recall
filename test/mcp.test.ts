@@ -150,6 +150,7 @@ test("recall_search advertises the organization filters in its schema", () => {
   const properties = tool?.inputSchema.properties as Record<string, { type: string }>;
   expect(properties.starred?.type).toBe("boolean");
   expect(properties.includeHidden?.type).toBe("boolean");
+  expect(properties.hiddenOnly?.type).toBe("boolean");
 });
 
 test("recall_search hiddenOnly returns only hidden sessions and rejects conflicts", () => {
