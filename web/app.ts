@@ -1817,10 +1817,11 @@ function renderAgentControl(): void {
   const counts = agentCounts();
 
   if (value) {
+    const count = state.agents.length;
     value.textContent =
-      state.agents.length === 0
+      count === 0
         ? t.allAgents
-        : format(t.agentsSelected, { n: state.agents.length });
+        : format(count === 1 ? t.agentSelected : t.agentsSelected, { n: count });
   }
 
   // The chips mirror the trigger: a removable chip per active agent.
