@@ -3,6 +3,18 @@
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.7.3 — 2026-11-14
+
+- The sidebar's bottom-left slot now holds the daily/weekly report controls (type
+  switch, date, Generate) instead of a second copy of the session and turn counts:
+  the topbar status line already reports those numbers, with the search timing.
+  Generating a report and opening the date picker both work from the new spot.
+- The product name is capitalized everywhere it is displayed — the rail wordmark,
+  the window title and the page title all read "Session Recall".
+- Release assets are named `Session-Recall_...` (the manual-download zips and
+  the signed updater archives), and a release still carries seven assets, with no
+  asset a byte-for-byte copy of another.
+
 ## 1.7.2 — 2026-11-14
 
 - The sidebar now reads in the order the app is meant to be used: the scope

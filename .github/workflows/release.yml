@@ -91,7 +91,7 @@ jobs:
       # ditto — which keeps the ad-hoc signature, ACLs and resource forks intact.
       #
       # One zip per architecture, under the stable (version-less) name: the
-      # landing page links to /releases/latest/download/session-recall_macos-*.zip,
+      # landing page links to /releases/latest/download/Session-Recall_macos-*.zip,
       # a path that only resolves when the newest release carries exactly those
       # names. A second versioned copy would be the same bytes twice, so the
       # stable name IS the record — the release page shows its tag next to it.
@@ -104,8 +104,8 @@ jobs:
           intel="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Session Recall.app"
           test -d "$arm"   || { echo "expected bundle missing: $arm" >&2; exit 1; }
           test -d "$intel" || { echo "expected bundle missing: $intel" >&2; exit 1; }
-          zip_arm="session-recall_macos-arm64.zip"
-          zip_intel="session-recall_macos-intel.zip"
+          zip_arm="Session-Recall_macos-arm64.zip"
+          zip_intel="Session-Recall_macos-intel.zip"
           ditto -c -k --sequesterRsrc --keepParent "$arm" "$zip_arm"
           ditto -c -k --sequesterRsrc --keepParent "$intel" "$zip_intel"
           shasum -a 256 "$zip_arm" > "$zip_arm.sha256"
@@ -126,12 +126,12 @@ jobs:
           test -f "$arm_pkg.sig"   || { echo "expected signature missing: $arm_pkg.sig" >&2; exit 1; }
           test -f "$intel_pkg" || { echo "expected updater archive missing: $intel_pkg" >&2; exit 1; }
           test -f "$intel_pkg.sig" || { echo "expected signature missing: $intel_pkg.sig" >&2; exit 1; }
-          up_arm="session-recall_${version}_macos-arm64.app.tar.gz"
-          up_intel="session-recall_${version}_macos-intel.app.tar.gz"
+          up_arm="Session-Recall_${version}_macos-arm64.app.tar.gz"
+          up_intel="Session-Recall_${version}_macos-intel.app.tar.gz"
           cp "$arm_pkg" "$up_arm"
           cp "$intel_pkg" "$up_intel"
 
-          # Release notes: the 1.7.0 changelog section, verbatim.
+          # Release notes: the changelog section for this version, verbatim.
           notes="$(awk -v ver="$version" 'index($0, "## " ver " ") { flag = 1; next } /^## / { flag = 0 } flag' CHANGELOG.md)"
 
           bun scripts/gen-latest-json.mjs \
@@ -174,8 +174,8 @@ jobs:
 
             | Asset | What it is |
             | --- | --- |
-            | `session-recall_macos-arm64.zip` | Apple silicon (M1/M2/M3/M4…), this release (${{ github.ref_name }}) |
-            | `session-recall_macos-intel.zip` | Intel Macs, this release (${{ github.ref_name }}) |
+            | `Session-Recall_macos-arm64.zip` | Apple silicon (M1/M2/M3/M4…), this release (${{ github.ref_name }}) |
+            | `Session-Recall_macos-intel.zip` | Intel Macs, this release (${{ github.ref_name }}) |
             | `….sha256` | SHA-256 checksum for each zip |
 
             Pick the zip that matches your Mac ( About This Mac says Apple silicon or Intel). Unzip it and move the app to `/Applications`.
@@ -186,7 +186,7 @@ jobs:
             The build is ad-hoc signed rather than notarized, so macOS quarantines it on the first launch. Clear that flag once:
 
             ```bash
-            unzip session-recall_macos-arm64.zip
+            unzip Session-Recall_macos-arm64.zip
             xattr -dr com.apple.quarantine "Session Recall.app"
             open "Session Recall.app"
             ```
