@@ -14,8 +14,8 @@
 # writes into a directory of its own, so the light originals are never touched
 # by a dark run:
 #
-#   light (default)  docs/screenshots/<lang>/{search-results,session-detail,process-search}.png
-#   dark             docs/screenshots/<lang>-dark/{search-results,session-detail,process-search}.png
+#   light (default)  docs/screenshots/<lang>/{search-results,session-detail,process-search,palette}.png
+#   dark             docs/screenshots/<lang>-dark/{search-results,session-detail,process-search,palette}.png
 #
 # The theme is a server-side preference, so each theme gets its own server,
 # started after `prefs.json` has been written into the temp app dir: the first
@@ -212,14 +212,19 @@ cat > "$TMP/screenshot.ts" <<'SCREENSHOT_TS_EOF'
  * Screenshot helper for scripts/capture-screenshots.sh, written into the temp
  * dir at run time and run with Bun.
  *
- * usage: bun run screenshot.ts <cdp-port> <url> <out.png> [width] [height] [ready-js]
+ * usage: bun run screenshot.ts <cdp-port> <url> <out.png> [width] [height] [ready-js] [steps-js]
  *
  * It opens a blank tab, waits for the load event, for the readiness expression
  * and for one animation frame, then captures the viewport.
+ *
+ * `steps-js` is an optional expression string to run once right after the load
+ * event (before the ready poll): it is how a view that needs interaction —
+ * like the quick-search palette, which opens on a key and searches on input —
+ * is driven before the capture.
  */
-const [portArg, url, outFile, widthArg, heightArg, readyArg] = process.argv.slice(2);
+const [portArg, url, outFile, widthArg, heightArg, readyArg, stepsArg] = process.argv.slice(2);
 if (!portArg || !url || !outFile) {
-  console.error("usage: screenshot.ts <cdp-port> <url> <out.png> [width] [height] [ready-js]");
+  console.error("usage: screenshot.ts <cdp-port> <url> <out.png> [width] [height] [ready-js] [steps-js]");
   process.exit(2);
 }
 const port = Number(portArg);
@@ -277,6 +282,15 @@ await call("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFac
 await call("Page.navigate", { url });
 
 for (let i = 0; i < 200 && !loaded; i += 1) await sleep(50);
+
+// One-off interaction before the ready poll (palette, drawer, popup, ...).
+if (stepsArg) {
+  const stepped = await evaluate(stepsArg);
+  if (stepped === false) {
+    console.error("steps expression returned false: " + stepsArg);
+    process.exit(1);
+  }
+}
 
 let matched = false;
 for (let i = 0; i < 100; i += 1) {
@@ -387,12 +401,12 @@ view_theme() { # view_theme <run-theme> <view>
   printf "%s\n" "$1"
 }
 
-shoot() { # shoot <file> <url> <ready-js>
-  local file="$1" url="$2" ready="$3"
+shoot() { # shoot <file> <url> <ready-js> [steps-js]
+  local file="$1" url="$2" ready="$3" steps="${4:-}"
   local attempt bytes
   for attempt in 1 2 3; do
     rm -f -- "$file"
-    if "$BUN" run "$TMP/screenshot.ts" "$CDP_PORT" "$url" "$file" "$WIDTH" "$HEIGHT" "$ready"; then
+    if "$BUN" run "$TMP/screenshot.ts" "$CDP_PORT" "$url" "$file" "$WIDTH" "$HEIGHT" "$ready" "$steps"; then
       bytes=0
       if [[ -f "$file" ]]; then bytes="$(wc -c < "$file")"; fi
       # A blank or browser-error page is a few kB; anything this small is a miss.
@@ -467,6 +481,24 @@ for LANG in "${LANGS[@]}"; do
     set_prefs "$(view_theme "$THEME" process-search)" "$LANG"
     shoot "$DEST/process-search.png" "$BASE/#/search?q=timeout&scope=process" \
       'document.querySelectorAll(".session-block").length > 0'
+    # 4. The quick-search palette: open it with the documented key, type the
+    #    same query and photograph the overlay with its results.
+    shoot "$DEST/palette.png" "$BASE/#/search" \
+      'document.querySelectorAll("#palette-list [role=option]").length > 0' \
+      '(async () => {
+        // Wait for boot: the keydown listener is bound during renderShell, so
+        // the palette only answers once the footer markup is on the page.
+        for (let i = 0; i < 100 && !document.getElementById("foot-note"); i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", shiftKey: true, metaKey: true, bubbles: true, cancelable: true }));
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const input = document.getElementById("palette-input");
+        if (!input) return false;
+        input.value = "reconnect";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      })()'
 
     # Nothing the server or the browser did may have added a non-fixture session.
     verify_fixture "after the shots ($THEME)"

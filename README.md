@@ -390,6 +390,10 @@ Invalid dates, weeks and formats are rejected with a 400.
   query. Turn-matched sessions still rank first; title-only sessions are
   appended, and every filter (agent, project, date range, role, starred,
   hidden) applies to them exactly as it does to content matches.
+- A **quick-search palette** opens with <kbd>⌘⇧K</kbd>, or by summoning the
+  window with the global hotkey while it is hidden. It searches the whole index
+  as you type: <kbd>↑↓</kbd> to move, <kbd>Enter</kbd> to open a session,
+  <kbd>⌘↵</kbd> to copy its deep link, <kbd>Esc</kbd> to close.
 - Two scopes, chosen beside the search box:
   - **Q&A** searches prompts and answers.
   - **Process** searches tool inputs (`path`, `command`, …), tool outputs, and

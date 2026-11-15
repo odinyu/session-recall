@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=20"></script>
-<link rel="stylesheet" href="/assets/site.css?v=20">
+<script src="/assets/theme-init.js?v=21"></script>
+<link rel="stylesheet" href="/assets/site.css?v=21">
 
 <script type="application/ld+json">
 {
@@ -46,7 +46,7 @@
   "name": "Session Recall",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS 11 or later",
-  "softwareVersion": "1.7.2",
+  "softwareVersion": "1.8.0",
   "description": "Total recall for all your AI agents. Search every session on your Mac, locally: find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Nothing is uploaded.",
   "license": "https://opensource.org/licenses/MIT",
   "codeRepository": "https://github.com/odinyu/session-recall",
@@ -143,8 +143,8 @@
         <details class="dl">
           <summary class="btn btn--ghost">All builds</summary>
           <div class="dl__menu">
-            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip">Apple silicon (.zip, 27.1 MB)</a>
-            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip">Intel (.zip, 29.8 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip">Apple silicon (.zip, 28.4 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip">Intel (.zip, 31.2 MB)</a>
             <a href="https://github.com/odinyu/session-recall/releases/latest" target="_blank" rel="noopener">Checksums</a>
             <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">All releases</a>
           </div>
@@ -153,20 +153,20 @@
 
       <p class="hero__facts"><b>13</b> agent sources · <b>1</b> index file · <b>0</b> uploads</p>
 
-      <p class="meta hero__meta">v1.7.2 · macOS 11+ · 27.1 MB · MIT</p>
+      <p class="meta hero__meta">v1.8.0 · macOS 11+ · 28.4 MB · MIT</p>
 
       <figure class="mac">
         <div class="mac__bar" aria-hidden="true">
           <i></i><i></i><i></i>
           <span class="mac__title">search results — “reconnect backoff”</span>
         </div>
-        <img class="shot shot--light" src="/assets/screenshots/en/search-results-1440.webp?v=20"
-             srcset="/assets/screenshots/en/search-results-720.webp?v=20 720w, /assets/screenshots/en/search-results-1440.webp?v=20 1440w"
+        <img class="shot shot--light" src="/assets/screenshots/en/search-results-1440.webp?v=21"
+             srcset="/assets/screenshots/en/search-results-720.webp?v=21 720w, /assets/screenshots/en/search-results-1440.webp?v=21 1440w"
              sizes="(max-width: 1200px) 94vw, 1080px"
              width="1440" height="900" fetchpriority="high" decoding="async"
              alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
-        <img class="shot shot--dark" src="/assets/screenshots/en/search-results-dark-1440.webp?v=20"
-             srcset="/assets/screenshots/en/search-results-dark-720.webp?v=20 720w, /assets/screenshots/en/search-results-dark-1440.webp?v=20 1440w"
+        <img class="shot shot--dark" src="/assets/screenshots/en/search-results-dark-1440.webp?v=21"
+             srcset="/assets/screenshots/en/search-results-dark-720.webp?v=21 720w, /assets/screenshots/en/search-results-dark-1440.webp?v=21 1440w"
              sizes="(max-width: 1200px) 94vw, 1080px"
              width="1440" height="900" decoding="async"
              alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
@@ -175,6 +175,28 @@
         <b>The actual app, over a synthetic index of demo sessions.</b>
         Type a few words you remember; every match is highlighted with the agent, project and
         date. One box searches all of your installed agents at once.
+      </p>
+
+      <figure class="mac">
+        <div class="mac__bar" aria-hidden="true">
+          <i></i><i></i><i></i>
+          <span class="mac__title">quick-search palette — “reconnect”</span>
+        </div>
+        <img class="shot shot--light" src="/assets/screenshots/en/palette-1440.webp?v=21"
+             srcset="/assets/screenshots/en/palette-720.webp?v=21 720w, /assets/screenshots/en/palette-1440.webp?v=21 1440w"
+             sizes="(max-width: 1200px) 94vw, 1080px"
+             width="1440" height="900" loading="lazy" decoding="async"
+             alt="The Session Recall quick-search palette in light theme, opened over the search results. The overlay shows the query “reconnect” with two matching sessions listed below, and the hint line ↑↓ move · Enter open · ⌘↵ copy link · Esc close.">
+        <img class="shot shot--dark" src="/assets/screenshots/en/palette-dark-1440.webp?v=21"
+             srcset="/assets/screenshots/en/palette-dark-720.webp?v=21 720w, /assets/screenshots/en/palette-dark-1440.webp?v=21 1440w"
+             sizes="(max-width: 1200px) 94vw, 1080px"
+             width="1440" height="900" loading="lazy" decoding="async"
+             alt="The Session Recall quick-search palette in dark theme, opened over the search results. The overlay shows the query “reconnect” with two matching sessions listed below, and the hint line ↑↓ move · Enter open · ⌘↵ copy link · Esc close.">
+      </figure>
+      <p class="figcap">
+        <b>Search from anywhere, instantly.</b>
+        ⌘⇧K opens a Spotlight-style overlay that searches the whole index as you type —
+        ↑↓ to move, Enter to open, ⌘↵ to copy a session's deep link, Esc to close.
       </p>
 
     </div>
@@ -333,20 +355,46 @@
       <div class="workflows">
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">01</p>
-          <h3>A report of your own work.</h3>
+          <h3>Find it by its title.</h3>
           <p class="workflow__text">
-            The app writes a <b>daily and weekly report</b> straight from the index: a
-            per-project table of sessions and turns, the questions you asked in each session,
-            and a resume command for each one, with links back into the app. Read it when you
-            try to remember what you did on Tuesday, hand it to a colleague as context, or see
-            which project ate the week. Downloadable as Markdown — and the same sessions always
-            produce the same report, because it is read out of the index, not summarised by a
-            model. An archive view keeps the past days browsable.
+            A session you renamed stays findable: <b>session titles are searched along with the
+            conversation</b>, so a phrase that appears only in the title still brings that
+            session back, marked as a <b>title match</b> in the results. No re-index needed —
+            an existing index finds title matches on the very next query.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">02</p>
+          <h3>Search from anywhere, instantly.</h3>
+          <p class="workflow__text">
+            Press <b>⌘⇧K</b>, or summon the window with the global hotkey while it is hidden,
+            and a Spotlight-style overlay opens that searches as you type — <b>↑↓</b> to move,
+            <b>Enter</b> to open a session, <b>⌘↵</b> to copy its deep link, <b>Esc</b> to
+            close. The whole index in front of you without leaving the app you are in.
+          </p>
+        </article>
+
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">03</p>
+          <h3>A report of your own work.</h3>
+          <p class="workflow__text">
+            The app writes a <b>daily, weekly and monthly report</b> straight from the index: a
+            per-project table of sessions and turns, the questions you asked in each session,
+            and a resume command for each one, with links back into the app. Read it when you
+            try to remember what you did on Tuesday, hand it to a colleague as context, or see
+            which project ate the week. Weekly and monthly reports <b>compare themselves with
+            the period before</b> — sessions, turns, active projects, per-agent share and the
+            biggest movers — and add rankings of your top projects, agents and busiest
+            hours. Downloadable as Markdown, and it can write them on a local schedule if you
+            want them waiting for you. The same sessions always produce the same report,
+            because it is read out of the index, not summarised by a model. An archive view
+            keeps the past days browsable.
+          </p>
+        </article>
+
+        <article class="workflow">
+          <p class="workflow__n" aria-hidden="true">04</p>
           <h3>Sessions that move between agents.</h3>
           <p class="workflow__text">
             Find the session in the agent that did the work, then continue it somewhere else:
@@ -359,7 +407,7 @@
         </article>
 
         <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">03</p>
+          <p class="workflow__n" aria-hidden="true">05</p>
           <h3>Keep the good ones, clear the noise.</h3>
           <p class="workflow__text">
             <b>Star</b> a session and it sits one click away under the sidebar's Starred view —
@@ -372,7 +420,7 @@
         </article>
 
         <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">04</p>
+          <p class="workflow__n" aria-hidden="true">06</p>
           <h3>Copy the answer, skip the noise.</h3>
           <p class="workflow__text">
             Every turn carries <b>copy question</b>, <b>copy answer</b> and <b>copy Q&amp;A</b>,
@@ -382,7 +430,7 @@
         </article>
 
         <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">05</p>
+          <p class="workflow__n" aria-hidden="true">07</p>
           <h3>Summon it from anywhere.</h3>
           <p class="workflow__text">
             A global shortcut, <b>⌥⌘R</b> by default, brings the window up over whatever you
@@ -392,7 +440,7 @@
         </article>
 
         <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">06</p>
+          <p class="workflow__n" aria-hidden="true">08</p>
           <h3>Updates without the download ritual.</h3>
           <p class="workflow__text">
             When a new version exists, the app tells you: a dialog shows the version, its
@@ -418,7 +466,7 @@
             <div>
               <h3>Download, unzip, drag to Applications.</h3>
               <p>
-                The Apple silicon and Intel builds are the same app. Once unzipped it is about 71 MB and
+                The Apple silicon and Intel builds are the same app. Once unzipped it is about 75 MB and
                 carries its own runtime, so there is nothing to install first.
               </p>
             </div>
@@ -552,7 +600,7 @@ bun run mcp</code></pre>
         <details>
           <summary>Apple silicon or Intel?</summary>
           <div class="a">
-            The Apple silicon build is 27.1 MB and the Intel build is 29.8 MB. Both are v1.7.2 and
+            The Apple silicon build is 28.4 MB and the Intel build is 31.2 MB. Both are v1.8.0 and
             both need macOS 11 or later. If you are not sure which Mac you have, open the Apple menu
             and choose “About This Mac”.
           </div>
@@ -623,8 +671,8 @@ bun run mcp</code></pre>
         <details class="dl">
           <summary class="btn btn--ghost">All builds</summary>
           <div class="dl__menu">
-            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip">Apple silicon (.zip, 27.1 MB)</a>
-            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip">Intel (.zip, 29.8 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip">Apple silicon (.zip, 28.4 MB)</a>
+            <a href="https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip">Intel (.zip, 31.2 MB)</a>
             <a href="https://github.com/odinyu/session-recall/releases/latest" target="_blank" rel="noopener">Checksums</a>
             <a href="https://github.com/odinyu/session-recall/releases" target="_blank" rel="noopener">All releases</a>
           </div>
@@ -661,7 +709,7 @@ bun run mcp</code></pre>
       <span>MIT licensed.</span>
       <span>Not affiliated with the agents it indexes.</span>
       <span>Built by odinyu.</span>
-      <span class="foot__mono">v1.7.2</span>
+      <span class="foot__mono">v1.8.0</span>
     </div>
   </div>
 </footer>
@@ -670,6 +718,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=20" defer></script>
+<script src="/assets/site.js?v=21" defer></script>
 </body>
 </html>
