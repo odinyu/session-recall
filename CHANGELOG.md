@@ -1,5 +1,9 @@
 # Changelog
 
+This is the **developer-facing** record: every functional change, fix and
+refactor. The short text users see in the app's update dialog lives in
+`RELEASE-NOTES.md`, matched by version.
+
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 

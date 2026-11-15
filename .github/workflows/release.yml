@@ -131,8 +131,14 @@ jobs:
           cp "$arm_pkg" "$up_arm"
           cp "$intel_pkg" "$up_intel"
 
-          # Release notes: the changelog section for this version, verbatim.
-          notes="$(awk -v ver="$version" 'index($0, "## " ver " ") { flag = 1; next } /^## / { flag = 0 } flag' CHANGELOG.md)"
+          # Notes users see: the section for this version from RELEASE-NOTES.md,
+          # in its own words. CHANGELOG.md stays the developer-facing record of
+          # every change and is deliberately NOT what the update dialog shows.
+          notes="$(awk -v ver="$version" 'index($0, "## " ver " ") { flag = 1; next } /^## / { flag = 0 } flag' RELEASE-NOTES.md)"
+          if [ -z "${notes//[[:space:]]/}" ]; then
+            echo "RELEASE-NOTES.md has no section for $version — add one (one or two user-facing lines) and re-run" >&2
+            exit 1
+          fi
 
           bun scripts/gen-latest-json.mjs \
             --version "$version" \
@@ -152,6 +158,9 @@ jobs:
             echo "intel_checksum=$(cut -d' ' -f1 < "$zip_intel.sha256")"
             echo "updater_arm=$up_arm"
             echo "updater_intel=$up_intel"
+            echo "notes<<RELEASE_NOTES_EOF"
+            printf '%s\n' "$notes"
+            echo "RELEASE_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Publish release
@@ -171,6 +180,10 @@ jobs:
             latest.json
           body: |
             macOS app for tag `${{ github.ref_name }}` — one single-architecture bundle per slice, ad-hoc signed, **not notarized**.
+
+            **本次更新 / What's new**
+
+            ${{ steps.package.outputs.notes }}
 
             | Asset | What it is |
             | --- | --- |
