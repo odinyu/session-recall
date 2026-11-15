@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Session Recall — search every coding agent session on your Mac</title>
-<meta name="description" content="One local index for all thirteen coding agents on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Read-only, no account, MIT.">
+<title>Session Recall — total recall for all your AI agents, on your Mac</title>
+<meta name="description" content="Search every session your AI agents ever had — locally, on your Mac. Find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Nothing is uploaded; read-only; MIT.">
 
 <link rel="canonical" href="https://070801.top/">
 <link rel="alternate" hreflang="en" href="https://070801.top/">
@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=19"></script>
-<link rel="stylesheet" href="/assets/site.css?v=19">
+<script src="/assets/theme-init.js?v=20"></script>
+<link rel="stylesheet" href="/assets/site.css?v=20">
 
 <script type="application/ld+json">
 {
@@ -47,7 +47,7 @@
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS 11 or later",
   "softwareVersion": "1.7.2",
-  "description": "Total recall for all your AI agents. One local index over thirteen agents on your Mac: find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it.",
+  "description": "Total recall for all your AI agents. Search every session on your Mac, locally: find the half-remembered phrase, open the exact turn, and resume in the agent that wrote it. Nothing is uploaded.",
   "license": "https://opensource.org/licenses/MIT",
   "codeRepository": "https://github.com/odinyu/session-recall",
   "downloadUrl": "https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip",
@@ -72,9 +72,9 @@
     </a>
 
     <nav class="nav" aria-label="Sections">
+      <a href="#trust">Privacy</a>
       <a href="#how">How it works</a>
-      <a href="#screenshots">Screenshots</a>
-      <a href="#workflow">Beyond search</a>
+      <a href="#workflow">What you get</a>
       <a href="#install">Install</a>
       <a href="#mcp">For agents</a>
       <a href="#faq">Questions</a>
@@ -115,13 +115,14 @@
     <div class="wrap">
       <p class="eyebrow hero__eyebrow">Local-first · Read-only · macOS</p>
 
-      <h1><span class="h1__kicker">Thirteen coding agents, one local index.</span>Find that <span class="hl">session</span> again.</h1>
+      <h1><span class="h1__kicker">Every session your AI agents ever had, on this Mac.</span>Find that <span class="hl">conversation</span> again.</h1>
       <p class="hero__tag">total recall for all your AI agents</p>
 
       <p class="hero__lede">
-        Type the few words you still remember and Session Recall opens the exact turn, resume
-        command attached, ready to hand back to your agent. The answer was never lost. It has
-        been on this Mac the whole time.
+        You already had the conversation — Session Recall makes sure you can find it again.
+        Type the few words you still remember and it opens the exact turn, resume command
+        attached, ready to hand back to your agent. Everything runs on your Mac, against the
+        history your agents already wrote.
       </p>
 
       <div class="hero__cta">
@@ -152,28 +153,28 @@
           <i></i><i></i><i></i>
           <span class="mac__title">search results — “reconnect backoff”</span>
         </div>
-        <img class="shot shot--light" src="/assets/screenshots/en/search-results-1440.webp?v=19"
-             srcset="/assets/screenshots/en/search-results-720.webp?v=19 720w, /assets/screenshots/en/search-results-1440.webp?v=19 1440w"
+        <img class="shot shot--light" src="/assets/screenshots/en/search-results-1440.webp?v=20"
+             srcset="/assets/screenshots/en/search-results-720.webp?v=20 720w, /assets/screenshots/en/search-results-1440.webp?v=20 1440w"
              sizes="(max-width: 1200px) 94vw, 1080px"
              width="1440" height="900" fetchpriority="high" decoding="async"
              alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
-        <img class="shot shot--dark" src="/assets/screenshots/en/search-results-dark-1440.webp?v=19"
-             srcset="/assets/screenshots/en/search-results-dark-720.webp?v=19 720w, /assets/screenshots/en/search-results-dark-1440.webp?v=19 1440w"
+        <img class="shot shot--dark" src="/assets/screenshots/en/search-results-dark-1440.webp?v=20"
+             srcset="/assets/screenshots/en/search-results-dark-720.webp?v=20 720w, /assets/screenshots/en/search-results-dark-1440.webp?v=20 1440w"
              sizes="(max-width: 1200px) 94vw, 1080px"
              width="1440" height="900" decoding="async"
              alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
       </figure>
       <p class="figcap">
-        <b>Actual app UI over a synthetic index of demo sessions.</b>
-        The query “reconnect backoff” returns 2 sessions and 5 turns in 1.2 ms, every matched term
-        highlighted. The rebuilt sidebar puts the Q&amp;A/process switch on top, the agent and
-        project pickers are custom comboboxes, and settings is a centered modal.
+        <b>The actual app, over a synthetic index of demo sessions.</b>
+        Type a few words you remember; every match is highlighted with the agent, project and
+        date. One box searches all of your installed agents at once.
       </p>
 
       <ul class="hero__assure">
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No account</li>
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No telemetry</li>
-        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Never writes to agent storage</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Works out of the box</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Search runs on your Mac</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No account, no analytics, no telemetry — your sessions are never uploaded</li>
+        <li><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3.2 8.6l3.1 3.1 6.5-7.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Read-only: your agent files are untouched</li>
       </ul>
     </div>
   </section>
@@ -200,16 +201,15 @@
     </div>
   </section>
 
-  <!-- ===================== How it works ===================== -->
-  <section class="section" aria-labelledby="how-h">
+  <!-- ===================== Trust ===================== -->
+  <section class="section" aria-labelledby="trust-h">
     <div class="wrap">
-      <span class="anchor" id="how" aria-hidden="true"></span>
-      <p class="eyebrow">How it works</p>
-      <h2 class="h2" id="how-h">Thirteen agents, one index.</h2>
+      <span class="anchor" id="trust" aria-hidden="true"></span>
+      <p class="eyebrow">Why you can trust it</p>
+      <h2 class="h2" id="trust-h">Your Mac does the work. Your files stay yours.</h2>
       <p class="lede">
-        The unit is the turn: the question you asked and the answer you got. Tool calls, shell
-        commands and errors get a second scope of their own. Both land in one SQLite file you own,
-        that you can move, back up or delete.
+        The promises are short, so they are written as things you can check. Every statement
+        below describes how the app is actually built.
       </p>
 
       <div class="features">
@@ -217,36 +217,13 @@
           <div class="feature__ico" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"/><path d="M15.6 15.6 20.5 20.5"/></svg>
           </div>
-          <h3>Search the words you remember.</h3>
+          <h3>Search runs on your Mac.</h3>
           <p>
-            Three half-remembered words are usually enough. Full text over prompts and answers,
-            built on SQLite FTS5: a trigram tokenizer so Chinese phrases, substrings and code
-            identifiers all match, and porter for English. Put an exact phrase in quotes; several
-            terms must all match.
-          </p>
-        </article>
-
-        <article class="feature">
-          <div class="feature__ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.4" width="18" height="15.2" rx="2.6"/><path d="M7.6 10.1 10.2 12.7 7.6 15.3"/><path d="M12.8 15.3h4"/></svg>
-          </div>
-          <h3>Search the run, not just the reply.</h3>
-          <p>
-            Sometimes the answer is not what you need; the failure is. The process scope searches
-            tool calls, shell commands, stdout and stderr, and the error lines pulled out of them.
-            Reasoning is excluded, so results stay about what actually ran.
-          </p>
-        </article>
-
-        <article class="feature">
-          <div class="feature__ico" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="7.9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.2v2.4M12 19.4v2.4M2.2 12h2.4M19.4 12h2.4"/></svg>
-          </div>
-          <h3>Land on the exact turn.</h3>
-          <p>
-            Open a result and you are exactly where you were, terms still highlighted. Each hit
-            deep-links to <code>sessionrecall://session/&lt;id&gt;?turn=N</code>, and the session page
-            carries the resume command and a copyable handoff card.
+            No account, no analytics, no telemetry — your sessions are never uploaded. Search
+            and the reports run in a local process against a local index file, one SQLite
+            database under <code>~/Library/Application Support/session-recall/</code>. You can
+            watch that file, move it or delete it; the app rebuilds it from your agent history
+            and nothing else.
           </p>
         </article>
 
@@ -254,76 +231,89 @@
           <div class="feature__ico" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.1 19 6v6.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6z"/><path d="M9.2 12.2l2 2 3.7-4"/></svg>
           </div>
-          <h3>Read-only by design.</h3>
+          <h3>Your agent files are never touched.</h3>
           <p>
-            Your agent history is not a database to be edited. Agent stores are opened read-only and
-            never written to, and the index is a separate file you can throw away. No sync, no
-            account, nothing leaving the Mac.
+            The app opens the session files your agents wrote in order to index them, and it
+            never writes to, moves or deletes them. Starring and hiding change only its own
+            index. Forget removes a session from that index — the original transcript in the
+            agent's own storage stays exactly where it was.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9.5 12 4l9.5 5.5"/><path d="M4.5 11v6.5M12 15.5v4M19.5 11v6.5"/></svg>
+          </div>
+          <h3>Nothing to sign up for.</h3>
+          <p>
+            No account, no analytics, no telemetry — your sessions are never uploaded. There is
+            no identity in the app at all: no login, no profile, no data tied to you. Delete it
+            and the only trace left is the index file, which you can delete too.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5h9.5L19 9v10.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-15z"/><path d="M14 4.5V9h4.5"/><path d="M8.2 13.4l2.1 2.1 4-4.2"/></svg>
+          </div>
+          <h3>Works out of the box.</h3>
+          <p>
+            Install and open it — no account, no API key, no config file, no cloud service.
+            It indexes the history your agents already wrote on this Mac, so the first search
+            works immediately. The only setup step on a fresh copy is one terminal command to
+            clear the macOS quarantine flag (step 2 of the install below).
           </p>
         </article>
       </div>
     </div>
   </section>
 
-  <!-- ===================== Screenshots ===================== -->
-  <section class="section" aria-labelledby="shots-h">
+  <!-- ===================== How it works ===================== -->
+  <section class="section" aria-labelledby="how-h">
     <div class="wrap">
-      <span class="anchor" id="screenshots" aria-hidden="true"></span>
-      <p class="eyebrow">Screenshots</p>
-      <h2 class="h2" id="shots-h">A half-remembered query.</h2>
+      <span class="anchor" id="how" aria-hidden="true"></span>
+      <p class="eyebrow">How it works</p>
+      <h2 class="h2" id="how-h">Three steps, then it just works.</h2>
       <p class="lede">
-        Two views of the same index. One opens a session at the turn you found. The other searches
-        process output around a failure. Both run over a synthetic index of demo sessions.
+        Nothing to sign up for and nothing to configure. If your agents have been writing
+        sessions on this Mac, the material is already here.
       </p>
 
-      <div class="figs">
-        <figure class="fig">
-          <div class="mac">
-            <div class="mac__bar" aria-hidden="true">
-              <i></i><i></i><i></i>
-              <span class="mac__title">session detail · turn 02</span>
-            </div>
-            <img class="shot shot--light" src="/assets/screenshots/en/session-detail-1440.webp?v=19"
-                 srcset="/assets/screenshots/en/session-detail-720.webp?v=19 720w, /assets/screenshots/en/session-detail-1440.webp?v=19 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="The Session Recall session detail view in dark theme, opened at turn 02 with the matched answer highlighted. A bar above the transcript reads CONTINUE IN Claude Code, followed by the resume command, a Copy button and a Copy handoff button.">
-            <img class="shot shot--dark" src="/assets/screenshots/en/session-detail-dark-1440.webp?v=19"
-                 srcset="/assets/screenshots/en/session-detail-dark-720.webp?v=19 720w, /assets/screenshots/en/session-detail-dark-1440.webp?v=19 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="The Session Recall session detail view in dark theme, opened at turn 02 with the matched answer highlighted. A bar above the transcript reads CONTINUE IN Claude Code, followed by the resume command, a Copy button and a Copy handoff button.">
+      <div class="features">
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v10.5m0 0 4-4m-4 4-4-4"/><path d="M4.5 17.5v2a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-2"/></svg>
           </div>
-          <figcaption class="figcap">
-            <b>Session detail.</b> The bar above the transcript carries the resume command, here
-            <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>, next to
-            <b>Copy handoff</b>. The next prompt starts from the session you found.
-          </figcaption>
-        </figure>
+          <h3>1. Install.</h3>
+          <p>
+            Download the zip, drag the app to Applications, clear the quarantine flag once.
+            That is the whole setup — there is no account to create and no key to paste.
+          </p>
+        </article>
 
-        <figure class="fig">
-          <div class="mac">
-            <div class="mac__bar" aria-hidden="true">
-              <i></i><i></i><i></i>
-              <span class="mac__title">process search — “timeout”</span>
-            </div>
-            <img class="shot shot--light" src="/assets/screenshots/en/process-search-1440.webp?v=19"
-                 srcset="/assets/screenshots/en/process-search-720.webp?v=19 720w, /assets/screenshots/en/process-search-1440.webp?v=19 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="The Session Recall process search view in dark theme. A search for timeout returns three sessions and three process rows in 0.7 ms, each showing an extracted error line from a failing test with the matched word highlighted.">
-            <img class="shot shot--dark" src="/assets/screenshots/en/process-search-dark-1440.webp?v=19"
-                 srcset="/assets/screenshots/en/process-search-dark-720.webp?v=19 720w, /assets/screenshots/en/process-search-dark-1440.webp?v=19 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="The Session Recall process search view in dark theme. A search for timeout returns three sessions and three process rows in 0.7 ms, each showing an extracted error line from a failing test with the matched word highlighted.">
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.6 3.1 2.8 7 2.8s7-1.2 7-2.8V6"/><path d="M5 12c0 1.6 3.1 2.8 7 2.8s7-1.2 7-2.8"/></svg>
           </div>
-          <figcaption class="figcap">
-            <b>Process search.</b> Searching <code>timeout</code> across tool calls, commands and
-            error output returns 3 sessions in 3 process rows, 0.7 ms. Each row names the agent, the
-            project and the date.
-          </figcaption>
-        </figure>
+          <h3>2. It indexes what is already on disk, read-only.</h3>
+          <p>
+            On first launch the app reads the session files your agents already wrote and
+            builds one searchable index. It keeps the index fresh while it is open, and it
+            never writes to the files it read.
+          </p>
+        </article>
+
+        <article class="feature">
+          <div class="feature__ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.6"/><path d="M15.6 15.6 20.5 20.5"/></svg>
+          </div>
+          <h3>3. Search across every agent from one box.</h3>
+          <p>
+            Type the words you remember — a phrase, a file name, an error line. Results come
+            back from all of your installed agents in one list, each opening at the exact turn,
+            with the resume command ready to copy.
+          </p>
+        </article>
       </div>
     </div>
   </section>
@@ -332,37 +322,38 @@
   <section class="section" aria-labelledby="workflow-h">
     <div class="wrap">
       <span class="anchor" id="workflow" aria-hidden="true"></span>
-      <p class="eyebrow">Beyond search</p>
-      <h2 class="h2" id="workflow-h">Search is only the start.</h2>
+      <p class="eyebrow">What you get</p>
+      <h2 class="h2" id="workflow-h">Two things people actually use it for.</h2>
       <p class="lede">
-        Finding the session is half the job. The rest is what happens next: carry it into another
-        agent, into tomorrow's standup, keep the ones worth keeping, and summon the whole index
-        from inside any app.
+        Search is the core; these two are what it feeds. Both come free with the index —
+        no model call, no summary service, no extra setup.
       </p>
 
       <div class="workflows">
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">01</p>
-          <h3>Pick the work back up.</h3>
+          <h3>A report of your own work.</h3>
           <p class="workflow__text">
-            The handoff card collects what a fresh session needs: the project, the resume command,
-            the last few prompts, the last answer verbatim, the files tool calls touched, the
-            commands that ran, the errors they hit, and the Git branch when the project is a
-            worktree. Paste it into a scratchpad or into another agent and the work carries on
-            instead of starting over. Cross-agent handoff opens a new session there with the card as
-            its context, because a session id only means something to its own agent.
+            The app writes a <b>daily and weekly report</b> straight from the index: a
+            per-project table of sessions and turns, the questions you asked in each session,
+            and a resume command for each one, with links back into the app. Read it when you
+            try to remember what you did on Tuesday, hand it to a colleague as context, or see
+            which project ate the week. Downloadable as Markdown — and the same sessions always
+            produce the same report, because it is read out of the index, not summarised by a
+            model. An archive view keeps the past days browsable.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">02</p>
-          <h3>Your day, written down.</h3>
+          <h3>Sessions that move between agents.</h3>
           <p class="workflow__text">
-            A standup for the day and a rollup for the week, read straight out of the index. No
-            model call and no summary service: the same sessions always produce the same report.
-            Read it in the app, or download the Markdown. The section headings follow the interface
-            language, so an English app writes the report in English and a Chinese app writes the
-            same report in Chinese.
+            Find the session in the agent that did the work, then continue it somewhere else:
+            copy the <b>handoff card</b> (project, resume command, recent prompts, the last
+            answer, the files and commands involved), or just the resume command or deep link,
+            and carry on in another agent with the full context. The <b>continue-in</b> picker
+            on a session page lists the agents installed on your Mac. A session id only means
+            something to its own agent — that is why the card travels with you.
           </p>
         </article>
 
@@ -370,36 +361,32 @@
           <p class="workflow__n" aria-hidden="true">03</p>
           <h3>Keep the good ones, clear the noise.</h3>
           <p class="workflow__text">
-            <b>Star</b> a session on its page and it sits one click away under the sidebar's
-            Starred view — one of the three rail views, All, Starred and Hidden, each with a live
-            count. <b>Hide</b> tucks a session out of the default view, with Undo right in the
-            status line: a deep link still opens it, and the daily and weekly reports skip it.
-            <b>Forget this session</b> goes further — the rows leave the index and no later scan
-            puts them back, while the transcript in the agent's own storage stays untouched.
+            <b>Star</b> a session and it sits one click away under the sidebar's Starred view —
+            one of three views (All, Starred, Hidden), each with a live count. <b>Hide</b>
+            tucks a session out of the default view, with Undo right in the status line.
             <b>Saved searches</b> keep a filter combination by name: save it from the rail,
-            manage it in settings, restore the whole view in one click — also from the CLI
-            (<code>saved list|add|remove</code>) and a read-only MCP tool.
+            restore the whole view in one click. <b>Forget</b> removes a session from the
+            index — and, as above, never from your agent's own storage.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">04</p>
-          <h3>Summon it from anywhere.</h3>
+          <h3>Copy the answer, skip the noise.</h3>
           <p class="workflow__text">
-            A global shortcut, <b>⌥⌘R</b> by default, brings the window up over whatever you are
-            doing; press it again to hide it. Rebind it to another combination or switch it off in
-            the app's settings — a change applies after a restart. ⌘W hides the window, ⌘Q quits
-            cleanly, and clicking the Dock icon brings it back.
+            Every turn carries <b>copy question</b>, <b>copy answer</b> and <b>copy Q&amp;A</b>,
+            and the whole conversation copies as Markdown in order, with a 200 KB cap that notes
+            where it truncated. Paste it into a document, a review, or another agent.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">05</p>
-          <h3>Copy the answer, skip the noise.</h3>
+          <h3>Summon it from anywhere.</h3>
           <p class="workflow__text">
-            Every turn carries <b>copy question</b>, <b>copy answer</b> and <b>copy Q&amp;A</b>,
-            and the whole conversation copies as Markdown in order, with a 200 KB cap that notes
-            where it truncated. The handoff card and the resume command stay one click away.
+            A global shortcut, <b>⌥⌘R</b> by default, brings the window up over whatever you
+            are doing; press it again to hide it. Rebind it or switch it off in settings —
+            ⌘W hides the window, ⌘Q quits cleanly, and clicking the Dock icon brings it back.
           </p>
         </article>
 
@@ -407,11 +394,9 @@
           <p class="workflow__n" aria-hidden="true">06</p>
           <h3>Updates without the download ritual.</h3>
           <p class="workflow__text">
-            The app checks for new releases in the background every six hours. A dialog shows the
-            new version, its release notes and a changelog link, and one click installs it — no
-            manual download, no re-clearing the quarantine flag. The app menu adds
-            <b>Check for Updates… (⌘U)</b>, <b>View Changelog</b> and the standard Edit, Window
-            and Help groups.
+            When a new version exists, the app tells you: a dialog shows the version, its
+            release notes and a changelog link, and one click installs it — no manual download,
+            no re-clearing the quarantine flag.
           </p>
         </article>
       </div>
@@ -466,8 +451,9 @@ bun run mcp</code></pre>
             <div>
               <h3>Open it and search.</h3>
               <p>
-                The app scans agent storage on boot and refreshes the index every 90 seconds while it
-                is open. Type the words you remember. Quote them if you want the exact phrase.
+                First launch reads the sessions your agents already wrote and builds the index.
+                Type the words you remember — quote them if you want the exact phrase. There is
+                nothing else to set up.
               </p>
             </div>
           </li>
@@ -487,12 +473,13 @@ bun run mcp</code></pre>
     <div class="wrap band">
       <div>
         <span class="anchor" id="mcp" aria-hidden="true"></span>
-        <p class="eyebrow">For agents</p>
-        <h2 class="h2" id="mcp-h">Your agent can search too.</h2>
+        <p class="eyebrow">For people who script things</p>
+        <h2 class="h2" id="mcp-h">A bonus, not a requirement.</h2>
         <p class="lede">
-          <code>bun run mcp</code> serves the same index to any MCP client over stdio: no port, no
-          network, no second copy of your history to keep in step. Point your client at the
-          absolute path:
+          Everything above works in the app alone. If you also live in the terminal, the same
+          index is available two ways: <code>bun run sr "…"</code> searches it from the shell,
+          and <code>bun run mcp</code> serves it to your coding agent over the MCP protocol —
+          your assistant can then look up past sessions itself, read-only, on this Mac.
         </p>
         <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
           MCP server docs
@@ -527,8 +514,8 @@ bun run mcp</code></pre>
         <details>
           <summary>Does anything leave my Mac?</summary>
           <div class="a">
-            No. No account, no sync, no telemetry. Sessions are read from agent storage into one
-            local SQLite file, and nothing is ever uploaded.
+            No account, no analytics, no telemetry — your sessions are never uploaded. Search and
+            the reports run in a local process against a local index file.
           </div>
         </details>
 
@@ -536,19 +523,18 @@ bun run mcp</code></pre>
           <summary>Which agents does it index?</summary>
           <div class="a">
             Thirteen: omp, pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex, Gemini CLI,
-            Qwen Code, Kimi Code, Copilot CLI and Goose. omp and the official pi share a JSONL
-            format; Gemini CLI, Qwen Code and Kimi Code each bring a format of their own, and the
-            rest are read from their own stores. Every adapter is read-only, and each one excludes
-            its agent's private records.
+            Qwen Code, Kimi Code, Copilot CLI and Goose. If you use several of them, this is the
+            one place that searches across all of them at once. Every one of them is read read-only,
+            and each excludes its agent's private records.
           </div>
         </details>
 
         <details>
           <summary>Does it modify my history?</summary>
           <div class="a">
-            No. Agent stores are opened read-only and are never written to. The only file Session
-            Recall writes is its own index, and deleting that index costs you nothing but the time
-            to rebuild it.
+            No. Your agents' session files are opened read-only and never written to, moved or
+            deleted. The only file the app writes is its own index, and deleting that index
+            costs you nothing but the time to rebuild it.
           </div>
         </details>
 
@@ -612,11 +598,11 @@ bun run mcp</code></pre>
         <details>
           <summary>How do I update?</summary>
           <div class="a">
-            You usually do nothing: the app checks in the background every six hours, and when a
-            new version appears a dialog shows its release notes with an Update now button — one
-            click installs it, and the index outside the app is reused untouched. The manual way
-            still works: download the newer zip from Releases, replace the app in Applications,
-            and clear the quarantine flag on the new copy.
+            You usually do nothing: when a new version appears, the app shows a dialog with its
+            release notes and an Update now button — one click installs it, and the index
+            outside the app is reused untouched. The manual way still works: download the newer
+            zip from Releases, replace the app in Applications, and clear the quarantine flag on
+            the new copy.
           </div>
         </details>
       </div>
@@ -683,6 +669,6 @@ bun run mcp</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=19" defer></script>
+<script src="/assets/site.js?v=20" defer></script>
 </body>
 </html>

@@ -675,6 +675,12 @@ html:not(.js) .theme-btn {
   display: flex;
   align-items: center;
   gap: 7px;
+  /* Each promise stays on one line and the flex row moves whole chips to the
+     next line instead of squeezing them: without flex: 0 0 auto the two long
+     chips shrink at 1440 and wrap mid-sentence while their neighbours do not,
+     which reads as a ragged, half-broken row. */
+  flex: 0 0 auto;
+  max-width: 100%;
 }
 
 .hero__assure svg {
