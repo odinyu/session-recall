@@ -3039,4 +3039,11 @@ mark {
   .palette-item-meta {
     display: none;
   }
+
+  /* The metric column is the only place a title-matched row is marked, and a
+     phone hides that column: carry the same signal on the title itself,
+     otherwise a title hit looks exactly like a content hit here. */
+  .palette-item.is-title .palette-item-title {
+    color: var(--accent);
+  }
 }
