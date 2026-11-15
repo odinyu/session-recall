@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import type { Database } from "bun:sqlite";
 import { AGENT_IDS, isAgentId } from "./adapters/types.ts";
 import type { Adapter, AgentId } from "./adapters/types.ts";
-import { localDateKey } from "./brief.ts";
+import { localDateKey, readBrief } from "./brief.ts";
 import { DB_PATH } from "./config.ts";
 import { openDb } from "./db.ts";
 import {
@@ -507,6 +507,21 @@ export async function recallScan(ctx: McpContext): Promise<ToolCallResult> {
   }
 }
 
+/** Read the latest generated report from the local brief directory. */
+export function recallBrief(_ctx: McpContext, rawArgs: unknown): ToolCallResult {
+  const args = argsRecord(rawArgs);
+  const format = typeof args.format === "string" ? args.format : "archive";
+  if (!["standup", "archive", "week", "month"].includes(format)) {
+    return toolError(`invalid format "${String(format)}"`);
+  }
+  const date = typeof args.date === "string" ? args.date : undefined;
+  const week = typeof args.week === "string" ? args.week : undefined;
+  const month = typeof args.month === "string" ? args.month : undefined;
+  const content = readBrief({ format: format as "standup" | "archive" | "week" | "month", date, week, month });
+  if (content === null) return toolError("no generated report found for that period");
+  return ok({ format, date: date ?? month ?? week ?? null, markdown: content });
+}
+
 export const TOOLS = [
   {
     name: "recall_search",
@@ -602,6 +617,23 @@ export const TOOLS = [
       "arguments (booleans are encoded as \"1\"/\"0\").",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   },
+  {
+    name: "recall_brief",
+    description:
+      "Read the latest generated usage report (daily standup, archive, weekly or monthly) " +
+      "from the local brief directory. Read-only; returns the Markdown of a report " +
+      "that was already generated. Omit date/week/month for the current period.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        format: { type: "string", enum: ["standup", "archive", "week", "month"], default: "archive" },
+        date: { type: "string", description: "YYYY-MM-DD for daily/archive, or YYYY-MM for month." },
+        week: { type: "string", description: "YYYY-Www for the weekly report." },
+        month: { type: "string", description: "YYYY-MM for the monthly report." },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 const HANDLERS: Record<
@@ -614,6 +646,7 @@ const HANDLERS: Record<
   recall_handoff: recallHandoff,
   recall_scan: recallScan,
   recall_saved_searches: recallSavedSearches,
+  recall_brief: recallBrief,
 };
 
 export interface JsonRpcResponse {

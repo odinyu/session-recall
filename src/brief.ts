@@ -428,10 +428,10 @@ function deltaText(delta: number, labels: ReportLabels): string {
   return labels.deltaSame;
 }
 
-function metricName(metric: string, labels: ReportLabels): string {
-  if (metric === "sessions") return labels.sessionsUnit;
-  if (metric === "turns") return labels.turnsUnit;
-  return labels.topProjects;
+function metricName(metric: string, report: ReportLabels): string {
+  if (metric === "sessions") return report.metricSessions;
+  if (metric === "turns") return report.metricTurns;
+  return report.metricProjects;
 }
 
 /** Shared comparison section, appended to weekly and monthly reports. */
@@ -485,7 +485,10 @@ export function renderRankings(
   const agents = rankEntries(stats.agents).slice(0, 5);
   const days = rankEntries(stats.days).slice(0, 3);
   const hours = rankEntries(stats.hours).slice(0, 3);
-  const lines = [`## ${labels.sections.rankings}`, "", report.rankingsHeading, ""];
+  // One section heading: `report.rankingsHeading` already carries its own
+  // `###` marker in both languages, so emitting the `##` label as well would
+  // print the same title twice.
+  const lines = [report.rankingsHeading, ""];
   const add = (
     heading: string,
     rows: [string, number][],
@@ -1196,11 +1199,9 @@ function buildMonth(
 ): string {
   const projects = groupProjects(sessions, labels);
   const stats = computePeriodStats(sessions, labels, month);
-  const allProjects = (() => {
-    // Count every project in the index for the framing line, not just the
-    // month's active ones. A tiny query keeps this read-only and local.
-    return stats.activeProjects;
-  })();
+  // Only the month's own active projects are known from this range; the
+  // framing line says so plainly rather than inventing an index-wide total.
+  const allProjects = stats.activeProjects;
   const turns = stats.turns;
 
   const lines = [
@@ -1226,7 +1227,7 @@ function buildMonth(
   if (sessions.length === 0) {
     lines.push(labels.noSessionsWeek, "");
   } else {
-    lines.push(`## ${labels.sections.archiveOverview}`, "", overviewTable(projects, labels), "");
+    lines.push(`## ${labels.sections.monthOverview}`, "", overviewTable(projects, labels), "");
     lines.push(`## ${labels.sections.highlights}`, "");
     const top = [...projects].sort((a, b) => b.turns - a.turns).slice(0, 3);
     for (const project of top) {

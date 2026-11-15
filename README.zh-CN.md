@@ -171,6 +171,7 @@ bun run brief                              # today, standup
 bun run brief 2026-11-11                   # a specific day, standup
 bun run brief 2026-11-11 --format archive  # legacy full dump
 bun run brief --week 2026-W46              # weekly rollup
+bun run brief --month 2026-11              # monthly report (or --format month 2026-11)
 bun run brief --help                       # flags
 ```
 
@@ -200,11 +201,13 @@ brief/
 - **待续** 来自每个会话最后一条助手消息：未勾选的 `- [ ]` 项，以及去掉列表前缀后**以** `待办` / `下一步` / `TODO` **开头**的行——句子中间的顺带提及不算。代码围栏、表格行和类似 schema 的文本（`description:`、`{`、`|`、反引号）会被丢弃，避免噪声变成任务。
 - **风险** 来自同样的最后回答，规则相同：清理后的行必须以 `风险` / `阻塞` / `未解决`（或英文对应词）开头，所以“…风险项留到最后…”不会算作阻塞；周报的 `完成 / 进行中` 按最后回答里的完成标记给会话分类。
 - 跨多天的会话只计 **一次**，算在最后活跃日；`active_days` 统计至少有一个会话的天数。
-- `brief/index.md` 按从新到旧列出最近的日报和周报文件。
+- `brief/index.md` 按从新到旧列出最近的日报、周报和月报文件。
+- 月报：`--format month 2026-11`（或位置参数 `2026-11`），写到 `monthly/2026-11.md`；沿用归档版的项目概览/逐项目明细/亮点，另加与上一周期的对比（会话、问答轮次、活跃项目、各 Agent 占比、增减最多）和纯索引计算的排行（按轮次的项目、按会话的 Agent、最活跃日/时段）。上一周期无数据时明确说明，不编造百分比。
+- **定时生成（纯本地）**：`prefs.json` 的 `briefSchedule` 可取 `off`（默认）、`daily`、`weekly`。应用运行期间，sidecar 每 10 分钟检查一次，每个周期每天最多写一次，扫描期间不写；与界面共用生成器与 brief 目录，无网络、无外部守护进程。界面暂未暴露此开关；MCP 的 `recall_brief` 可读取已生成的报告。
 
 左侧栏的 `生成简报` 按钮为所选日期生成 standup 视图；下载保留 YAML front-matter。
 
-API：`POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week`（默认 `standup`；周报还接受 `week=YYYY-Www`）生成文件并返回 Markdown；`GET /api/brief/file?format=…&date=…`（或 `&week=…`）下载。非法日期、周和格式返回 400。
+API：`POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week|month`（默认 `standup`；周报接受 `week=YYYY-Www`，月报接受 `month=YYYY-MM`）生成文件并返回 Markdown；`GET /api/brief/file?format=…&date=…`（或 `&week=…` / `&month=…`）下载。非法日期、周和格式返回 400。
 
 ## 搜索
 

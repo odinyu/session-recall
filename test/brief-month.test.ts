@@ -114,7 +114,7 @@ test("rankings order projects by turns and agents by sessions", () => {
   expect(stats.agents["omp"]).toBe(1);
 
   const section = renderRankings(sessions, BRIEF_LABELS.en, REPORT_LABELS.en);
-  expect(section).toContain("### Rankings");
+  expect(section).toContain("## Rankings");
   expect(section).toContain("alpha: 5 turns");
   expect(HAN.test(section)).toBe(false);
 });

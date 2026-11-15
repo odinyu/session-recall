@@ -287,6 +287,7 @@ bun run brief                              # today, standup
 bun run brief 2026-11-11                   # a specific day, standup
 bun run brief 2026-11-11 --format archive  # legacy full dump
 bun run brief --week 2026-W46              # weekly rollup
+bun run brief --month 2026-11              # monthly report (or --format month 2026-11)
 bun run brief --help                       # flags
 ```
 
@@ -303,8 +304,9 @@ too. Override with `SESSION_RECALL_BRIEF_DIR=/some/dir`.
 brief/
   daily/2026-11-11.md     # standup
   weekly/2026-W46.md      # weekly
+  monthly/2026-11.md     # monthly
   2026-11-11.md          # archive, the legacy path
-  index.md                # newest daily + weekly entries
+  index.md                # newest daily + weekly + monthly entries
 ```
 
 - **standup** (default): YAML front-matter (`kind`, `date`, `projects`,
@@ -314,11 +316,32 @@ brief/
 - **archive**: exactly the previous dump — per-project prompts, tool/reasoning
   counts, resume command and deep link — still written to the legacy
   `<date>.md` path.
+- **month**: front-matter with `kind: monthly`, `month`, `range`, then the archive-style
+  overview table, per-project sections and highlights, plus a comparison with the
+  previous month and index-only rankings (top projects by turns, agents by
+  sessions, busiest days/hours). Written to `monthly/YYYY-MM.md`.
 - **week**: front-matter with `kind: weekly`, `week`, `range`, `active_days`,
   then `Highlights / By project / Themes and decisions / Metrics / Risks / Next week`.
   It aggregates
   **from the DB by date range**, not by concatenating daily files, so days
   without a generated brief still count.
+
+Weekly and monthly reports also carry a **comparison** with the previous period
+(sessions, turns, active projects, per-agent share and the biggest movers) and
+**rankings**. When the previous period has no sessions, the report says so rather
+than printing a fake percentage; all numbers come from the local index, with no
+model calls or network access.
+
+**Scheduled reports (local only):** `briefSchedule` in `prefs.json` accepts
+`off` (default), `daily` or `weekly`. While the app is running the sidecar writes
+the current period's report on a 10-minute timer, at most once per period per
+calendar day, and never during a scan. It uses the same generators and brief
+directory as the UI; no network, no daemon outside the app. Example:
+`PATCH /api/prefs {"briefSchedule":"weekly"}`. The web UI does not expose this
+setting yet.
+
+An MCP client can read an already-generated report with `recall_brief`
+(`format`, plus `date`/`week`/`month`); it never generates or uploads anything.
 
 Reports skip hidden sessions: hiding a session drops it from daily, weekly and
 archive output and from their counts, while a handoff card still opens it by id
@@ -351,9 +374,10 @@ Derivation is deterministic — no model calls:
 The rail's `Generate` button creates the standup view for the chosen date; the
 download keeps the YAML front-matter.
 
-API: `POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week` (default
-`standup`; weekly also takes `week=YYYY-Www`) generates the file and returns its
-Markdown; `GET /api/brief/file?format=…&date=…` (or `&week=…`) downloads it.
+API: `POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week|month` (default
+`standup`; weekly takes `week=YYYY-Www`, monthly takes `month=YYYY-MM`) generates
+the file and returns its Markdown; `GET /api/brief/file?format=…&date=…`
+(or `&week=…` / `&month=…`) downloads it.
 Invalid dates, weeks and formats are rejected with a 400.
 
 ## Search

@@ -75,6 +75,7 @@ export interface BriefLabels {
     readonly firstTask: string;
     readonly overview: string;
     readonly archiveOverview: string;
+    readonly monthOverview: string;
     readonly highlights: string;
     readonly byProject: string;
     readonly themes: string;
@@ -162,6 +163,7 @@ const zh: BriefLabels = {
     firstTask: "明天第一件事",
     overview: "概览",
     archiveOverview: "今日概览",
+    monthOverview: "本月概览",
     highlights: "亮点",
     byProject: "按项目",
     themes: "主题与决策",
@@ -233,6 +235,7 @@ const en: BriefLabels = {
     firstTask: "First task tomorrow",
     overview: "Overview",
     archiveOverview: "Overview",
+    monthOverview: "Overview",
     highlights: "Highlights",
     byProject: "By project",
     themes: "Themes and decisions",
@@ -298,6 +301,9 @@ export interface ReportLabels {
   readonly comparisonHeading: (previous: string) => string;
   readonly noPreviousData: string;
   readonly comparisonTableHeader: string;
+  readonly metricSessions: string;
+  readonly metricTurns: string;
+  readonly metricProjects: string;
   readonly movedUp: string;
   readonly movedDown: string;
   readonly agentShareChanged: (agent: string, current: number, previous: number) => string;
@@ -328,11 +334,14 @@ const reportZh: ReportLabels = {
   comparisonHeading: (previous) => `### 对比 ${previous}`,
   noPreviousData: "上一周期没有记录到会话，无法计算变化。",
   comparisonTableHeader: "| 指标 | 本期 | 上期 | 变化 |",
+  metricSessions: "会话",
+  metricTurns: "问答轮次",
+  metricProjects: "活跃项目",
   movedUp: "增长最多",
   movedDown: "下降最多",
   agentShareChanged: (agent, current, previous) =>
     `${agent}：${previous}% → ${current}%`,
-  rankingsHeading: "### 排行",
+  rankingsHeading: "## 排行",
   topProjects: "按问答轮次排名的项目",
   topAgents: "按会话数排名的 Agent",
   busiestDays: "最活跃的日子",
@@ -359,11 +368,14 @@ const reportEn: ReportLabels = {
   comparisonHeading: (previous) => `### Compared with ${previous}`,
   noPreviousData: "No sessions were recorded in the previous period, so no deltas can be computed.",
   comparisonTableHeader: "| Metric | This period | Previous | Change |",
+  metricSessions: "Sessions",
+  metricTurns: "Turns",
+  metricProjects: "Active projects",
   movedUp: "Biggest gain",
   movedDown: "Biggest drop",
   agentShareChanged: (agent, current, previous) =>
     `${agent}: ${previous}% → ${current}%`,
-  rankingsHeading: "### Rankings",
+  rankingsHeading: "## Rankings",
   topProjects: "Top projects by turns",
   topAgents: "Top agents by sessions",
   busiestDays: "Busiest days",
