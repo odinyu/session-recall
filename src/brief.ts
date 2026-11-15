@@ -486,21 +486,27 @@ export function renderRankings(
   const days = rankEntries(stats.days).slice(0, 3);
   const hours = rankEntries(stats.hours).slice(0, 3);
   const lines = [`## ${labels.sections.rankings}`, "", report.rankingsHeading, ""];
-  const add = (heading: string, rows: [string, number][], unit: string, transform?: (name: string) => string) => {
+  const add = (
+    heading: string,
+    rows: [string, number][],
+    unitOne: string,
+    unitMany: string,
+    transform?: (name: string) => string,
+  ) => {
     lines.push(`**${heading}**`, "");
     if (rows.length === 0) {
       lines.push(`- ${report.none}`);
     } else {
       for (const [name, value] of rows) {
-        lines.push(`- ${transform ? transform(name) : name}：${value} ${unit}`);
+        lines.push(`- ${report.rankRow(transform ? transform(name) : name, value, unitOne, unitMany)}`);
       }
     }
     lines.push("");
   };
-  add(report.topProjects, projects, report.turnsUnit);
-  add(report.topAgents, agents, report.sessionsUnit);
-  add(report.busiestDays, days, report.turnsUnit, (name) => name.slice(5));
-  add(report.busiestHours, hours, report.turnsUnit, report.hourLabel);
+  add(report.topProjects, projects, report.turnsUnitOne, report.turnsUnit);
+  add(report.topAgents, agents, report.sessionsUnitOne, report.sessionsUnit);
+  add(report.busiestDays, days, report.turnsUnitOne, report.turnsUnit, (name) => name.slice(5));
+  add(report.busiestHours, hours, report.turnsUnitOne, report.turnsUnit, report.hourLabel);
   return lines.join("\n");
 }
 

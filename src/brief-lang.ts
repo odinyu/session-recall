@@ -308,7 +308,10 @@ export interface ReportLabels {
   readonly busiestHours: string;
   readonly none: string;
   readonly turnsUnit: string;
+  readonly turnsUnitOne: string;
   readonly sessionsUnit: string;
+  readonly sessionsUnitOne: string;
+  readonly rankRow: (name: string, value: number, unitOne: string, unitMany: string) => string;
   readonly hourLabel: (hour: string) => string;
   readonly previousWeek: (key: string) => string;
   readonly previousMonth: (key: string) => string;
@@ -336,7 +339,10 @@ const reportZh: ReportLabels = {
   busiestHours: "最活跃的时段",
   none: "（无）",
   turnsUnit: "轮",
+  turnsUnitOne: "轮",
   sessionsUnit: "个会话",
+  sessionsUnitOne: "个会话",
+  rankRow: (name, value, unitOne) => `${name}：${value} ${unitOne}`,
   hourLabel: (hour) => `${hour}:00–${hour}:59`,
   previousWeek: (key) => `上周（${key}）`,
   previousMonth: (key) => `上月（${key}）`,
@@ -364,7 +370,11 @@ const reportEn: ReportLabels = {
   busiestHours: "Busiest hours",
   none: "(none)",
   turnsUnit: "turns",
+  turnsUnitOne: "turn",
   sessionsUnit: "sessions",
+  sessionsUnitOne: "session",
+  rankRow: (name, value, unitOne, unitMany) =>
+    `${name}: ${value} ${value === 1 ? unitOne : unitMany}`,
   hourLabel: (hour) => `${hour}:00–${hour}:59`,
   previousWeek: (key) => `last week (${key})`,
   previousMonth: (key) => `last month (${key})`,

@@ -2,9 +2,11 @@ import { DB_PATH } from "./config.ts";
 import {
   briefFilesMentioning,
   generateBrief,
+  generateMonthReport,
   generateWeekReport,
   isoWeekKey,
   parseBriefDate,
+  parseBriefMonth,
   parseBriefWeek,
 } from "./brief.ts";
 import type { BriefFormat, BriefLang } from "./brief.ts";
@@ -25,6 +27,7 @@ export type BriefCli =
       format: BriefFormat;
       date: string | null;
       week: string | null;
+      month: string | null;
       /** `null` means "use the stored preference" (`en` -> English, else zh). */
       lang: BriefLang | null;
     }
@@ -36,6 +39,7 @@ export function parseBriefArgs(argv: string[]): BriefCli {
   let formatGiven = false;
   let date: string | null = null;
   let week: string | null = null;
+  let month: string | null = null;
   let lang: BriefLang | null = null;
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -58,10 +62,10 @@ export function parseBriefArgs(argv: string[]): BriefCli {
       const inline = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : null;
       const value = inline ?? argv[index + 1];
       if (inline === null) index += 1;
-      if (value !== "standup" && value !== "archive" && value !== "week") {
+      if (value !== "standup" && value !== "archive" && value !== "week" && value !== "month") {
         return {
           kind: "error",
-          message: `invalid --format "${value ?? ""}": expected standup, archive or week`,
+          message: `invalid --format "${value ?? ""}": expected standup, archive, week or month`,
         };
       }
       format = value;
@@ -78,6 +82,16 @@ export function parseBriefArgs(argv: string[]): BriefCli {
       week = value;
       continue;
     }
+    if (arg === "--month" || arg.startsWith("--month=")) {
+      const inline = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : null;
+      const value = inline ?? argv[index + 1];
+      if (inline === null) index += 1;
+      if (!value || value.startsWith("-")) {
+        return { kind: "error", message: "--month requires a value, e.g. --month 2026-11" };
+      }
+      month = value;
+      continue;
+    }
     if (arg.startsWith("-")) {
       return { kind: "error", message: `unknown option "${arg}"` };
     }
@@ -91,7 +105,13 @@ export function parseBriefArgs(argv: string[]): BriefCli {
     return { kind: "error", message: "--week requires --format week" };
   }
   if (week !== null) format = "week";
-
+  if (month !== null && formatGiven && format !== "month") {
+    return { kind: "error", message: "--month requires --format month" };
+  }
+  if (month !== null) format = "month";
+  if (month !== null && !parseBriefMonth(month)) {
+    return { kind: "error", message: `invalid month "${month}": expected YYYY-MM` };
+  }
   if (format === "week") {
     if (week === null) {
       const parsed = parseBriefDate(date);
@@ -103,11 +123,20 @@ export function parseBriefArgs(argv: string[]): BriefCli {
     if (!parseBriefWeek(week)) {
       return { kind: "error", message: `invalid week "${week}": expected YYYY-Www` };
     }
+  } else if (format === "month") {
+    // `YYYY-MM` may arrive as the positional argument; it is the month key.
+    if (date !== null && !parseBriefMonth(date)) {
+      return { kind: "error", message: `invalid month "${date}": expected YYYY-MM` };
+    }
+    if (month === null && date !== null) {
+      month = date;
+      date = null;
+    }
   } else if (date !== null && !parseBriefDate(date)) {
     return { kind: "error", message: `invalid date "${date}"` };
   }
 
-  return { kind: "run", format, date, week, lang };
+  return { kind: "run", format, date, week, month, lang };
 }
 
 /** Scans under the shared lock; the app or MCP may be scanning right now. */
@@ -138,7 +167,7 @@ if (command === "scan") {
   const parsed = parseBriefArgs(process.argv.slice(3));
   if (parsed.kind === "help") {
     console.log(
-      "usage: bun run src/cli.ts brief [YYYY-MM-DD] [--format standup|archive|week] [--week YYYY-Www] [--lang zh|en]",
+      "usage: bun run src/cli.ts brief [YYYY-MM-DD|YYYY-MM] [--format standup|archive|week|month] [--week YYYY-Www] [--month YYYY-MM] [--lang zh|en]",
     );
     console.log(
       "  --lang zh|en   report template language (default: stored preference; auto -> zh)",
@@ -165,10 +194,12 @@ if (command === "scan") {
       const result =
         parsed.format === "week"
           ? generateWeekReport(db, parsed.week ?? undefined, { lang })
-          : generateBrief(db, parsed.date ?? undefined, {
-              format: parsed.format,
-              lang,
-            });
+          : parsed.format === "month"
+            ? generateMonthReport(db, parsed.month ?? undefined, { lang })
+            : generateBrief(db, parsed.date ?? undefined, {
+                format: parsed.format,
+                lang,
+              });
       console.log(`brief → ${result.path}`);
     } finally {
       db.close();

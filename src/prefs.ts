@@ -37,6 +37,8 @@ export interface Prefs {
   hotkey?: Hotkey;
   /** Absent means `true`; only an explicit `false` turns the check off. */
   checkUpdates?: boolean;
+  /** Absent means `off`: the sidecar writes no report on its own. */
+  briefSchedule?: BriefSchedule;
   [key: string]: unknown;
 }
 
@@ -143,6 +145,18 @@ export function isLanguagePref(value: unknown): value is LanguagePref {
   );
 }
 
+/** Report schedule values; anything else is dropped by normalize(). */
+export type BriefSchedule = "off" | "daily" | "weekly";
+
+const BRIEF_SCHEDULES: readonly BriefSchedule[] = ["off", "daily", "weekly"];
+
+function isBriefSchedule(value: unknown): value is BriefSchedule {
+  return (
+    typeof value === "string" &&
+    (BRIEF_SCHEDULES as readonly string[]).includes(value)
+  );
+}
+
 /**
  * Coerce anything read from disk into usable prefs: a non-object (or an
  * unusable `theme`/`language`) falls back to the defaults, and every other key
@@ -169,6 +183,10 @@ function normalize(value: unknown): Prefs {
   // dropped rather than guessed into either direction.
   if ("checkUpdates" in normalized && !isCheckUpdates(normalized.checkUpdates)) {
     delete normalized.checkUpdates;
+  }
+  // Absent means "no scheduled report", so an unusable value is dropped.
+  if ("briefSchedule" in normalized && !isBriefSchedule(normalized.briefSchedule)) {
+    delete normalized.briefSchedule;
   }
   return normalized;
 }
@@ -220,6 +238,11 @@ export function updatePrefs(
   if ("checkUpdates" in patch && !isCheckUpdates(patch.checkUpdates)) {
     throw new InvalidPrefsError(
       `invalid checkUpdates: ${JSON.stringify(patch.checkUpdates)} (expected true or false)`,
+    );
+  }
+  if ("briefSchedule" in patch && !isBriefSchedule(patch.briefSchedule)) {
+    throw new InvalidPrefsError(
+      `invalid briefSchedule: ${JSON.stringify(patch.briefSchedule)} (expected off, daily or weekly)`,
     );
   }
   const merged: Prefs = { ...readPrefs(dir), ...patch } as Prefs;

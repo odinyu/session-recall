@@ -4,8 +4,10 @@ import { APP_DIR, DB_PATH, PORT, WEB_DIST } from "./config.ts";
 import {
   briefFilesMentioning,
   generateBrief,
+  generateMonthReport,
   generateWeekReport,
   isoWeekKey,
+  localDateKey,
   parseBriefDate,
   readBrief,
 } from "./brief.ts";
@@ -48,7 +50,7 @@ import { continuationFor } from "./util/resume.ts";
 
 const ROLES: SearchRole[] = ["all", "user", "assistant"];
 const SCOPES: SearchScope[] = ["qa", "process"];
-const BRIEF_FORMATS: BriefFormat[] = ["standup", "archive", "week"];
+const BRIEF_FORMATS: BriefFormat[] = ["standup", "archive", "week", "month"];
 
 function parseBriefFormat(value: string | null): BriefFormat | null {
   if (value === null) return "standup";
@@ -449,12 +451,23 @@ export async function api(
           400,
         );
       }
+    } else if (format === "month") {
+      const month = url.searchParams.get("month") ?? undefined;
+      try {
+        result = generateMonthReport(db, month, { lang });
+      } catch (error) {
+        return json(
+          { error: error instanceof Error ? error.message : String(error) },
+          400,
+        );
+      }
     } else {
       if (!date) return json({ error: "invalid date" }, 400);
       result = generateBrief(db, date.key, { format, lang });
     }
     const download = new URLSearchParams({ format });
     if (result.week) download.set("week", result.week);
+    else if (format === "month") download.set("month", result.date);
     else download.set("date", result.date);
     return json({
       format: result.format,
@@ -481,9 +494,12 @@ export async function api(
     }
     const week = url.searchParams.get("week") ?? undefined;
     const date = url.searchParams.get("date") ?? undefined;
-    const content = readBrief({ format, week, date });
+    const month = url.searchParams.get("month") ?? undefined;
+    const content = readBrief({ format, week, date, month });
     if (content === null) return json({ error: "brief not found" }, 404);
-    const filename = (format === "week" ? week : date) ?? "brief";
+    const filename =
+      (format === "week" ? week : format === "month" ? month ?? date : date) ??
+      "brief";
     return new Response(content, {
       headers: {
         "content-type": "text/markdown; charset=utf-8",
@@ -589,6 +605,61 @@ function staticResponse(pathname: string): Response {
   });
 }
 
+/**
+ * Write the current report on its own schedule (the owner's `briefSchedule`
+ * preference).
+ *
+ * Local only: it reuses the generators the UI calls, writes into the same brief
+ * directory and runs at most once per period per day. A failure is logged and
+ * never touches the server.
+ */
+let lastScheduledBrief: string | null = null;
+
+/**
+ * One scheduled write. Split out of the timer so a test can drive it without a
+ * clock: it writes at most once per period per day and reports whether it did.
+ */
+export function writeScheduledBrief(
+  db: IndexedDatabase,
+  schedule: "daily" | "weekly",
+  now: Date,
+  lastMarker: string | null,
+  outDir?: string,
+): { marker: string; wrote: boolean } {
+  const stamp = localDateKey(now);
+  const marker = `${schedule}:${stamp}`;
+  if (lastMarker === marker) return { marker, wrote: false };
+  if (schedule === "daily") {
+    generateBrief(db, stamp, { format: "archive", outDir });
+  } else {
+    generateWeekReport(db, isoWeekKey(now.getTime()), { outDir });
+  }
+  return { marker, wrote: true };
+}
+
+function runScheduledBrief(): void {
+  const schedule = readPrefs().briefSchedule;
+  if (schedule !== "daily" && schedule !== "weekly") return;
+  const db = openIndex;
+  if (!db || scanning) return;
+  const now = new Date();
+  try {
+    const { marker, wrote } = writeScheduledBrief(
+      db,
+      schedule,
+      now,
+      lastScheduledBrief,
+    );
+    if (!wrote) return;
+    lastScheduledBrief = marker;
+    console.log(
+      `session-recall: wrote the ${schedule} report for ${localDateKey(now)}`,
+    );
+  } catch (error) {
+    console.error("session-recall: could not write the scheduled report", error);
+  }
+}
+
 export function serve(): void {
   openIndex = openDb(DB_PATH);
   const server = Bun.serve({
@@ -617,6 +688,12 @@ export function serve(): void {
   setInterval(() => {
     void runScan();
   }, 90_000);
+  // Local report schedule: keep the current period's report written while the
+  // app runs, once per period per day, only when the preference asks for it.
+  void runScheduledBrief();
+  setInterval(() => {
+    void runScheduledBrief();
+  }, 10 * 60_000);
 
   process.on("SIGINT", () => {
     server.stop();
