@@ -7,6 +7,37 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.8.0 — 2026-11-15
+
+- **Searchable titles.** The index only covered turn text, so a renamed session
+  could not be found by its new name unless the same words also appeared in the
+  conversation. Titles are now matched through the LIKE path (no FTS change, so
+  **no re-index**: the existing index answers on the next query) and returned as
+  first-class hits with `matchField: "title"`. Content hits keep their
+  order, a session is never listed twice, and the agent / project / starred /
+  hidden / date filters apply to title hits too. The UI marks them as
+  「标题命中」/ “Title match” instead of inventing a question/answer pair.
+- **Quick search palette.** Cmd-Shift-K — or summoning the window with the global
+  hotkey while it is hidden — opens a Spotlight-style overlay that searches as
+  you type (120 ms debounce against the existing `/api/search`), with
+  up/down/Home/End navigation, Enter to open, Cmd-Enter to copy the deep link,
+  Esc to close and restore focus, and Tab contained. Cmd-K still focuses the
+  topbar search box.
+- **Monthly reports and period comparisons.** `sr brief --format month [YYYY-MM]`
+  writes `monthly/YYYY-MM.md`; weekly and monthly reports now carry a
+  comparison with the previous period (sessions, turns, active projects,
+  per-agent share, biggest movers — or an explicit “no previous period data”
+  line) plus index-only rankings (top projects by turns, agents by sessions,
+  busiest days and hours).
+- **Scheduled reports, local only.** `briefSchedule` (`off` |
+  `daily` | `weekly`, default `off`) makes the sidecar write the
+  current report on its own timer — at most once per period per day, no network,
+  no daemon outside the app.
+- **MCP:** new read-only `recall_brief` tool returns a generated report's
+  Markdown so an agent can read it.
+- Release assets keep the `Session-Recall_…` names; a release still carries
+  seven assets with no duplicate bytes.
+
 ## 1.7.3 — 2026-11-14
 
 - The sidebar's bottom-left slot now holds the daily/weekly report controls (type

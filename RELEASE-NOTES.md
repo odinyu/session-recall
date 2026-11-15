@@ -17,6 +17,13 @@ Rules for an entry:
 The developer-facing record — every functional change, fix and refactor — lives
 in `CHANGELOG.md` and is never shown to users.
 
+## 1.8.0 — 2026-11-15
+
+现在可以按标题搜索会话了；新增 ⌘⇧K 快速搜索浮窗；报告新增月报与周期对比。
+
+You can search sessions by their title now, there is a ⌘⇧K quick-search
+palette, and the reports gained monthly summaries with period comparisons.
+
 ## 1.7.3 — 2026-11-14
 
 界面微调：日报/周报移到侧栏左下，去掉重复的会话计数，文案与命名统一。
