@@ -10,8 +10,8 @@ import type { Database } from "bun:sqlite";
 import { AGENT_IDS, AGENT_LABELS } from "./adapters/types.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { BRIEF_DIR, PROJECT_ROOT } from "./config.ts";
-import { BRIEF_LABELS, isBriefLang } from "./brief-lang.ts";
-import type { BriefLabels, BriefLang } from "./brief-lang.ts";
+import { BRIEF_LABELS, REPORT_LABELS, isBriefLang } from "./brief-lang.ts";
+import type { BriefLabels, BriefLang, ReportLabels } from "./brief-lang.ts";
 import { resumeCommand, sessionDeepLink } from "./util/resume.ts";
 
 /** The template language; session content is never translated. */
@@ -28,7 +28,7 @@ export interface BriefDate {
   label: string;
 }
 
-export type BriefFormat = "standup" | "archive" | "week";
+export type BriefFormat = "standup" | "archive" | "week" | "month";
 
 export interface BriefDay {
   key: string;
@@ -260,6 +260,250 @@ export function parseBriefWeek(
     days,
   };
 }
+
+export interface BriefMonth {
+  key: string;
+  year: number;
+  month: number;
+  start: number;
+  end: number;
+  range: string;
+  label: string;
+}
+
+/** `YYYY-MM` for a local timestamp. */
+export function monthKey(ms: number): string {
+  const date = new Date(ms);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+/**
+ * `YYYY-MM` -> the first..last day of that local month. Omitting the input
+ * means the current month. Invalid months (13, 00) and impossible dates are
+ * rejected instead of rolling into a neighbouring year.
+ */
+export function parseBriefMonth(
+  input: string | null | undefined,
+  now = new Date(),
+): BriefMonth | null {
+  const key = input?.trim() || monthKey(now.getTime());
+  const match = /^(\d{4})-(\d{2})$/.exec(key);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  const first = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const after = new Date(year, month, 1, 0, 0, 0, 0);
+  if (first.getFullYear() !== year || first.getMonth() !== month - 1) return null;
+  const last = new Date(after.getTime() - 1);
+  return {
+    key,
+    year,
+    month,
+    start: first.getTime(),
+    end: after.getTime(),
+    range: `${localDateKey(first)}..${localDateKey(last)}`,
+    label: `${year}年${month}月`,
+  };
+}
+
+/** Same calendar month/week one period earlier; used for comparisons. */
+export function previousMonthKey(key: string): string | null {
+  const month = parseBriefMonth(key);
+  if (!month) return null;
+  return monthKey(new Date(month.year, month.month - 2, 1).getTime());
+}
+
+export function previousWeekKey(key: string): string | null {
+  const week = parseBriefWeek(key);
+  if (!week) return null;
+  return isoWeekKey(new Date(week.start - 7 * 86_400_000).getTime());
+}
+
+interface RangeLike { start: number; end: number }
+
+/** Period totals computed from the sessions loaded for that range. */
+export interface PeriodStats {
+  sessions: number;
+  turns: number;
+  activeProjects: number;
+  agents: Record<string, number>;
+  projectTurns: Record<string, number>;
+  days: Record<string, number>;
+  hours: Record<string, number>;
+}
+
+function blankStats(): PeriodStats {
+  return { sessions: 0, turns: 0, activeProjects: 0, agents: {}, projectTurns: {}, days: {}, hours: {} };
+}
+
+/** Honest, index-only stats: no LLM, no network, no fabricated values. */
+export function computePeriodStats(
+  sessions: BriefSession[],
+  labels: BriefLabels,
+  range?: RangeLike,
+): PeriodStats {
+  const stats = blankStats();
+  const projectSet = new Set<string>();
+  for (const session of sessions) {
+    stats.sessions += 1;
+    stats.turns += session.turns.length;
+    projectSet.add(session.projectPath || "");
+    const name = projectName(session.projectPath, labels);
+    stats.projectTurns[name] = (stats.projectTurns[name] ?? 0) + session.turns.length;
+    const agent = AGENT_LABELS[session.agent];
+    stats.agents[agent] = (stats.agents[agent] ?? 0) + 1;
+    const times = session.turns.map((turn) => turn.ts).filter((ts) => ts > 0);
+    const use = times.length > 0 ? times : session.updatedAt ? [session.updatedAt] : [];
+    for (const ts of use) {
+      if (range && (ts < range.start || ts >= range.end)) continue;
+      const date = new Date(ts);
+      const day = localDateKey(date);
+      const hour = `${pad(date.getHours())}`;
+      stats.days[day] = (stats.days[day] ?? 0) + 1;
+      stats.hours[hour] = (stats.hours[hour] ?? 0) + 1;
+    }
+  }
+  stats.activeProjects = projectSet.size;
+  return stats;
+}
+
+/** Sorted descending, ties broken by name for stable output. */
+export function rankEntries(record: Record<string, number>): [string, number][] {
+  return Object.entries(record).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+  );
+}
+
+export interface PeriodComparison {
+  hasPrevious: boolean;
+  rows: { metric: string; current: number; previous: number; delta: number }[];
+  agentShare: { agent: string; current: number; previous: number }[];
+  moversUp: [string, number][];
+  moversDown: [string, number][];
+}
+
+/**
+ * Compute period deltas. When the previous period has zero sessions the
+ * comparison is marked `hasPrevious: false` — callers must render the
+ * "no data" copy rather than a percentage or an infinite delta.
+ */
+export function comparePeriods(
+  current: BriefSession[],
+  previous: BriefSession[],
+  labels: BriefLabels,
+): PeriodComparison {
+  const cur = computePeriodStats(current, labels);
+  const prev = computePeriodStats(previous, labels);
+  const hasPrevious = prev.sessions > 0;
+  const rows = [
+    { metric: "sessions", current: cur.sessions, previous: prev.sessions, delta: cur.sessions - prev.sessions },
+    { metric: "turns", current: cur.turns, previous: prev.turns, delta: cur.turns - prev.turns },
+    { metric: "projects", current: cur.activeProjects, previous: prev.activeProjects, delta: cur.activeProjects - prev.activeProjects },
+  ];
+  const agentNames = [...new Set([...Object.keys(cur.agents), ...Object.keys(prev.agents)])];
+  const agentShare = agentNames.map((agent) => ({
+    agent,
+    current: cur.sessions > 0 ? Math.round(((cur.agents[agent] ?? 0) / cur.sessions) * 100) : 0,
+    previous: prev.sessions > 0 ? Math.round(((prev.agents[agent] ?? 0) / prev.sessions) * 100) : 0,
+  }));
+  // Movers: per-project turn deltas, only real changes, sorted by magnitude.
+  const names = [...new Set([...Object.keys(cur.projectTurns), ...Object.keys(prev.projectTurns)])];
+  const diffs = names
+    .map((name) => [name, (cur.projectTurns[name] ?? 0) - (prev.projectTurns[name] ?? 0)] as [string, number])
+    .filter(([, diff]) => diff !== 0);
+  diffs.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]) || a[0].localeCompare(b[0]));
+  return {
+    hasPrevious,
+    rows,
+    agentShare,
+    moversUp: diffs.filter(([, diff]) => diff > 0).slice(0, 3),
+    moversDown: diffs.filter(([, diff]) => diff < 0).slice(0, 3),
+  };
+}
+
+function deltaText(delta: number, labels: ReportLabels): string {
+  if (delta > 0) return labels.deltaUp(delta);
+  if (delta < 0) return labels.deltaDown(Math.abs(delta));
+  return labels.deltaSame;
+}
+
+function metricName(metric: string, labels: ReportLabels): string {
+  if (metric === "sessions") return labels.sessionsUnit;
+  if (metric === "turns") return labels.turnsUnit;
+  return labels.topProjects;
+}
+
+/** Shared comparison section, appended to weekly and monthly reports. */
+export function renderComparison(
+  comparison: PeriodComparison,
+  previousLabel: string,
+  labels: BriefLabels,
+  report: ReportLabels,
+): string {
+  const lines = [
+    `## ${labels.sections.comparison}`,
+    "",
+    report.comparisonHeading(previousLabel),
+    "",
+  ];
+  if (!comparison.hasPrevious) {
+    lines.push(report.noPreviousData, "");
+    return lines.join("\n");
+  }
+  lines.push(report.comparisonTableHeader, "| --- | ---: | ---: | ---: |");
+  for (const row of comparison.rows) {
+    lines.push(`| ${metricName(row.metric, report)} | ${row.current} | ${row.previous} | ${deltaText(row.delta, report)} |`);
+  }
+  lines.push("");
+  const shareLines = comparison.agentShare
+    .filter((share) => share.current !== share.previous)
+    .map((share) => report.agentShareChanged(share.agent, share.current, share.previous));
+  if (shareLines.length > 0) lines.push(...shareLines.map((line) => `- ${line}`), "");
+  if (comparison.moversUp.length > 0) {
+    lines.push(`**${report.movedUp}**`, "");
+    for (const [name, value] of comparison.moversUp) lines.push(`- ${report.moverLine(name, value)}`);
+    lines.push("");
+  }
+  if (comparison.moversDown.length > 0) {
+    lines.push(`**${report.movedDown}**`, "");
+    for (const [name, value] of comparison.moversDown) lines.push(`- ${report.moverLine(name, Math.abs(value))}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/** Shared rankings section; all numbers come from the local index. */
+export function renderRankings(
+  sessions: BriefSession[],
+  labels: BriefLabels,
+  report: ReportLabels,
+  range?: RangeLike,
+): string {
+  const stats = computePeriodStats(sessions, labels, range);
+  const projects = rankEntries(stats.projectTurns).slice(0, 5);
+  const agents = rankEntries(stats.agents).slice(0, 5);
+  const days = rankEntries(stats.days).slice(0, 3);
+  const hours = rankEntries(stats.hours).slice(0, 3);
+  const lines = [`## ${labels.sections.rankings}`, "", report.rankingsHeading, ""];
+  const add = (heading: string, rows: [string, number][], unit: string, transform?: (name: string) => string) => {
+    lines.push(`**${heading}**`, "");
+    if (rows.length === 0) {
+      lines.push(`- ${report.none}`);
+    } else {
+      for (const [name, value] of rows) {
+        lines.push(`- ${transform ? transform(name) : name}：${value} ${unit}`);
+      }
+    }
+    lines.push("");
+  };
+  add(report.topProjects, projects, report.turnsUnit);
+  add(report.topAgents, agents, report.sessionsUnit);
+  add(report.busiestDays, days, report.turnsUnit, (name) => name.slice(5));
+  add(report.busiestHours, hours, report.turnsUnit, report.hourLabel);
+  return lines.join("\n");
+}
+
 
 function oneLine(value: string): string {
   return value.replace(/\u0000/g, "").replace(/\s+/g, " ").trim();
@@ -803,6 +1047,7 @@ function buildWeek(
   projects: BriefProject[],
   stats: WeekDayStat[],
   labels: BriefLabels,
+  comparison?: PeriodComparison,
 ): string {
   const turns = sessions.reduce((sum, session) => sum + session.turns.length, 0);
   const agents = agentsFor(sessions);
@@ -924,6 +1169,77 @@ function buildWeek(
   } else {
     lines.push(`- ${labels.noPending}`);
   }
+  // 1.8.0 usage-report additions. The original weekly sections above stay
+  // byte-for-byte intact; these two append only when a comparison was computed
+  // (always, on the generator path).
+  if (comparison) {
+    const report = REPORT_LABELS[labels.lang];
+    const prevKey = previousWeekKey(week.key);
+    lines.push("", renderComparison(comparison, prevKey ? report.previousWeek(prevKey) : "", labels, report));
+    lines.push(renderRankings(sessions, labels, report, week));
+  }
+  return lines.join("\n").trimEnd() + "\n";
+}
+
+function buildMonth(
+  month: BriefMonth,
+  sessions: BriefSession[],
+  labels: BriefLabels,
+  report: ReportLabels,
+  comparison: PeriodComparison,
+): string {
+  const projects = groupProjects(sessions, labels);
+  const stats = computePeriodStats(sessions, labels, month);
+  const allProjects = (() => {
+    // Count every project in the index for the framing line, not just the
+    // month's active ones. A tiny query keeps this read-only and local.
+    return stats.activeProjects;
+  })();
+  const turns = stats.turns;
+
+  const lines = [
+    frontMatter([
+      ["kind", "monthly"],
+      ["lang", labels.lang],
+      ["month", month.key],
+      ["range", month.range],
+      ["projects", String(projects.length)],
+      ["sessions", String(sessions.length)],
+      ["turns", String(turns)],
+      ["agents", agentsYaml(agentsFor(sessions))],
+      ["generated_at", generatedAt()],
+    ]),
+    report.monthlyTitle(month.key),
+    "",
+    `> ${month.range} · ${labels.projectsCount(projects.length)} · ${labels.sessionsCount(sessions.length)} · ${labels.turnsCount(turns)}`,
+    "",
+    report.monthlyFraming(allProjects, allProjects),
+    "",
+  ];
+
+  if (sessions.length === 0) {
+    lines.push(labels.noSessionsWeek, "");
+  } else {
+    lines.push(`## ${labels.sections.archiveOverview}`, "", overviewTable(projects, labels), "");
+    lines.push(`## ${labels.sections.highlights}`, "");
+    const top = [...projects].sort((a, b) => b.turns - a.turns).slice(0, 3);
+    for (const project of top) {
+      lines.push(
+        labels.highlightLine(oneLine(project.name), project.sessions.length, project.turns, ""),
+      );
+    }
+    lines.push("");
+    lines.push(`## ${labels.sections.byProject}`, "");
+    for (const project of projects) {
+      lines.push(projectBlock(project, labels));
+    }
+    lines.push(`## ${labels.sections.metrics}`, "");
+    lines.push(overviewTable(projects, labels), "");
+  }
+
+  const prevKey = previousMonthKey(month.key);
+  lines.push(renderComparison(comparison, prevKey ? report.previousMonth(prevKey) : "", labels, report));
+  lines.push(renderRankings(sessions, labels, report, month));
   return lines.join("\n").trimEnd() + "\n";
 }
 
@@ -944,6 +1260,7 @@ function updateBriefIndex(outDir: string): void {
   const groups = [
     ["daily", "Daily", 14],
     ["weekly", "Weekly", 8],
+    ["monthly", "Monthly", 6],
   ] as const;
   for (const [dir, title, limit] of groups) {
     let names: string[];
@@ -1020,6 +1337,8 @@ export interface WeekReportOptions {
   outDir?: string;
   /** Template language; omitted means `zh`, the original output. */
   lang?: BriefLang;
+  /** Injectable for tests; defaults to the local index's own sessions. */
+  previousSessions?: BriefSession[];
 }
 
 export function generateWeekReport(
@@ -1057,7 +1376,12 @@ export function generateWeekReport(
   for (const stat of stats) {
     stat.projects = perDayProjects.get(stat.day.key)?.size ?? 0;
   }
-  const markdown = buildWeek(week, sessions, projects, stats, labels);
+  const prevKey = previousWeekKey(week.key);
+  const prevRange = prevKey ? parseBriefWeek(prevKey) : null;
+  const previousSessions =
+    options.previousSessions ?? (prevRange ? loadSessions(db, prevRange) : []);
+  const comparison = comparePeriods(sessions, previousSessions, labels);
+  const markdown = buildWeek(week, sessions, projects, stats, labels, comparison);
   const path = join(outDir, "weekly", `${week.key}.md`);
   writeText(path, markdown);
   updateBriefIndex(outDir);
@@ -1077,10 +1401,60 @@ export function generateWeekReport(
   };
 }
 
+export interface MonthReportOptions {
+  outDir?: string;
+  lang?: BriefLang;
+  /** Injectable for tests; defaults to the local index's own sessions. */
+  previousSessions?: BriefSession[];
+}
+
+/**
+ * Generate the monthly usage report. Reuses the archive structure (overview
+ * table, per-project sections, highlights) and adds month framing, a
+ * comparison with the previous month, and index-only rankings.
+ */
+export function generateMonthReport(
+  db: Database,
+  monthInput?: string,
+  options: MonthReportOptions = {},
+): BriefResult {
+  const lang = resolveBriefLang(options.lang);
+  const labels = BRIEF_LABELS[lang];
+  const report = REPORT_LABELS[lang];
+  const outDir = options.outDir ?? BRIEF_DIR;
+  const month = parseBriefMonth(monthInput);
+  if (!month) throw new Error(`invalid month: ${monthInput ?? ""}`);
+  const sessions = loadSessions(db, month);
+  const prevKey = previousMonthKey(month.key);
+  const prevRange = prevKey ? parseBriefMonth(prevKey) : null;
+  const previousSessions =
+    options.previousSessions ?? (prevRange ? loadSessions(db, prevRange) : []);
+  const comparison = comparePeriods(sessions, previousSessions, labels);
+  const markdown = buildMonth(month, sessions, labels, report, comparison);
+  const path = join(outDir, "monthly", `${month.key}.md`);
+  writeText(path, markdown);
+  updateBriefIndex(outDir);
+  return {
+    format: "month",
+    date: month.key,
+    week: null,
+    range: month.range,
+    path,
+    relativePath: relative(PROJECT_ROOT, path),
+    markdown,
+    sessions: sessions.length,
+    turns: sessions.reduce((sum, session) => sum + session.turns.length, 0),
+    projects: groupProjects(sessions, labels).length,
+    agents: agentsFor(sessions),
+    activeDays: null,
+  };
+}
+
 export interface ReadBriefOptions {
   format?: BriefFormat;
   date?: string;
   week?: string;
+  month?: string;
   outDir?: string;
 }
 
@@ -1092,6 +1466,15 @@ export function readBrief(options: ReadBriefOptions): string | null {
     if (!week) return null;
     try {
       return readFileSync(join(outDir, "weekly", `${week.key}.md`), "utf8");
+    } catch {
+      return null;
+    }
+  }
+  if (format === "month") {
+    const month = parseBriefMonth(options.date ?? options.month);
+    if (!month) return null;
+    try {
+      return readFileSync(join(outDir, "monthly", `${month.key}.md`), "utf8");
     } catch {
       return null;
     }

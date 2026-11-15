@@ -67,6 +67,8 @@ export interface BriefLabels {
   readonly sentenceEnd: string;
   /* Section headings, without the `## ` marker. */
   readonly sections: {
+    readonly comparison: string;
+    readonly rankings: string;
     readonly progress: string;
     readonly decisions: string;
     readonly pending: string;
@@ -152,6 +154,8 @@ const zh: BriefLabels = {
     `${projects} 个项目、${sessions} 个会话、${turns} 轮问答，跨 ${activeDays} 个活跃日`,
   sentenceEnd: "。",
   sections: {
+    comparison: "与上期对比",
+    rankings: "排行",
     progress: "进展",
     decisions: "决策",
     pending: "待续",
@@ -221,6 +225,8 @@ const en: BriefLabels = {
     `${plural(projects, "project", "projects")}, ${plural(sessions, "session", "sessions")}, ${plural(turns, "turn", "turns")}, across ${plural(activeDays, "active day", "active days")}`,
   sentenceEnd: ".",
   sections: {
+    comparison: "Compared with the previous period",
+    rankings: "Rankings",
     progress: "Progress",
     decisions: "Decisions",
     pending: "Open threads",
@@ -280,3 +286,95 @@ const en: BriefLabels = {
 };
 
 export const BRIEF_LABELS: Record<BriefLang, BriefLabels> = { zh, en };
+
+/**
+ * Labels for the 1.8.0 usage-report additions (monthly framing, period
+ * comparisons and rankings). Kept in a separate table so the original
+ * `BriefLabels` contract for daily/standup/weekly output stays untouched.
+ */
+export interface ReportLabels {
+  readonly monthlyTitle: (month: string) => string;
+  readonly monthlyFraming: (activeProjects: number, totalProjects: number) => string;
+  readonly comparisonHeading: (previous: string) => string;
+  readonly noPreviousData: string;
+  readonly comparisonTableHeader: string;
+  readonly movedUp: string;
+  readonly movedDown: string;
+  readonly agentShareChanged: (agent: string, current: number, previous: number) => string;
+  readonly rankingsHeading: string;
+  readonly topProjects: string;
+  readonly topAgents: string;
+  readonly busiestDays: string;
+  readonly busiestHours: string;
+  readonly none: string;
+  readonly turnsUnit: string;
+  readonly sessionsUnit: string;
+  readonly hourLabel: (hour: string) => string;
+  readonly previousWeek: (key: string) => string;
+  readonly previousMonth: (key: string) => string;
+  readonly deltaUp: (n: number) => string;
+  readonly deltaDown: (n: number) => string;
+  readonly deltaSame: string;
+  readonly moverLine: (name: string, value: number) => string;
+}
+
+const reportZh: ReportLabels = {
+  monthlyTitle: (month) => `# 月报 · ${month}`,
+  monthlyFraming: (active, total) =>
+    `本月有 ${active} 个项目产生会话${total > active ? `，索引中共有 ${total} 个项目` : ""}。`,
+  comparisonHeading: (previous) => `### 对比 ${previous}`,
+  noPreviousData: "上一周期没有记录到会话，无法计算变化。",
+  comparisonTableHeader: "| 指标 | 本期 | 上期 | 变化 |",
+  movedUp: "增长最多",
+  movedDown: "下降最多",
+  agentShareChanged: (agent, current, previous) =>
+    `${agent}：${previous}% → ${current}%`,
+  rankingsHeading: "### 排行",
+  topProjects: "按问答轮次排名的项目",
+  topAgents: "按会话数排名的 Agent",
+  busiestDays: "最活跃的日子",
+  busiestHours: "最活跃的时段",
+  none: "（无）",
+  turnsUnit: "轮",
+  sessionsUnit: "个会话",
+  hourLabel: (hour) => `${hour}:00–${hour}:59`,
+  previousWeek: (key) => `上周（${key}）`,
+  previousMonth: (key) => `上月（${key}）`,
+  deltaUp: (n) => `+${n}`,
+  deltaDown: (n) => `-${n}`,
+  deltaSame: "持平",
+  moverLine: (name, value) => `${name}（${value} 轮）`,
+};
+
+const reportEn: ReportLabels = {
+  monthlyTitle: (month) => `# Monthly · ${month}`,
+  monthlyFraming: (active, total) =>
+    `${active} ${active === 1 ? "project was" : "projects were"} active this month${total > active ? `, out of ${total} in the index` : ""}.`,
+  comparisonHeading: (previous) => `### Compared with ${previous}`,
+  noPreviousData: "No sessions were recorded in the previous period, so no deltas can be computed.",
+  comparisonTableHeader: "| Metric | This period | Previous | Change |",
+  movedUp: "Biggest gain",
+  movedDown: "Biggest drop",
+  agentShareChanged: (agent, current, previous) =>
+    `${agent}: ${previous}% → ${current}%`,
+  rankingsHeading: "### Rankings",
+  topProjects: "Top projects by turns",
+  topAgents: "Top agents by sessions",
+  busiestDays: "Busiest days",
+  busiestHours: "Busiest hours",
+  none: "(none)",
+  turnsUnit: "turns",
+  sessionsUnit: "sessions",
+  hourLabel: (hour) => `${hour}:00–${hour}:59`,
+  previousWeek: (key) => `last week (${key})`,
+  previousMonth: (key) => `last month (${key})`,
+  deltaUp: (n) => `+${n}`,
+  deltaDown: (n) => `-${n}`,
+  deltaSame: "unchanged",
+  moverLine: (name, value) => `${name} (${value} turns)`,
+};
+
+export const REPORT_LABELS: Record<BriefLang, ReportLabels> = {
+  zh: reportZh,
+  en: reportEn,
+};

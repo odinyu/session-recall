@@ -968,6 +968,13 @@ html:not(.js) .theme-btn {
   overflow: hidden;
 }
 
+/* Three cards in one row (the how-it-works steps): a 2-column grid would leave
+   the third card alone in the second row, and the 1px-gap trick paints that
+   empty cell as a solid block. Declared after .features so it wins. */
+.features--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .feature {
   background: var(--bg);
   padding: clamp(24px, 3vw, 34px);
@@ -1593,6 +1600,10 @@ html.js .to-top.is-visible {
 @media (max-width: 900px) {
   .workflows {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The third step would sit alone in a 3-up row below this width. */
+  .features--three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
