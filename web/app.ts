@@ -1995,6 +1995,18 @@ function renderShell(): void {
         </div>
       </div>
     </div>
+    <div class="palette" id="palette" hidden>
+      <div class="scrim palette-scrim" id="palette-scrim" aria-hidden="true"></div>
+      <div class="palette-panel" role="dialog" aria-modal="true" aria-labelledby="palette-title">
+        <input class="palette-input" id="palette-input" type="search" autocomplete="off" spellcheck="false"
+          aria-label="${escapeAttr(t.paletteAria)}" aria-autocomplete="list" aria-controls="palette-list"
+          aria-expanded="false" aria-describedby="palette-hint">
+        <ul class="palette-list" id="palette-list" role="listbox" aria-label="${escapeAttr(t.paletteListAria)}"></ul>
+        <p class="palette-hint" id="palette-hint">
+          <span id="palette-state" aria-live="polite">${t.paletteHint}</span>
+        </p>
+      </div>
+    </div>
   `;
   bindShell();
   // A language switch rebuilds the whole shell; the drawer is chrome too, so it
@@ -2198,6 +2210,23 @@ function bindShell(): void {
       }
       return;
     }
+    // The quick-search palette is modal: while it is open it owns Escape and
+    // Tab, and the focus trap below must never run for it.
+    if (paletteOpen) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closePalette(true);
+      } else if (event.key === "Tab") {
+        trapPaletteFocus(event);
+      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        // Cmd-K's meaning is unchanged — focus the topbar search box — so when
+        // the palette owns the screen, it closes first and focus moves there.
+        event.preventDefault();
+        closePalette(false);
+        byId<HTMLInputElement>("search")?.focus();
+      }
+      return;
+    }
     trapFiltersFocus(event);
     const target = event.target as HTMLElement | null;
     const typing =
@@ -2206,6 +2235,14 @@ function bindShell(): void {
       target instanceof HTMLSelectElement ||
       target?.isContentEditable;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      // Cmd-Shift-K opens the palette; Cmd-K — unchanged from before — focuses
+      // the topbar search box. While the palette is open the modal gate above
+      // returns first, so Cmd-K cannot yank focus out of it.
+      if (event.shiftKey) {
+        event.preventDefault();
+        openPalette();
+        return;
+      }
       event.preventDefault();
       byId<HTMLInputElement>("search")?.focus();
       return;
@@ -2236,6 +2273,21 @@ function bindShell(): void {
   });
 
   window.addEventListener("resize", syncTopbarHeight);
+
+  byId<HTMLInputElement>("palette-input")?.addEventListener("input", (event) => {
+    paletteQuery = (event.target as HTMLInputElement).value;
+    window.clearTimeout(paletteTimer);
+    paletteTimer = window.setTimeout(runPaletteSearch, PALETTE_DEBOUNCE_MS);
+    setPaletteState(t.paletteHint);
+  });
+
+  byId<HTMLInputElement>("palette-input")?.addEventListener("keydown", onPaletteKeydown);
+
+  byId<HTMLDivElement>("palette-list")?.addEventListener("click", (event) => {
+    const option = (event.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    if (!option) return;
+    openPaletteSession(option.dataset.sessionId);
+  });
 
   window.addEventListener("hashchange", () => {
     const next = parseHash();
@@ -3119,6 +3171,279 @@ function setFootNote(text: string): void {
   if (foot) foot.innerHTML = `<span class="foot-muted">${escapeHtml(text)}</span>`;
 }
 
+/* ---------- quick search palette ---------- */
+
+/**
+ * Spotlight-style palette: a centered overlay with one input and a live result
+ * list. Opened by Cmd-Shift-K in-app, and focused and emptied when the window
+ * is summoned by the global hotkey (the app's window may have been hidden, so
+ * there is no page state to restore into). Cmd-K stays on the topbar search
+ * box exactly as before.
+ */
+const PALETTE_DEBOUNCE_MS = 120;
+const PALETTE_LIMIT = 20;
+
+let paletteOpen = false;
+let paletteQuery = "";
+let paletteResults: ResultSession[] = [];
+let paletteActive = 0;
+let paletteTimer = 0;
+let paletteRequestId = 0;
+/** Armed on window blur (a hidden window), consumed on the following focus. */
+let paletteSummonArm = false;
+
+/** The in-flight search, aborted as soon as the query changes. */
+let paletteAbort: AbortController | null = null;
+
+/** "fetching" | "empty" | "error" | "idle" — the state caption below the list. */
+function setPaletteState(text: string): void {
+  const state = byId<HTMLElement>("palette-state");
+  if (state) state.textContent = text;
+}
+
+function paletteResultHtml(session: ResultSession, index: number): string {
+  const project = projectLabel(session.projectPath);
+  const showProject = project.toLowerCase() !== AGENT_LABEL[session.agent].toLowerCase();
+  return `<li class="palette-item" role="option" aria-selected="false" tabindex="-1"
+        id="palette-item-${index}" data-index="${index}" data-session-id="${escapeAttr(session.id)}">
+    <span class="agent-dot agent-${session.agent}"></span>
+    <span class="palette-item-title">${escapeHtml(session.title || t.untitledSession)}</span>
+    <span class="palette-item-meta">
+      ${escapeHtml(AGENT_LABEL[session.agent])}
+      ${showProject ? `<span class="dot-sep">·</span>${escapeHtml(project)}` : ""}
+      <span class="dot-sep">·</span>${formatDate(session.updatedAt)}
+      <span class="dot-sep">·</span>${formatCount(session.hitCount)}${t.turnsUnit}
+    </span>
+  </li>`;
+}
+
+/**
+ * Paint the list without touching the query or focus; a stale reply must not
+ * clear rows the user already sees while typing.
+ */
+function renderPaletteResults(sessions: ResultSession[]): void {
+  const list = byId<HTMLUListElement>("palette-list");
+  if (!list) return;
+  paletteResults = sessions;
+  paletteActive = sessions.length > 0 ? 0 : -1;
+  list.innerHTML = sessions.map(paletteResultHtml).join("");
+  paintPaletteActive();
+}
+
+function paintPaletteActive(): void {
+  const input = byId<HTMLInputElement>("palette-input");
+  const list = byId<HTMLUListElement>("palette-list");
+  if (!input || !list) return;
+  const items = [...list.querySelectorAll<HTMLElement>('[role="option"]')];
+  items.forEach((item, index) => {
+    item.classList.toggle("is-active", index === paletteActive);
+    item.setAttribute("aria-selected", String(index === paletteActive));
+  });
+  const active = items[paletteActive];
+  if (!active) {
+    input.removeAttribute("aria-activedescendant");
+    return;
+  }
+  input.setAttribute("aria-activedescendant", active.id);
+}
+
+function movePalette(delta: number): void {
+  if (paletteResults.length === 0) return;
+  paletteActive =
+    (paletteActive + delta + paletteResults.length) % paletteResults.length;
+  paintPaletteActive();
+  const item = byId<HTMLElement>(`#palette-item-${paletteActive}`);
+  item?.scrollIntoView({ block: "nearest" });
+}
+
+/**
+ * Live search against the existing search endpoint. The request is cancelled
+ * on every query change, and results only paint when their request is still
+ * the newest one — a slow older reply can never overwrite newer rows.
+ */
+async function runPaletteSearch(): Promise<void> {
+  if (!paletteOpen) return;
+  const requestId = ++paletteRequestId;
+  paletteAbort?.abort();
+  const abort = new AbortController();
+  paletteAbort = abort;
+
+  const query = paletteQuery.trim();
+  const list = byId<HTMLUListElement>("palette-list");
+
+  if (!query) {
+    paletteResults = [];
+    paletteActive = -1;
+    if (list) list.innerHTML = "";
+    setPaletteState(t.paletteHint);
+    return;
+  }
+
+  setPaletteState(t.paletteSearching);
+  try {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    params.set("limit", String(PALETTE_LIMIT));
+    const response = await fetch(`/api/search?${params}`, {
+      signal: abort.signal,
+    });
+    if (!response.ok) {
+      if (requestId !== paletteRequestId) return;
+      setPaletteState(
+        format(t.paletteError, { message: response.status }),
+      );
+      renderPaletteResults([]);
+      return;
+    }
+    const data = await response.json();
+    if (requestId !== paletteRequestId) return;
+    const sessions = (data as SearchResult).sessions ?? [];
+    renderPaletteResults(sessions);
+    setPaletteState(sessions.length === 0 ? t.paletteEmpty : t.paletteHint);
+  } catch (error) {
+    if (requestId !== paletteRequestId) return;
+    if ((error as { name?: string }).name === "AbortError") return;
+    setPaletteState(
+      format(t.paletteError, {
+        message: (error as Error).message,
+      }),
+    );
+    renderPaletteResults([]);
+  }
+}
+
+function openPalette(): void {
+  if (paletteOpen) {
+    closePalette(true);
+    return;
+  }
+  paletteOpen = true;
+  paletteQuery = "";
+  paletteRequestId += 1;
+  paletteAbort?.abort();
+  paletteAbort = null;
+  const root = byId<HTMLDivElement>("palette");
+  if (!root) return;
+  root.hidden = false;
+  document.body.classList.add("palette-open");
+  const input = byId<HTMLInputElement>("palette-input");
+  const list = byId<HTMLUListElement>("palette-list");
+  if (input) {
+    input.value = "";
+    input.setAttribute("aria-expanded", "true");
+  }
+  if (list) list.innerHTML = "";
+  paletteResults = [];
+  paletteActive = -1;
+  setPaletteState(t.paletteHint);
+  window.setTimeout(() => input?.focus(), 0);
+}
+
+/**
+ * Focus restore: back to the element that summoned it when known (the topbar
+ * search box for Cmd-K), otherwise the element behind the scrim.
+ */
+function closePalette(focusSearch: boolean): void {
+  if (!paletteOpen) return;
+  paletteOpen = false;
+  paletteQuery = "";
+  paletteRequestId += 1;
+  paletteAbort?.abort();
+  paletteAbort = null;
+  const root = byId<HTMLDivElement>("palette");
+  if (root) root.hidden = true;
+  document.body.classList.remove("palette-open");
+  const input = byId<HTMLInputElement>("palette-input");
+  if (input) {
+    input.value = "";
+    input.removeAttribute("aria-expanded");
+  }
+  const list = byId<HTMLUListElement>("palette-list");
+  if (list) list.innerHTML = "";
+  paletteResults = [];
+  paletteActive = -1;
+  if (focusSearch) byId<HTMLInputElement>("search")?.focus();
+}
+
+function onPaletteKeydown(event: KeyboardEvent): void {
+  const input = byId<HTMLInputElement>("palette-input");
+  if (!input) return;
+  const key = event.key;
+  if (key === "ArrowDown" || key === "ArrowUp") {
+    event.preventDefault();
+    movePalette(key === "ArrowDown" ? 1 : -1);
+    return;
+  }
+  if (key === "Home" || key === "End") {
+    event.preventDefault();
+    if (paletteResults.length === 0) return;
+    paletteActive = key === "Home" ? 0 : paletteResults.length - 1;
+    paintPaletteActive();
+    return;
+  }
+  if (key === "Enter") {
+    // Cmd/Ctrl+Enter copies the selected session's deep link instead of
+    // opening it; plain Enter opens the session and closes the palette.
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      const session = paletteResults[paletteActive];
+      if (session) {
+        void copyText(`sessionrecall://session/${encodeURIComponent(session.id)}`);
+      }
+      return;
+    }
+    event.preventDefault();
+    openPaletteSession(paletteResults[paletteActive]?.id);
+    return;
+  }
+  if (key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closePalette(true);
+    return;
+  }
+}
+
+/** Open the selected session inside the app, then close the palette. */
+function openPaletteSession(id: string | undefined): void {
+  if (!id) return;
+  closePalette(false);
+  location.hash = `#/session/${encodeURIComponent(id)}`;
+}
+
+/**
+ * While the palette is open the page behind it is not navigable: Tab cycles
+ * the input and the options only, exactly like the settings modal.
+ */
+function trapPaletteFocus(event: KeyboardEvent): void {
+  const panel = byId<HTMLDivElement>("palette-panel");
+  if (!panel) return;
+  const focusable = Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => el.getClientRects().length > 0);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+  const inside = active !== null && panel.contains(active);
+  if (event.shiftKey) {
+    if (!inside || active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (!inside || active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+/** The page is summoned from a hidden window: open the palette, empty and focused. */
+function summonPalette(): void {
+  openPalette();
+}
+
 /* ---------- settings drawer ---------- */
 
 let settingsOpen = false;
@@ -3177,6 +3502,10 @@ function settingsHtml(): string {
       <div class="settings-line">
         <span>${t.shortcutInApp}</span>
         <span class="settings-value">${t.shortcutFocusSearch}</span>
+      </div>
+      <div class="settings-line">
+        <span>${t.paletteAria}</span>
+        <span class="settings-value">${t.shortcutPalette}</span>
       </div>
     </section>
     <section class="settings-group" aria-labelledby="settings-saved">
@@ -3451,6 +3780,18 @@ function scheduleUpdatePolling(): void {
   void pollUpdateAnnouncement();
   window.setInterval(() => void pollUpdateAnnouncement(), 30_000);
   window.addEventListener("focus", () => void pollUpdateAnnouncement());
+  // Summon path: the global hotkey un-hides a hidden window, which fires a
+  // `focus` event here with no page state to restore into. Arm the palette
+  // on the hidden side, open it on the focus side — so it opens exactly when
+  // the window is actually re-shown, not on the first ever focus.
+  window.addEventListener("blur", () => {
+    paletteSummonArm = true;
+  });
+  window.addEventListener("focus", () => {
+    if (!paletteSummonArm || paletteOpen) return;
+    paletteSummonArm = false;
+    summonPalette();
+  });
 }
 
 /**

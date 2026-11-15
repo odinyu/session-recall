@@ -2868,3 +2868,163 @@ mark {
 .update-modal-buttons .settings-action {
   justify-content: center;
 }
+
+/* ---------- quick search palette ---------- */
+
+/* A centered overlay over a scrim, the same z-order and tokens as the
+   settings modal; on a phone it is a near-full-screen sheet. */
+.palette {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(18px, 12vh, 120px) clamp(14px, 4vw, 28px) clamp(14px, 4vw, 28px);
+  pointer-events: none;
+}
+
+.palette[hidden] {
+  display: none;
+}
+
+.palette-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+.palette-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  pointer-events: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-drawer);
+  overflow: hidden;
+  animation: palette-in 150ms ease-out;
+}
+
+@keyframes palette-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.palette-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 17px;
+  outline: 0;
+}
+
+.palette-input::placeholder {
+  color: var(--faint);
+}
+
+.palette-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.palette-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* One row per session: title, agent, project, date and turn count. */
+.palette-item {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.palette-item:hover {
+  background: var(--surface-2);
+}
+
+.palette-item.is-active {
+  background: var(--surface-3);
+}
+
+.palette-item .agent-dot {
+  flex: none;
+  align-self: center;
+}
+
+.palette-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-item-meta {
+  flex: none;
+  max-width: 52%;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-hint {
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 600px) {
+  /* A phone has no space around a centered box: the palette sits near-full
+     screen, but the panel sizes to its content instead of stretching to the
+     viewport — stretching would leave a long blank area under the hint bar. */
+  .palette {
+    padding: clamp(10px, 6vh, 40px) 12px;
+    align-items: flex-start;
+  }
+
+  .palette-panel {
+    width: 100%;
+    max-height: 92vh;
+    flex: none;
+  }
+
+  .palette-list {
+    max-height: 58vh;
+  }
+
+  .palette-item-meta {
+    display: none;
+  }
+}
