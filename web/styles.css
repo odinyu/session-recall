@@ -1208,6 +1208,12 @@ button {
   color: var(--accent);
 }
 
+/* A title hit is the session title, not a question/answer pair: the label
+   reads as the matched thing rather than a fake question. */
+.hit--title .hit-label {
+  color: var(--accent);
+}
+
 .process-hit .hit-primary {
   -webkit-line-clamp: 3;
   font-family: var(--mono);
@@ -2992,6 +2998,12 @@ mark {
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A title-matched row carries no turn behind the hit: mark it plainly so the
+   metric column never shows a bogus turn count. */
+.palette-item.is-title .palette-item-meta {
+  color: var(--accent);
 }
 
 .palette-hint {

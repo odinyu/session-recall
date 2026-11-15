@@ -44,7 +44,7 @@ interface Hit {
   turnId: number;
   idx: number;
   ts: number;
-  matchField: "user" | "assistant";
+  matchField: "user" | "assistant" | "title";
   snippet: string;
   userText: string;
   assistantSnippet: string;
@@ -3204,7 +3204,11 @@ function setPaletteState(text: string): void {
 function paletteResultHtml(session: ResultSession, index: number): string {
   const project = projectLabel(session.projectPath);
   const showProject = project.toLowerCase() !== AGENT_LABEL[session.agent].toLowerCase();
-  return `<li class="palette-item" role="option" aria-selected="false" tabindex="-1"
+  // A title-matched session has no turn behind the hit: show that plainly
+  // instead of a bogus turn count.
+  const isTitleMatch = session.hits.some((hit) => hit.matchField === "title");
+  const metric = isTitleMatch ? t.titleMatchLabel : `${formatCount(session.hitCount)}${t.turnsUnit}`;
+  return `<li class="palette-item${isTitleMatch ? " is-title" : ""}" role="option" aria-selected="false" tabindex="-1"
         id="palette-item-${index}" data-index="${index}" data-session-id="${escapeAttr(session.id)}">
     <span class="agent-dot agent-${session.agent}"></span>
     <span class="palette-item-title">${escapeHtml(session.title || t.untitledSession)}</span>
@@ -3212,7 +3216,7 @@ function paletteResultHtml(session: ResultSession, index: number): string {
       ${escapeHtml(AGENT_LABEL[session.agent])}
       ${showProject ? `<span class="dot-sep">·</span>${escapeHtml(project)}` : ""}
       <span class="dot-sep">·</span>${formatDate(session.updatedAt)}
-      <span class="dot-sep">·</span>${formatCount(session.hitCount)}${t.turnsUnit}
+      <span class="dot-sep">·</span>${escapeHtml(metric)}
     </span>
   </li>`;
 }
@@ -4470,6 +4474,16 @@ function processHitBlock(
 }
 
 function hitBlock(hit: Hit, session: ResultSession, terms: string[]): string {
+  // A title hit is the session title itself; there is no question/answer pair
+  // behind it, so render the title line and link without a `hit=` marker (the
+  // session page only recognises `user`/`assistant` and would skip highlight).
+  if (hit.matchField === "title") {
+    const href = `#/session/${encodeURIComponent(session.id)}?turn=${hit.idx}`;
+    return `<a class="hit hit--title" href="${href}">
+      <span class="hit-label">${t.titleMatchLabel}</span>
+      <p class="hit-primary">${highlight(hit.snippet, terms)}</p>
+    </a>`;
+  }
   const href = `#/session/${encodeURIComponent(session.id)}?turn=${hit.idx}&hit=${hit.matchField}`;
   const prompt = hit.matchField === "user" ? hit.snippet : hit.userText;
   const answer = hit.matchField === "user" ? hit.assistantSnippet : hit.snippet;
