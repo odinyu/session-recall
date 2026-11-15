@@ -28,7 +28,7 @@ export interface SearchHit {
   turnId: number;
   idx: number;
   ts: number;
-  matchField: "user" | "assistant";
+  matchField: "user" | "assistant" | "title";
   snippet: string;
   userText: string;
   assistantSnippet: string;
@@ -118,7 +118,11 @@ interface Clause {
   params: (string | number)[];
 }
 
-function baseClause(params: SearchParams): Clause {
+/**
+ * The per-session filters (hidden / starred / agent / project), shared by the
+ * turn executors and the title pass so the rule cannot drift between them.
+ */
+function sessionScopeClauses(params: SearchParams): Clause {
   // Hidden sessions are user data that stays indexed but never surfaces in a
   // default result; every executor (qa/process, fts/like/recent) shares this
   // clause, so the rule cannot drift between modes. `hiddenOnly` is the rail's
@@ -143,6 +147,13 @@ function baseClause(params: SearchParams): Clause {
     clauses.push("s.project_path = ?");
     values.push(params.project);
   }
+  return { sql: clauses.join(" AND "), params: values };
+}
+
+function baseClause(params: SearchParams): Clause {
+  const scope = sessionScopeClauses(params);
+  const clauses = [scope.sql];
+  const values = [...scope.params];
   if (params.from !== null) {
     clauses.push("COALESCE(NULLIF(t.ts, 0), s.updated_at) >= ?");
     values.push(params.from);
@@ -407,6 +418,155 @@ function executeLike(
     .all(...values, limit) as TurnRow[];
   fillSessionCounts(db, null, rows, where, values);
   return { rows, totalTurns: count.turns, totalSessions: count.sessions };
+}
+
+/**
+ * A session matched by its title only (no turn matched). Carries the latest
+ * turn so the result can render one hit row and a deep link, like any other.
+ */
+interface TitleSession {
+  session_id: string;
+  agent: AgentId;
+  title: string;
+  project_path: string;
+  updated_at: number;
+  starred: number;
+  hidden: number;
+  idx: number;
+  ts: number;
+  user_text: string;
+}
+
+/**
+ * Title matches as a first-class result pass (QA scope only).
+ *
+ * A LIKE-based pass over `session.title` — deliberately not FTS: the title
+ * column is not in the FTS tables, and a LIKE pass needs no schema version bump
+ * and no re-index. Every query term must appear in the title (the same AND
+ * semantics as the content passes), so a short or CJK term works exactly
+ * like it does through the LIKE fallback. Filters are the shared session scope
+ * (hidden / starred / agent / project) plus the same time window, expressed
+ * over the session's turns. `role` is intentionally ignored: a title is
+ * session-level metadata, not turn text, and narrowing it by role would make
+ * title search useless under either role filter.
+ *
+ * Sessions are ordered by `updated_at` and capped at `limit`, so the caller
+ * can merge them after the content rows and respect the pagination budget.
+ */
+function executeTitlePass(
+  db: Database,
+  params: SearchParams,
+  terms: string[],
+  limit: number,
+): TitleSession[] {
+  const scope = sessionScopeClauses(params);
+  const clauses = [scope.sql];
+  const values = [...scope.params];
+  for (const term of terms) {
+    clauses.push("s.title LIKE ? ESCAPE '\\'");
+    values.push(likePattern(term));
+  }
+  if (params.from !== null) {
+    clauses.push(
+      "EXISTS (SELECT 1 FROM turn tt WHERE tt.session_id = s.id AND COALESCE(NULLIF(tt.ts, 0), s.updated_at) >= ?)",
+    );
+    values.push(params.from);
+  }
+  if (params.to !== null) {
+    clauses.push(
+      "EXISTS (SELECT 1 FROM turn tt WHERE tt.session_id = s.id AND COALESCE(NULLIF(tt.ts, 0), s.updated_at) <= ?)",
+    );
+    values.push(params.to);
+  }
+  const where = clauses.join(" AND ");
+  // The latest turn per session comes from a window function instead of
+  // scalar subqueries: SQLite does not resolve the outer row's columns inside
+  // a correlated subquery's ORDER BY, and JOINs resolve them cleanly.
+  const titleRows = db
+    .query(
+      `SELECT s.id AS session_id, s.agent, s.title, s.project_path,
+              s.updated_at, s.starred, s.hidden
+       FROM session s
+       WHERE ${where}
+       ORDER BY s.updated_at DESC
+       LIMIT ?`,
+    )
+    .all(...values, limit) as {
+      session_id: string;
+      agent: AgentId;
+      title: string;
+      project_path: string;
+      updated_at: number;
+      starred: number;
+      hidden: number;
+    }[];
+  const ids = titleRows.map((row) => row.session_id);
+  const placeholders = ids.map(() => "?").join(", ");
+  const latest = new Map<string, { idx: number; ts: number; user_text: string }>();
+  if (placeholders) {
+    const rows = db
+      .query(
+        `WITH ranked AS (
+           SELECT tt.session_id AS session_id, tt.idx AS idx, tt.ts AS ts,
+                  tt.user_text AS user_text,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY tt.session_id
+                    ORDER BY COALESCE(NULLIF(tt.ts, 0), ss.updated_at) DESC, tt.idx DESC
+                  ) AS n
+           FROM turn tt
+           JOIN session ss ON ss.id = tt.session_id
+           WHERE tt.session_id IN (${placeholders})
+         )
+         SELECT session_id, idx, ts, user_text FROM ranked WHERE n = 1`,
+      )
+      .all(...ids) as { session_id: string; idx: number; ts: number; user_text: string }[];
+    for (const row of rows) latest.set(row.session_id, row);
+  }
+  return titleRows.map((row) => {
+    const turn = latest.get(row.session_id);
+    return {
+      ...row,
+      idx: turn?.idx ?? 0,
+      ts: turn?.ts ?? row.updated_at,
+      user_text: turn?.user_text ?? "",
+    };
+  });
+}
+
+/** The hit row for a title match: snippet is the title itself. */
+function pickTitleHit(session: TitleSession): SearchHit {
+  return {
+    turnId: -1,
+    idx: session.idx,
+    ts: session.ts,
+    matchField: "title",
+    snippet: clipTitle(session.title),
+    userText: session.user_text.slice(0, 800),
+    assistantSnippet: "",
+  };
+}
+
+function clipTitle(title: string): string {
+  const chars = [...title.replace(/\s+/g, " ").trim()];
+  if (chars.length <= 240) return chars.join("");
+  return `${chars.slice(0, 240).join("").trimEnd()}…`;
+}
+
+/** One SearchSession per title-matched row, one title hit each. */
+function groupTitlePass(rows: TitleSession[]): SearchSession[] {
+  return rows.map((row) => ({
+    id: row.session_id,
+    agent: row.agent,
+    title: row.title,
+    projectPath: row.project_path,
+    updatedAt: row.updated_at,
+    starred: row.starred === 1,
+    hidden: row.hidden === 1,
+    hits: [pickTitleHit(row)],
+    hitCount: 1,
+    processHits: [],
+    processHitCount: 0,
+  }));
 }
 
 interface ProcessRow {
@@ -773,6 +933,26 @@ export function searchTurns(db: Database, params: SearchParams): SearchResult {
     offset > 0 ? outcome.rows.slice(offset, offset + limit) : outcome.rows.slice(0, limit);
   const sessions = groupRows(sliced, terms, params).slice(0, limit);
 
+  // Title pass (QA scope, non-empty query): sessions whose title matches
+  // every term appear even when no turn matched. Turn-matched sessions stay
+  // first; title-only sessions are appended, deduped against the content
+  // result and bounded by the pagination budget.
+  let resultSessions = sessions;
+  let titleMatches = 0;
+  if (terms.length > 0) {
+    const contentIds = new Set(sliced.map((row) => row.session_id));
+    const extra = executeTitlePass(db, params, terms, limit + offset)
+      .filter((row) => !contentIds.has(row.session_id));
+    const byId = new Map(resultSessions.map((session) => [session.id, session]));
+    for (const titleSession of groupTitlePass(extra)) {
+      if (byId.has(titleSession.id)) continue;
+      byId.set(titleSession.id, titleSession);
+      resultSessions = [...resultSessions, titleSession];
+      titleMatches += 1;
+    }
+    resultSessions = resultSessions.slice(0, limit);
+  }
+
   return {
     q: params.q,
     terms,
@@ -782,7 +962,12 @@ export function searchTurns(db: Database, params: SearchParams): SearchResult {
     totalTurns: outcome.totalTurns,
     totalSessions: outcome.totalSessions,
     processTotal: 0,
-    sessions,
+    // Sessions found by title count toward the session total so the status
+    // line matches what the list actually holds. Content turns stay as the
+    // turn count: a title match has no turn content behind it.
+    totalTurns: outcome.totalTurns,
+    totalSessions: outcome.totalSessions + titleMatches,
+    sessions: resultSessions,
   };
 }
 

@@ -382,6 +382,14 @@ Invalid dates, weeks and formats are rejected with a 400.
 
 ## Search
 
+- **Session titles are searched too** (Q&A scope). A session whose title
+  matches every query term appears in the results even when no turn matches,
+  behind a `title` hit whose snippet is the title itself. Title matches ride
+  the same `LIKE` pass as the content fallback, so no FTS index change and no
+  re-index is required — an existing index finds title matches on its next
+  query. Turn-matched sessions still rank first; title-only sessions are
+  appended, and every filter (agent, project, date range, role, starred,
+  hidden) applies to them exactly as it does to content matches.
 - Two scopes, chosen beside the search box:
   - **Q&A** searches prompts and answers.
   - **Process** searches tool inputs (`path`, `command`, …), tool outputs, and
