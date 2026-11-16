@@ -7,9 +7,12 @@ import {
   DEFAULT_PREFS,
   InvalidPrefsError,
   hotkeyStatus,
+  isAppShortcut,
+  isAppShortcuts,
   isHotkey,
   prefsPath,
   readPrefs,
+  requestHotkeyApply,
   summonCount,
   updatePrefs,
   effectiveHotkey,
@@ -230,13 +233,14 @@ test("ignores a state file written by another launch", () => {
   expect(hotkeyStatus(dir, PORT, {})).toMatchObject({ registered: false });
 });
 
-test("reports a shortcut changed after launch as pending a restart", () => {
+test("reports a shortcut the shell has not applied yet as pending", () => {
   const dir = freshDir();
   writeState(dir, { hotkey: "Option+Command+K", registered: true });
   const status = hotkeyStatus(dir, PORT, {});
   expect(status.registered).toBe(false);
   expect(status.active).toBe("Option+Command+K");
-  expect(status.error).toContain("restart");
+  expect(status.pending).toBe(true);
+  expect(status.error).toBeUndefined();
 });
 
 test("reports a disabled shortcut without inventing an error", () => {
@@ -277,4 +281,65 @@ test("reports the summon counter and treats junk as zero", () => {
     writeFileSync(join(dir, "summon-state.json"), junk, "utf8");
     expect(summonCount(dir)).toBe(0);
   }
+});
+
+test("accepts the in-app shortcut spellings the page can match", () => {
+  for (const ok of ["Command+K", "Command+Shift+K", "Option+F5", "/", "?"]) {
+    expect(isAppShortcut(ok)).toBe(true);
+    expect(isAppShortcut(` ${ok} `)).toBe(true);
+  }
+  for (const bad of ["K", "k", "5", "Command", "Command++K", "Command+K+L", "Command+Command+K", " "]) {
+    expect(isAppShortcut(bad)).toBe(false);
+  }
+});
+
+test("accepts a shortcuts record only when both actions are valid lists", () => {
+  expect(
+    isAppShortcuts({ focusSearch: ["Command+K", "/"], palette: ["Command+Shift+K"] }),
+  ).toBe(true);
+  expect(isAppShortcuts({ focusSearch: [], palette: [] })).toBe(true);
+  expect(isAppShortcuts({ focusSearch: ["Command+K"] })).toBe(false);
+  expect(isAppShortcuts({ focusSearch: ["K"], palette: [] })).toBe(false);
+  expect(
+    isAppShortcuts({ focusSearch: ["Command+K", "/", "x", "y"], palette: [] }),
+  ).toBe(false);
+});
+
+test("stores and reads in-app shortcuts, rejecting malformed records", () => {
+  const dir = freshDir();
+  updatePrefs({ shortcuts: { focusSearch: ["/" ], palette: [] } }, dir);
+  expect(readPrefs(dir).shortcuts).toEqual({ focusSearch: ["/"], palette: [] });
+  expect(() =>
+    updatePrefs({ shortcuts: { focusSearch: ["K"], palette: [] } }, dir),
+  ).toThrow(InvalidPrefsError);
+});
+
+test("a saved change reports pending instead of restarting the app", () => {
+  const dir = freshDir();
+  updatePrefs({ hotkey: "Option+Command+K" }, dir);
+  writeState(dir, { hotkey: DEFAULT_HOTKEY, registered: true });
+  const status = hotkeyStatus(dir, PORT, {});
+  expect(status.pending).toBe(true);
+  expect(status.registered).toBe(false);
+  expect(status.error).toBeUndefined();
+  expect(status.active).toBe(DEFAULT_HOTKEY);
+});
+
+test("disabling the shortcut is pending until the shell drops it", () => {
+  const dir = freshDir();
+  updatePrefs({ hotkey: null }, dir);
+  writeState(dir, { hotkey: DEFAULT_HOTKEY, registered: true });
+  expect(hotkeyStatus(dir, PORT, {})).toMatchObject({ hotkey: null, pending: true });
+});
+
+test("the apply request carries the new shortcut for the shell", () => {
+  const dir = freshDir();
+  expect(requestHotkeyApply("Option+Command+K", dir)).toBe("requested");
+  expect(JSON.parse(readFileSync(join(dir, "hotkey-request.json"), "utf8"))).toEqual({
+    hotkey: "Option+Command+K",
+  });
+  expect(requestHotkeyApply(null, dir)).toBe("requested");
+  expect(JSON.parse(readFileSync(join(dir, "hotkey-request.json"), "utf8"))).toEqual({
+    hotkey: null,
+  });
 });

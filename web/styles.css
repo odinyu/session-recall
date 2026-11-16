@@ -110,9 +110,11 @@ button {
   cursor: pointer;
 }
 
+/* No accent rings anywhere: keyboard focus reads as the same tint or colour
+   change hover uses, so a focused control never gains a border it lacks while
+   resting. */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .skip {
@@ -486,12 +488,10 @@ button {
   background: var(--surface-2);
 }
 
-/* One ring hugging the control, instead of the global offset outline that
-   reads as a double border around a bordered input. */
+/* Keyboard focus matches hover; no ring is drawn around the bordered trigger. */
 .project-trigger:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 0;
-  border-color: transparent;
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }
 
 .project-value {
@@ -859,9 +859,13 @@ button {
   background: var(--accent);
 }
 
+/* The arrow keys move a tint, never a ring; the picked day keeps its fill. */
 .date-cell:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  background: var(--surface-2);
+}
+
+.date-cell.is-selected:focus-visible {
+  background: var(--accent);
 }
 
 .brief-status {
@@ -1056,7 +1060,7 @@ button {
 }
 .status-undo:hover { color: var(--ink); }
 .status-undo:disabled { color: var(--muted); cursor: default; }
-.status-undo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status-undo:focus-visible { color: var(--ink); }
 
 .filters-toggle {
   display: none;
@@ -1468,9 +1472,10 @@ mark {
   color: var(--ink);
 }
 
+/* The keyboard-active option uses the hover tint instead of an accent ring. */
 .resume-option.is-active {
-  outline: 1.5px solid var(--accent);
-  outline-offset: -1.5px;
+  background: var(--surface-2);
+  color: var(--ink);
 }
 
 .resume-detail {
@@ -1686,8 +1691,7 @@ mark {
 }
 
 .turn-copy:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  color: var(--accent);
 }
 
 .turn-copy .turn-copy-check {
@@ -2570,8 +2574,7 @@ mark {
 
 .star-button:focus-visible,
 .hide-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  color: var(--accent);
 }
 
 .star-button:disabled,
@@ -2674,6 +2677,13 @@ mark {
 
 .keybinding-binding + .keybinding-binding {
   margin-left: 6px;
+}
+
+/* Two bindings for one action are alternatives, not a chord. */
+.keybinding-or {
+  margin: 0 4px;
+  color: var(--faint);
+  font-size: 11px;
 }
 
 .keybinding-keys kbd {
@@ -2832,8 +2842,7 @@ mark {
 
 .saved-open:focus-visible,
 .saved-row .text-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  color: var(--accent);
 }
 
 .saved-query {
@@ -2866,7 +2875,6 @@ mark {
 
 .saved-rename-input:focus {
   outline: none;
-  border-color: var(--accent);
 }
 
 .saved-empty {
@@ -2899,7 +2907,6 @@ mark {
 
 .save-search-input:focus {
   outline: none;
-  border-color: var(--accent);
 }
 
 .save-search-btn {
@@ -2954,8 +2961,8 @@ mark {
 }
 
 .role-chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  background: var(--surface-2);
+  color: var(--ink);
 }
 
 /* ---- brief block, pinned in the rail footer (bottom-left) ---- */

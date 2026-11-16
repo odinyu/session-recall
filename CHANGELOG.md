@@ -7,14 +7,44 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
-## Unreleased
+## 1.8.1 — 2026-11-16
 
-- **Shortcut settings read as keybindings.** The shortcuts group lists each
+- **A File menu holds the update entries.** `Check for Updates…` (⌘U) and
+  `View Changelog` moved out of the application menu into a **File** submenu,
+  followed by Close Window, where macOS users look for them; the application
+  menu keeps About, Hide/Show All and Quit (⌘Q). Both update entries still work
+  while the window is hidden. The app menu is now an explicit submenu — macOS
+  only renders submenus in the menu bar, so the predefined items previously sat
+  at the top level and disappeared, taking ⌘Q with them.
+
+- **Check for Updates… answers visibly.** "No update" and a failed check used
+  to be silent, because the drawer only announces available updates; the menu
+  now shows a native alert (as a sheet on the window, so it is actually
+  visible): *Session Recall 1.8.0 is the latest version.* or the error text. A
+  hidden window is brought forward for it, and the alert follows the stored
+  language preference (then the system locale).
+
+- **No accent focus rings anywhere.** The global `:focus-visible` outline and
+  every per-control accent ring are gone: keyboard focus now reads as the same
+  tint or text-colour change hover uses (`project-trigger`, `date-cell`,
+  `resume-option`, `role-chip` get the hover tint; icon and link buttons get the
+  hover accent colour; the two text inputs keep their resting border). The
+  calendar's Escape-restore therefore no longer paints a border around the date
+  button.
+
+- **Every shortcut is bindable in the drawer.** The shortcuts group lists each
   action as a row with its name, command id and keycap chips instead of a text
-  input. The global hotkey row reveals `+` on hover while it has no binding and
-  `×` once it has one; `+` captures the next combination (Escape or a click
-  elsewhere abandons it) and `×` clears it. In-app shortcuts (⌘K, ⌘⇧K) are
-  listed read-only in the same form.
+  input. Each row reveals `+` on hover while it has no binding and `×` once it
+  has one; `+` captures the next combination (Escape or a click elsewhere
+  abandons it) and `×` clears it. The global hotkey, **focus search field**
+  (⌘K / `/` by default) and **quick search palette** (⌘⇧K) are all editable,
+  and two bindings on one action are joined by `or`. In-app binds reject bare
+  letters/digits (they would swallow typing) and a combination already bound to
+  another action. Changes apply without a restart: `POST /api/hotkey` writes the
+  shell's request file, the shell re-registers on its next poll (≈2 s) and the
+  drawer shows **Applying…** until it does; `/`-style bindings stop working
+  while an input has focus, and the topbar hint follows the configured
+  focus-search binding.
 
 - **The palette no longer opens on an ordinary refocus.** The shell now bumps a
   summon counter (`GET /api/summon`) only when the global hotkey brings the

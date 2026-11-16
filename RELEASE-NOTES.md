@@ -17,6 +17,12 @@ Rules for an entry:
 The developer-facing record — every functional change, fix and refactor — lives
 in `CHANGELOG.md` and is never shown to users.
 
+## 1.8.1 — 2026-11-16
+
+修复 macOS 菜单栏缺少应用菜单和 ⌘Q；「检查更新」在已是最新或失败时也会给出提示，快捷键可以逐项改绑。中文短语被换行拆开时仍能搜到，项目筛选不再混入 Cindy 的临时目录，界面细节继续打磨。
+
+The macOS menu bar has its app menu and ⌘Q again; Check for Updates now answers even when you are current or the check fails, and shortcuts can be rebound per action. Wrapped Chinese phrases stay searchable, Cindy's scratch folders no longer appear as projects, and interface details are polished.
+
 ## 1.8.0 — 2026-11-15
 
 现在可以按标题搜索会话了；新增 ⌘⇧K 快速搜索浮窗；报告新增月报与周期对比。

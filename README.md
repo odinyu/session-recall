@@ -46,11 +46,21 @@ bash scripts/make-app.sh
 ```
 
 The packaged app registers a global shortcut, `⌥⌘R` by default, that shows or
-hides the window from any app; change it with the `hotkey` preference (`null`
-disables it) and read its state from `GET /api/hotkey`. Known macOS limitation:
-duplicate registrations can silently co-exist on some macOS builds, so another
-app (or a second copy of this one) can hold the same combination without any
-error — `/api/hotkey` reports only this app's own registration state.
+hides the window from any app. The Settings drawer's **Shortcuts** section
+rebinds it — click `×` to clear, `+` and press a combination to set it — and
+also rebinds the two in-app shortcuts (**focus search field**, `⌘K` / `/` by
+default, and **quick search palette**, `⌘⇧K`). Changes apply immediately: the
+drawer writes `hotkey-request.json`, the shell re-registers on its next poll
+(≈2 s) and reports `pending` until it has, so nothing needs a restart.
+
+`POST /api/hotkey` with `{"hotkey": "Option+Command+K"}` (or `null` to disable)
+does the same from a script; it answers `202` with `pending: true`, and
+`GET /api/hotkey` reports the registration state. In-app bindings live in the
+`shortcuts` preference (`focusSearch` and `palette`, each a list whose empty
+list means "not bound"). Known macOS limitation: duplicate registrations can
+silently co-exist on some macOS builds, so another app (or a second copy of
+this one) can hold the same combination without any error — `/api/hotkey`
+reports only this app's own registration state.
 
 It builds the web UI, compiles the Bun CLI into a self-contained sidecar binary
 (~63 MB, named for the host target triple), and lets Tauri bundle both:
@@ -390,7 +400,8 @@ Invalid dates, weeks and formats are rejected with a 400.
   query. Turn-matched sessions still rank first; title-only sessions are
   appended, and every filter (agent, project, date range, role, starred,
   hidden) applies to them exactly as it does to content matches.
-- A **quick-search palette** opens with <kbd>⌘⇧K</kbd>, or when the global
+- A **quick-search palette** opens with <kbd>⌘⇧K</kbd> (rebindable in
+  Settings → Shortcuts), or when the global
   hotkey summons the window (a plain Cmd-Tab back into the app opens nothing).
   It searches the whole index
   as you type: <kbd>↑↓</kbd> to move, <kbd>Enter</kbd> to open a session,

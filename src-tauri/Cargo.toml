@@ -1,6 +1,6 @@
 [package]
 name = "session-recall-app"
-version = "1.8.0"
+version = "1.8.1"
 description = "Local, read-only full-text recall across coding-agent sessions."
 authors = ["odinyu"]
 edition = "2021"
@@ -15,6 +15,7 @@ tauri = { version = "2", features = [] }
 # Registers the `sessionrecall://` scheme so a brief's link has one stable
 # address that opens (or focuses) this app instead of a browser.
 tauri-plugin-deep-link = "2"
+tauri-plugin-dialog = "2"
 # System-wide shortcut that summons the window from any app. Registered for the
 # whole app, so it also works while the window is hidden in the background.
 tauri-plugin-global-shortcut = "2"

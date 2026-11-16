@@ -31,7 +31,7 @@
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant};
 
@@ -39,6 +39,7 @@ use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuil
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -72,6 +73,9 @@ const HOTKEY_STATE_FILE: &str = "hotkey-state.json";
 /// The webview opens the quick-search palette only for a summon, never for an
 /// ordinary refocus (Cmd-Tab back into the app).
 const SUMMON_STATE_FILE: &str = "summon-state.json";
+/// Written by the sidecar when the drawer changes the shortcut; the shell
+/// applies it in place (unregister + register) on its next poll.
+const HOTKEY_REQUEST_FILE: &str = "hotkey-request.json";
 /// The file the shell writes after every update check, for `GET /api/update`.
 const UPDATE_STATE_FILE: &str = "update-state.json";
 /// Written by the sidecar when the user clicks "install"; the shell consumes it.
@@ -96,6 +100,9 @@ static UPDATE_WATCHER: Once = Once::new();
 /// Monotonic per-launch count of hotkey summons; the webview compares it with
 /// the value it saw on boot to tell a summon from an ordinary refocus.
 static SUMMON_COUNT: AtomicU64 = AtomicU64::new(0);
+/// The sidecar port of this launch, recorded so the watcher thread can stamp
+/// hotkey state files with the same launch identity the endpoint expects.
+static ACTIVE_PORT: AtomicU16 = AtomicU16::new(0);
 /// Appended to every registration failure: on macOS an unapproved app is the
 /// likeliest reason, and the dialog that explains it never appears on its own.
 const HOTKEY_FAILURE_HINT: &str = "Another app may already own this shortcut, or macOS may be withholding it: allow Session Recall under System Settings → Privacy & Security → Accessibility and Input Monitoring, then restart the app.";
@@ -564,17 +571,41 @@ fn toggle_main_window(app: &AppHandle) {
 /// The menu, built by hand so updates get a menu item while keeping the
 /// standard groups `Menu::default` used to provide.
 ///
-/// The first submenu is macOS's application menu: About, the two update
-/// entries, the usual Hide/Show All group and Quit. The update entries work
-/// while the window is hidden — that is what makes "check, then summon"
-/// possible. After it come the groups macOS users expect in the usual order
-/// (Edit, Window, Help), all predefined items.
+/// The first submenu is macOS's application menu: About, the usual
+/// Hide/Show All group and Quit (⌘Q). Next comes **File**, holding the two
+/// update entries — macOS users look for "Check for Updates…" there, not in the
+/// app menu — and Close Window. The update entries work while the window is hidden;
+/// that is what makes "check, then summon" possible. After them come the groups
+/// macOS users expect in the usual order (Edit, Window, Help), all predefined
+/// items.
 fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let check_updates = MenuItemBuilder::with_id(MENU_CHECK_UPDATES, "Check for Updates…")
         // ⌘U; ⌥⌘R is the global hotkey and must stay out of the menu.
         .accelerator("CommandOrControl+U")
         .build(app)?;
     let changelog = MenuItemBuilder::with_id(MENU_CHANGELOG, "View Changelog").build(app)?;
+    // macOS only shows submenus in the menu bar, so even the predefined app
+    // items (About, Hide, Quit) have to live in an explicit submenu; putting
+    // them at the top level made them disappear, taking ⌘Q with them.
+    let app_menu = SubmenuBuilder::new(app, WINDOW_TITLE)
+        .about(Some(AboutMetadata {
+            name: Some(WINDOW_TITLE.to_string()),
+            version: Some(app.package_info().version.to_string()),
+            ..Default::default()
+        }))
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+    let file_menu = SubmenuBuilder::new(app, "File")
+        .item(&check_updates)
+        .item(&changelog)
+        .separator()
+        .close_window()
+        .build()?;
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
@@ -593,20 +624,8 @@ fn build_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .build()?;
     let help_menu = SubmenuBuilder::new(app, "Help").build()?;
     MenuBuilder::new(app)
-        .about(Some(AboutMetadata {
-            name: Some(WINDOW_TITLE.to_string()),
-            version: Some(app.package_info().version.to_string()),
-            ..Default::default()
-        }))
-        .separator()
-        .item(&check_updates)
-        .item(&changelog)
-        .separator()
-        .hide()
-        .hide_others()
-        .show_all()
-        .separator()
-        .quit()
+        .item(&app_menu)
+        .item(&file_menu)
         .item(&edit_menu)
         .item(&window_menu)
         .item(&help_menu)
@@ -625,6 +644,9 @@ fn check_updates_menu(app: &AppHandle) {
     std::thread::spawn(move || {
         let available = run_update_check(&handle);
         if available.is_none() {
+            // "Up to date" and a failed check are both invisible otherwise: the
+            // drawer only announces updates, so the menu reports the outcome.
+            show_update_result_dialog(&handle);
             return;
         }
         let Some(window) = handle.get_webview_window(WINDOW_LABEL) else {
@@ -637,6 +659,97 @@ fn check_updates_menu(app: &AppHandle) {
     });
 }
 
+/// The last check's outcome, as the menu check experiences it.
+fn show_update_result_dialog(app: &AppHandle) {
+    let state = app_dir()
+        .map(|dir| dir.join(UPDATE_STATE_FILE))
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+    let version = app.package_info().version.to_string();
+    let zh = ui_language() == "zh";
+    let error = state
+        .as_ref()
+        .and_then(|value| value.get("error"))
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let (title, message, kind) = match error {
+        Some(error) => (
+            if zh { "检查更新失败" } else { "Update check failed" },
+            if zh {
+                format!("无法检查更新：{error}")
+            } else {
+                format!("Could not check for updates: {error}")
+            },
+            MessageDialogKind::Error,
+        ),
+        None => (
+            if zh { "检查更新" } else { "Check for Updates" },
+            if zh {
+                format!("当前已是最新版本（{version}）。")
+            } else {
+                format!("Session Recall {version} is the latest version.")
+            },
+            MessageDialogKind::Info,
+        ),
+    };
+    // rfd only shows a real NSAlert when it has a parent window; without one it
+    // falls back to CFUserNotification, which newer macOS versions suppress for
+    // background apps. Bring the window forward and attach the alert as a sheet.
+    if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
+        if !window.is_visible().unwrap_or(true) {
+            if let Err(error) = window.show() {
+                eprintln!("session-recall: could not show the window for the update result: {error}");
+            }
+        }
+        let _ = window.set_focus();
+        app.dialog()
+            .message(message)
+            .title(title)
+            .kind(kind)
+            .parent(&window)
+            .blocking_show();
+        return;
+    }
+    app.dialog()
+        .message(message)
+        .title(title)
+        .kind(kind)
+        .blocking_show();
+}
+
+/// The interface language for shell-owned text: the stored preference first,
+/// then the system locale (the same "auto" the web UI follows).
+fn ui_language() -> &'static str {
+    let stored = stored_prefs()
+        .and_then(|value| value.get("language").and_then(|v| v.as_str()).map(str::to_owned));
+    match stored.as_deref() {
+        Some("zh") => "zh",
+        Some("en") => "en",
+        _ => system_language(),
+    }
+}
+
+fn system_language() -> &'static str {
+    for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(value) = std::env::var(key) {
+            if value.to_ascii_lowercase().starts_with("zh") {
+                return "zh";
+            }
+        }
+    }
+    // GUI apps usually launch without LANG; the per-user preference list is
+    // where macOS records the interface language.
+    if let Ok(output) = std::process::Command::new("defaults")
+        .args(["read", "-g", "AppleLanguages"])
+        .output()
+    {
+        if String::from_utf8_lossy(&output.stdout).contains("\"zh") {
+            return "zh";
+        }
+    }
+    "en"
+}
+
 /// `View Changelog`: hand the URL to the OS opener (browser).
 fn open_changelog_menu(app: &AppHandle) {
     if let Err(error) = app.opener().open_url(CHANGELOG_URL, None::<&str>) {
@@ -644,44 +757,78 @@ fn open_changelog_menu(app: &AppHandle) {
     }
 }
 
-/// Register the summon shortcut, once per launch.
+/// Apply the summon shortcut for this launch and every later change.
 ///
-/// A `hotkey` written while the app runs therefore needs a restart to take
-/// effect (live re-registration is out of scope for 1.6.0); `/api/hotkey`
-/// reports that gap instead of pretending the new key works. Registration
-/// failures are never fatal — the window still opens, the reason is logged, and
-/// the same sentence is served to the UI.
-fn register_hotkey(app: &AppHandle, port: u16) {
-    let Some(spec) = effective_hotkey() else {
+/// Registration is live: `hotkey-request.json` (written by the drawer's save)
+/// is picked up by the watcher thread, which unregisters the old combination
+/// before registering the new one, so no restart is needed. Failures are never
+/// fatal — the window still opens, the reason is logged and served to the UI.
+fn apply_hotkey(app: &AppHandle, port: u16, spec: Option<&str>) {
+    let manager = app.global_shortcut();
+    if let Err(error) = manager.unregister_all() {
+        eprintln!("session-recall: could not unregister the previous shortcut: {error}");
+    }
+    let Some(spec) = spec else {
         eprintln!("session-recall: the global shortcut is disabled");
         record_hotkey_state(port, None, false, None);
         return;
     };
-    let Some(shortcut) = parse_hotkey_spec(&spec) else {
-        // `effective_hotkey` already vetted the string, so this cannot happen
-        // from a file; it keeps the two validators honest if they ever drift.
+    let Some(shortcut) = parse_hotkey_spec(spec) else {
+        // `effective_hotkey` and the sidecar already vetted the string, so this
+        // cannot happen from a file; it keeps the validators honest if they drift.
         let error = format!("could not parse the shortcut {spec}");
         eprintln!("session-recall: {error}");
-        record_hotkey_state(port, Some(&spec), false, Some(&error));
+        record_hotkey_state(port, Some(spec), false, Some(&error));
         return;
     };
-    let result = app
-        .global_shortcut()
-        .on_shortcut(shortcut, |app, _shortcut, event| {
-            // Only the press matters; the release would hide it straight again.
-            if event.state == ShortcutState::Pressed {
-                toggle_main_window(app);
-            }
-        });
+    let result = manager.on_shortcut(shortcut, |app, _shortcut, event| {
+        // Only the press matters; the release would hide it straight again.
+        if event.state == ShortcutState::Pressed {
+            toggle_main_window(app);
+        }
+    });
     match result {
         Ok(()) => {
             eprintln!("session-recall: {spec} summons the window");
-            record_hotkey_state(port, Some(&spec), true, None);
+            record_hotkey_state(port, Some(spec), true, None);
         }
         Err(error) => {
             let message = format!("could not register {spec}: {error}. {HOTKEY_FAILURE_HINT}");
             eprintln!("session-recall: {message}");
-            record_hotkey_state(port, Some(&spec), false, Some(&message));
+            record_hotkey_state(port, Some(spec), false, Some(&message));
+        }
+    }
+}
+
+/// Read and remove the drawer's hotkey request, if one is waiting.
+///
+/// `Some(None)` means "disable the shortcut"; `None` means no request. A file
+/// that cannot be parsed is logged and dropped instead of spinning the loop.
+fn take_hotkey_request() -> Option<Option<String>> {
+    let path = app_dir()?.join(HOTKEY_REQUEST_FILE);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(failure) if failure.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(failure) => {
+            eprintln!("session-recall: could not read {}: {failure}", path.display());
+            let _ = std::fs::remove_file(&path);
+            return None;
+        }
+    };
+    let _ = std::fs::remove_file(&path);
+    let parsed: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(parsed) => parsed,
+        Err(failure) => {
+            eprintln!("session-recall: ignoring a malformed hotkey request: {failure}");
+            return None;
+        }
+    };
+    match parsed.get("hotkey") {
+        Some(serde_json::Value::Null) => Some(None),
+        Some(serde_json::Value::String(spec)) => Some(Some(spec.clone())),
+        _ => {
+            eprintln!("session-recall: ignoring a hotkey request without a hotkey field");
+            None
         }
     }
 }
@@ -717,6 +864,12 @@ fn update_watcher(app: AppHandle) {
     let mut since_last_check = UPDATE_POLL_INTERVAL;
     loop {
         std::thread::sleep(UPDATE_POLL_INTERVAL);
+        if let Some(spec) = take_hotkey_request() {
+            // Applied here rather than at startup only, so clearing or changing
+            // the shortcut in the drawer takes effect without a restart.
+            eprintln!("session-recall: applying a hotkey change from the drawer");
+            apply_hotkey(&app, ACTIVE_PORT.load(Ordering::Relaxed), spec.as_deref());
+        }
         if take_install_request() {
             install_pending_update(&app);
         } else if take_changelog_request() {
@@ -1069,7 +1222,9 @@ fn bootstrap(app: AppHandle) {
 
     // Before the sidecar exists: `GET /api/hotkey` then reports a settled state
     // from its very first request.
-    register_hotkey(&app, port);
+    ACTIVE_PORT.store(port, Ordering::Relaxed);
+    let initial_hotkey = effective_hotkey();
+    apply_hotkey(&app, port, initial_hotkey.as_deref());
 
     let web_dist = web_dist_dir(&app);
 
@@ -1231,6 +1386,8 @@ fn register_deep_links(app: &AppHandle) {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
+        // "You're up to date" / failed-check dialogs for the menu's ⌘U.
+        .plugin(tauri_plugin_dialog::init())
         // No shortcut is configured on the plugin itself: `register_hotkey`
         // registers the one prefs ask for, and attaches its handler there.
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())

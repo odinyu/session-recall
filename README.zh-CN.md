@@ -31,7 +31,9 @@ bun run start     # 构建 UI 并服务 http://127.0.0.1:4319
 bash scripts/make-app.sh
 ```
 
-打包后的 app 会注册一个全局快捷键（默认 `⌥⌘R`），在任何应用里都能显示或隐藏窗口；可通过 `hotkey` 偏好修改（设为 `null` 即关闭），当前状态可从 `GET /api/hotkey` 读取。已知的 macOS 限制：在某些 macOS 版本上，重复注册可以静默共存——另一个应用（或本应用的第二个副本）占用同一组合键时不会报错，`/api/hotkey` 只报告本应用自己的注册状态。
+打包后的 app 会注册一个全局快捷键（默认 `⌥⌘R`），在任何应用里都能显示或隐藏窗口。设置抽屉的「快捷键」区可直接改绑：点 `×` 清除，点 `+` 后按下组合键即可；「聚焦搜索框」（默认 `⌘K` / `/`）和「快速搜索浮窗」（默认 `⌘⇧K`）也在同一处修改。改动即时生效：抽屉写入 `hotkey-request.json`，桌面壳在下一轮轮询（约 2 秒）时重新注册，期间状态显示为「正在应用…」，无需重启。
+
+脚本也可以直接调用：`POST /api/hotkey`，请求体 `{"hotkey": "Option+Command+K"}`（`null` 表示关闭），返回 `202` 与 `pending: true`；`GET /api/hotkey` 报告注册状态。应用内快捷键存放在 `shortcuts` 偏好里（`focusSearch` 与 `palette`，各是一个列表，空列表表示未绑定）。已知的 macOS 限制：在某些 macOS 版本上，重复注册可以静默共存——另一个应用（或本应用的第二个副本）占用同一组合键时不会报错，`/api/hotkey` 只报告本应用自己的注册状态。
 
 它会构建 Web UI，把 Bun CLI 编译成自包含的 sidecar 二进制（约 63 MB，按宿主 target triple 命名），再交给 Tauri 打包：
 
@@ -216,7 +218,7 @@ API：`POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week|month`（默�
 两个范围：
   - **问答** 搜索提问和回答。
   - **过程** 搜索工具输入（`path`、`command` 等）、工具输出和提取出的错误行。
-- **快速搜索浮窗**：按 <kbd>⌘⇧K</kbd>，或用全局快捷键唤起窗口时打开一个 Spotlight 式浮窗（普通 Cmd-Tab 切回不打开），边输入边搜索整个索引——<kbd>↑↓</kbd> 移动，<kbd>Enter</kbd> 打开会话，<kbd>⌘↵</kbd> 复制会话深链，<kbd>Esc</kbd> 关闭。
+- **快速搜索浮窗**：按 <kbd>⌘⇧K</kbd>（可在设置 → 快捷键中改绑），或用全局快捷键唤起窗口时打开一个 Spotlight 式浮窗（普通 Cmd-Tab 切回不打开），边输入边搜索整个索引——<kbd>↑↓</kbd> 移动，<kbd>Enter</kbd> 打开会话，<kbd>⌘↵</kbd> 复制会话深链，<kbd>Esc</kbd> 关闭。
 - SQLite FTS5，两个范围都覆盖：
   - `trigram` 用于中文短语和子串/代码标识符匹配。
   - `porter` 词干作为英文回退。

@@ -35,12 +35,27 @@ export interface Prefs {
   language: LanguagePref;
   /** Absent means "the default shortcut"; see {@link effectiveHotkey}. */
   hotkey?: Hotkey;
+  /** Absent means {@link DEFAULT_APP_SHORTCUTS}; an empty list disables one. */
+  shortcuts?: AppShortcuts;
   /** Absent means `true`; only an explicit `false` turns the check off. */
   checkUpdates?: boolean;
   /** Absent means `off`: the sidecar writes no report on its own. */
   briefSchedule?: BriefSchedule;
   [key: string]: unknown;
 }
+
+/** In-app (page-local) shortcuts, stored as canonical combos like `Command+K`. */
+export interface AppShortcuts {
+  /** Focus the topbar search box. */
+  focusSearch: string[];
+  /** Open the quick-search palette. */
+  palette: string[];
+}
+
+export const DEFAULT_APP_SHORTCUTS: AppShortcuts = {
+  focusSearch: ["Command+K", "/"],
+  palette: ["Command+Shift+K"],
+};
 
 export const DEFAULT_PREFS: Prefs = { theme: "auto", language: "auto" };
 
@@ -106,6 +121,55 @@ export function summonCount(dir = APP_DIR): number {
 
 export function prefsPath(dir = APP_DIR): string {
   return join(dir, "prefs.json");
+}
+
+/**
+ * Whether `value` is an in-app shortcut.
+ *
+ * Two accepted shapes: a bare punctuation key (`/`), because the page owns the
+ * keyboard and `/` was always the search shortcut; or at least one modifier
+ * plus `A`–`Z`, `0`–`9` or `F1`–`F12`. Bare letters and digits are refused —
+ * they would swallow ordinary typing.
+ */
+export function isAppShortcut(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const raw = value.trim();
+  if (raw === "") return false;
+  if (/^[^\p{L}\p{N}\s]$/u.test(raw)) return true;
+  const tokens = raw.split("+");
+  if (tokens.length < 2) return false;
+  const modifiers = new Set<string>();
+  let key: string | null = null;
+  for (const token of tokens) {
+    const modifier = HOTKEY_MODIFIERS[token.trim().toLowerCase()];
+    if (modifier !== undefined) {
+      if (key !== null || modifiers.has(modifier)) return false;
+      modifiers.add(modifier);
+      continue;
+    }
+    if (key !== null) return false;
+    const upper = token.trim().toUpperCase();
+    if (!/^(?:[A-Z]|[0-9]|F(?:[1-9]|1[0-2]))$/.test(upper)) return false;
+    key = upper;
+  }
+  return modifiers.size > 0 && key !== null;
+}
+
+export function isAppShortcuts(value: unknown): value is AppShortcuts {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const raw = value as Record<string, unknown>;
+  for (const key of ["focusSearch", "palette"] as const) {
+    const list = raw[key];
+    if (!Array.isArray(list) || list.length > 3) return false;
+    if (!list.every(isAppShortcut)) return false;
+  }
+  return true;
+}
+
+/** Stored bindings, or the defaults when the file carries nothing usable. */
+export function effectiveAppShortcuts(dir = APP_DIR): AppShortcuts {
+  const stored = readPrefs(dir).shortcuts;
+  return isAppShortcuts(stored) ? stored : DEFAULT_APP_SHORTCUTS;
 }
 
 /**
@@ -204,6 +268,10 @@ function normalize(value: unknown): Prefs {
   if ("hotkey" in normalized && !isHotkey(normalized.hotkey)) {
     delete normalized.hotkey;
   }
+  // Absent means the defaults; a malformed record is dropped, not half-used.
+  if ("shortcuts" in normalized && !isAppShortcuts(normalized.shortcuts)) {
+    delete normalized.shortcuts;
+  }
   // Same for the update toggle: absent means enabled, so an unusable value is
   // dropped rather than guessed into either direction.
   if ("checkUpdates" in normalized && !isCheckUpdates(normalized.checkUpdates)) {
@@ -258,6 +326,11 @@ export function updatePrefs(
   if ("hotkey" in patch && !isHotkey(patch.hotkey)) {
     throw new InvalidPrefsError(
       `invalid hotkey: ${JSON.stringify(patch.hotkey)} (expected null, or a shortcut such as ${JSON.stringify(DEFAULT_HOTKEY)})`,
+    );
+  }
+  if ("shortcuts" in patch && !isAppShortcuts(patch.shortcuts)) {
+    throw new InvalidPrefsError(
+      `invalid shortcuts: ${JSON.stringify(patch.shortcuts)} (expected focusSearch/palette arrays of app shortcuts)`,
     );
   }
   if ("checkUpdates" in patch && !isCheckUpdates(patch.checkUpdates)) {
@@ -355,14 +428,18 @@ export interface HotkeyStatus {
   registered: boolean;
   /** Why it is not active, in the shell's words (it carries the macOS hint). */
   error?: string;
-  /** The shortcut still in force, when prefs changed after launch. */
+  /** The shortcut still in force, when the shell has not applied a change yet. */
   active?: string | null;
+  /** True while the shell is between the saved value and its registration. */
+  pending?: boolean;
 }
 
 /**
- * Registration is a launch-time step, so a preference written while the app
- * runs reports as not registered *with* the shortcut it will get after a
- * restart — that keeps "restart to apply" distinct from "someone else owns it".
+ * The shortcut the shell has registered, compared with the saved preference.
+ *
+ * Changing the preference is live: the sidecar writes a request file and the
+ * shell re-registers within its poll interval, so a difference is "applying",
+ * not "restart to apply".
  */
 export function hotkeyStatus(
   dir = APP_DIR,
@@ -370,23 +447,24 @@ export function hotkeyStatus(
   env: Record<string, string | undefined> = process.env,
 ): HotkeyStatus {
   const hotkey = effectiveHotkey(dir, env);
-  if (hotkey === null) return { hotkey: null, registered: false };
   const state = readHotkeyState(dir, port);
   if (state === null) {
+    if (hotkey === null) return { hotkey: null, registered: false };
     return {
       hotkey,
       registered: false,
       error: "the desktop app is not running, and only it can register a global shortcut",
     };
   }
-  if (state.hotkey !== hotkey) {
+  if ((state.hotkey ?? null) !== (hotkey ?? null)) {
     return {
       hotkey,
       registered: false,
       active: state.hotkey,
-      error: `the shortcut changed to ${hotkey}; restart the app to apply it`,
+      pending: true,
     };
   }
+  if (hotkey === null) return { hotkey: null, registered: false };
   return state.error === null
     ? { hotkey, registered: state.registered }
     : { hotkey, registered: state.registered, error: state.error };
@@ -458,6 +536,31 @@ export function requestUpdateInstall(
   if (!updateStatus(dir).available) return "no-update-available";
   writeFileSync(join(dir, UPDATE_REQUEST_FILE), "{}\n", "utf8");
   return "requested";
+}
+
+/** File that asks the shell to re-register the global shortcut (see main.rs). */
+const HOTKEY_REQUEST_FILE = "hotkey-request.json";
+
+/**
+ * Ask the running shell to register `hotkey` now (or unregister everything for
+ * `null`). Same request-file channel as {@link requestUpdateInstall}; the shell
+ * applies it on its next poll, so clearing the binding really stops the key.
+ */
+export function requestHotkeyApply(
+  hotkey: Hotkey,
+  dir = APP_DIR,
+): "requested" | "failed" {
+  try {
+    mkdirSync(dir, { recursive: true });
+    const target = join(dir, HOTKEY_REQUEST_FILE);
+    const temp = `${target}.${process.pid}.tmp`;
+    writeFileSync(temp, `${JSON.stringify({ hotkey })}\n`, "utf8");
+    renameSync(temp, target);
+    return "requested";
+  } catch (error) {
+    console.error("session-recall: could not write the hotkey request", error);
+    return "failed";
+  }
 }
 
 /** File that asks the shell to open the changelog (see main.rs). */

@@ -893,15 +893,37 @@ async function saveLanguage(pref: LangPref): Promise<void> {
  */
 async function loadPrefs(): Promise<void> {
   try {
-    const prefs = await api<{ theme?: unknown; language?: unknown }>("/api/prefs");
+    const prefs = await api<{
+      theme?: unknown;
+      language?: unknown;
+      shortcuts?: unknown;
+    }>("/api/prefs");
     applyTheme(isThemeMode(prefs.theme) ? prefs.theme : "auto");
     applyLanguage(isLangPref(prefs.language) ? prefs.language : "auto");
+    appShortcuts = normalizeAppShortcuts(prefs.shortcuts);
+    syncShortcutHints();
   } catch {
     // No server to ask: the cache is the best available guess for the theme,
     // and `auto` (the browser) for the language.
     applyTheme(cachedTheme(), false);
     applyLanguage("auto");
   }
+}
+
+/** Defensive read of the stored shortcuts; the server already validates. */
+function normalizeAppShortcuts(raw: unknown): AppShortcuts {
+  const list = (value: unknown): string[] | null =>
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+      ? (value as string[])
+      : null;
+  const record =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  return {
+    focusSearch: list(record.focusSearch) ?? [...DEFAULT_APP_SHORTCUTS.focusSearch],
+    palette: list(record.palette) ?? [...DEFAULT_APP_SHORTCUTS.palette],
+  };
 }
 
 /** Persist a theme choice; the local cache already switched, so failures are logged only. */
@@ -1942,7 +1964,7 @@ function renderShell(): void {
               <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13.4 13.4 3.1 3.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
               <input id="search" type="search" autocomplete="off" spellcheck="false"
                 aria-label="${escapeAttr(t.searchAria)}" placeholder="${escapeAttr(t.searchPlaceholder)}">
-              <kbd>⌘K</kbd>
+              <kbd id="search-shortcut">⌘K</kbd>
             </div>
             <div class="toolbar">
               <div class="toolbar-filters">
@@ -2009,6 +2031,7 @@ function renderShell(): void {
     </div>
   `;
   bindShell();
+  syncShortcutHints();
   // A language switch rebuilds the whole shell; the drawer is chrome too, so it
   // comes back open rather than vanishing under the pointer.
   if (settingsOpen) openSettings(false);
@@ -2218,12 +2241,20 @@ function bindShell(): void {
         closePalette(true);
       } else if (event.key === "Tab") {
         trapPaletteFocus(event);
-      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        // Cmd-K's meaning is unchanged — focus the topbar search box — so when
-        // the palette owns the screen, it closes first and focus moves there.
-        event.preventDefault();
-        closePalette(false);
-        byId<HTMLInputElement>("search")?.focus();
+      } else {
+        // The focus-search shortcut still works inside the palette: it closes
+        // the palette and focuses the topbar box. A bare key (like `/`) is
+        // typing here, so only modifier combinations pass.
+        const combo = appComboFromEvent(event);
+        if (
+          combo !== null &&
+          !isBareShortcut(combo) &&
+          appShortcuts.focusSearch.includes(combo)
+        ) {
+          event.preventDefault();
+          closePalette(false);
+          byId<HTMLInputElement>("search")?.focus();
+        }
       }
       return;
     }
@@ -2234,23 +2265,19 @@ function bindShell(): void {
       target instanceof HTMLTextAreaElement ||
       target instanceof HTMLSelectElement ||
       target?.isContentEditable;
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-      // Cmd-Shift-K opens the palette; Cmd-K — unchanged from before — focuses
-      // the topbar search box. While the palette is open the modal gate above
-      // returns first, so Cmd-K cannot yank focus out of it.
-      if (event.shiftKey) {
+    const combo = appComboFromEvent(event);
+    const bare = combo !== null && isBareShortcut(combo);
+    if (combo !== null && !(bare && typing)) {
+      if (appShortcuts.palette.includes(combo)) {
         event.preventDefault();
         openPalette();
         return;
       }
-      event.preventDefault();
-      byId<HTMLInputElement>("search")?.focus();
-      return;
-    }
-    if (event.key === "/" && !typing) {
-      event.preventDefault();
-      byId<HTMLInputElement>("search")?.focus();
-      return;
+      if (appShortcuts.focusSearch.includes(combo)) {
+        event.preventDefault();
+        byId<HTMLInputElement>("search")?.focus();
+        return;
+      }
     }
     if (event.key === "Escape") {
       // Both dropdowns close from anywhere, including when focus stayed on
@@ -3524,7 +3551,7 @@ function settingsHtml(): string {
     </section>`;
 }
 
-/* ---------- hotkey settings ---------- */
+/* ---------- shortcuts settings ---------- */
 
 /** Mirrors `GET /api/hotkey`; see `HotkeyStatus` in src/prefs.ts. */
 interface HotkeyInfo {
@@ -3532,11 +3559,31 @@ interface HotkeyInfo {
   registered: boolean;
   error?: string;
   active?: string | null;
+  pending?: boolean;
 }
 
+/** Mirrors `AppShortcuts` in src/prefs.ts. */
+interface AppShortcuts {
+  focusSearch: string[];
+  palette: string[];
+}
+
+type ShortcutAction = "global_wake" | "focus_search" | "quick_search_palette";
+
+/** The defaults `src/prefs.ts` ships; the web bundle cannot import that module. */
+const DEFAULT_APP_SHORTCUTS: AppShortcuts = {
+  focusSearch: ["Command+K", "/"],
+  palette: ["Command+Shift+K"],
+};
+
 let hotkeyInfo: HotkeyInfo | null = null;
-/** The combination being pressed in a capturing row; null when no row waits. */
-let keyCapture: { chips: string[] } | null = null;
+/** Bindings read from prefs; the defaults until the first fetch answers. */
+let appShortcuts: AppShortcuts = {
+  focusSearch: [...DEFAULT_APP_SHORTCUTS.focusSearch],
+  palette: [...DEFAULT_APP_SHORTCUTS.palette],
+};
+/** The row waiting for a combination; null when none is capturing. */
+let keyCapture: { action: ShortcutAction; chips: string[] } | null = null;
 
 /**
  * The default is `DEFAULT_HOTKEY` in src/prefs.ts. It is spelled out here
@@ -3627,36 +3674,42 @@ function keyFromCode(event: KeyboardEvent): string | null {
 }
 
 interface KeybindingRow {
+  action: ShortcutAction;
+  /** The command id shown under the title. */
   id: string;
   title: string;
   /** One entry per binding, each a list of keycap labels. */
   bindings: string[][];
-  editable: boolean;
   capturing?: boolean;
 }
 
 function keybindingRowHtml(row: KeybindingRow): string {
-  const bindings = row.bindings
+  const clusters = row.bindings
+    .filter((chips) => chips.length > 0)
     .map(
       (chips) =>
         `<span class="keybinding-binding">${chips
           .map((chip) => `<kbd>${escapeHtml(chip)}</kbd>`)
           .join("")}</span>`,
-    )
-    .join("");
+    );
+  // Two bindings for one action read as alternatives, so they are separated.
+  const joined = clusters.join(
+    `<span class="keybinding-or">${escapeHtml(t.keybindingOr)}</span>`,
+  );
   let keys: string;
   if (row.capturing) {
-    keys = bindings || `<span class="keybinding-capturing">${t.keybindingCapturing}</span>`;
-  } else if (bindings) {
-    keys = bindings;
+    keys = joined || `<span class="keybinding-capturing">${t.keybindingCapturing}</span>`;
+  } else if (joined) {
+    keys = joined;
   } else {
     keys = `<span class="keybinding-empty">${t.hotkeyNone}</span>`;
   }
   let action = "";
-  if (row.editable && !row.capturing) {
-    action = row.bindings.length
-      ? `<button class="keybinding-action is-clear" type="button" data-hotkey-clear aria-label="${escapeAttr(t.keybindingClear)}" title="${escapeAttr(t.keybindingClear)}">×</button>`
-      : `<button class="keybinding-action is-add" type="button" data-hotkey-add aria-label="${escapeAttr(t.keybindingAdd)}" title="${escapeAttr(t.keybindingAdd)}">+</button>`;
+  if (!row.capturing) {
+    const bound = clusters.length > 0;
+    action = bound
+      ? `<button class="keybinding-action is-clear" type="button" data-shortcut-clear="${row.action}" aria-label="${escapeAttr(t.keybindingClear)}" title="${escapeAttr(t.keybindingClear)}">×</button>`
+      : `<button class="keybinding-action is-add" type="button" data-shortcut-add="${row.action}" aria-label="${escapeAttr(t.keybindingAdd)}" title="${escapeAttr(t.keybindingAdd)}">+</button>`;
   }
   return `<div class="keybinding-row${row.capturing ? " is-capturing" : ""}" data-binding="${row.id}">
     <span class="keybinding-meta">
@@ -3667,29 +3720,41 @@ function keybindingRowHtml(row: KeybindingRow): string {
   </div>`;
 }
 
-/** The whole list: the editable global wake row, then the fixed in-app ones. */
+/** The three rows: the global hotkey, then the two in-app actions. */
 function keybindingListHtml(): string {
-  const hotkey = hotkeyInfo?.hotkey ?? null;
-  const chips = keyCapture !== null ? keyCapture.chips : chipsForHotkey(hotkey);
+  const globalCapture = keyCapture?.action === "global_wake" ? keyCapture.chips : null;
+  const globalChips = globalCapture ?? chipsForHotkey(hotkeyInfo?.hotkey ?? null);
   const rows: KeybindingRow[] = [
     {
+      action: "global_wake",
       id: "global_wake",
       title: t.shortcutGlobalWake,
-      bindings: chips.length > 0 ? [chips] : [],
-      editable: true,
-      capturing: keyCapture !== null,
+      bindings: globalChips.length > 0 ? [globalChips] : [],
+      capturing: keyCapture?.action === "global_wake",
     },
     {
+      action: "focus_search",
       id: "focus_search",
       title: t.shortcutFocusSearch,
-      bindings: [["⌘", "K"], ["/"]],
-      editable: false,
+      bindings:
+        keyCapture?.action === "focus_search"
+          ? keyCapture.chips.length > 0
+            ? [keyCapture.chips]
+            : []
+          : appShortcuts.focusSearch.map(chipsForHotkey),
+      capturing: keyCapture?.action === "focus_search",
     },
     {
+      action: "quick_search_palette",
       id: "quick_search_palette",
       title: t.shortcutPalette,
-      bindings: [["⌘", "⇧", "K"]],
-      editable: false,
+      bindings:
+        keyCapture?.action === "quick_search_palette"
+          ? keyCapture.chips.length > 0
+            ? [keyCapture.chips]
+            : []
+          : appShortcuts.palette.map(chipsForHotkey),
+      capturing: keyCapture?.action === "quick_search_palette",
     },
   ];
   return rows.map(keybindingRowHtml).join("");
@@ -3707,13 +3772,13 @@ function renderHotkeyStatus(): void {
     help.hidden = true;
     return;
   }
-  const pending = hotkeyInfo.active !== undefined && hotkeyInfo.active !== hotkeyInfo.hotkey;
+  const pending = hotkeyInfo.pending === true;
   stateLine.hidden = false;
-  stateLine.classList.toggle("is-warn", pending || !hotkeyInfo.registered);
+  stateLine.classList.toggle("is-warn", !pending && !hotkeyInfo.registered);
   stateLine.classList.toggle("is-ok", !pending && hotkeyInfo.registered);
   if (pending) {
-    stateLine.textContent = t.hotkeyPendingRestart;
     help.hidden = true;
+    stateLine.textContent = t.hotkeyApplying;
     return;
   }
   if (hotkeyInfo.registered) {
@@ -3738,6 +3803,22 @@ function onCaptureKeydown(event: KeyboardEvent): void {
     stopHotkeyCapture();
     return;
   }
+  const action = keyCapture?.action;
+  if (!action) return;
+  const combo =
+    action === "global_wake" ? globalComboFromEvent(event) : appComboFromEvent(event);
+  if (combo === null) {
+    // Show the held keys as keycaps while the combination is still incomplete.
+    keyCapture = { action, chips: chipsForEvent(event) };
+    renderHotkeyStatus();
+    return;
+  }
+  stopHotkeyCapture();
+  void applyShortcut(action, combo);
+}
+
+/** The global hotkey needs a modifier and a registerable key. */
+function globalComboFromEvent(event: KeyboardEvent): string | null {
   const key = keyFromCode(event);
   const modifiers = [
     event.ctrlKey ? "Ctrl" : null,
@@ -3745,32 +3826,47 @@ function onCaptureKeydown(event: KeyboardEvent): void {
     event.shiftKey ? "Shift" : null,
     event.metaKey ? "Command" : null,
   ].filter((name): name is string => name !== null);
-  // Show the held keys as keycaps while the user is still pressing them.
-  if (key === null || modifiers.length === 0) {
-    keyCapture = { chips: chipsForEvent(event) };
-    renderHotkeyStatus();
-    return;
+  if (key === null || modifiers.length === 0) return null;
+  return canonicalHotkey([...modifiers, key].join("+"));
+}
+
+/** A binding without modifiers (`/`), which must not fire while typing. */
+function isBareShortcut(combo: string): boolean {
+  return !combo.includes("+");
+}
+
+/**
+ * An in-app shortcut: Command/Option/Shift plus a key, or one bare punctuation
+ * key (`/`). Bare letters and digits are refused — they would swallow typing.
+ */
+function appComboFromEvent(event: KeyboardEvent): string | null {
+  const key = keyFromCode(event);
+  const modifiers: string[] = [];
+  if (event.metaKey || event.ctrlKey) modifiers.push("Command");
+  if (event.altKey) modifiers.push("Option");
+  if (event.shiftKey) modifiers.push("Shift");
+  if (modifiers.length === 0) {
+    const ch = event.key;
+    if (key !== null || [...ch].length !== 1) return null;
+    if (/\s/u.test(ch) || /[\p{L}\p{N}]/u.test(ch)) return null;
+    return ch;
   }
-  const canonical = canonicalHotkey([...modifiers, key].join("+"));
-  stopHotkeyCapture();
-  if (canonical !== null) void saveHotkey(canonical);
+  if (key === null) return null;
+  return [...modifiers, key].join("+");
 }
 
 /** A click outside the waiting row abandons the capture, like Escape does. */
 function onCapturePointerdown(event: PointerEvent): void {
   const target = event.target;
-  if (
-    target instanceof Element &&
-    target.closest('.keybinding-row[data-binding="global_wake"]') !== null
-  ) {
+  if (target instanceof Element && target.closest(".keybinding-row") !== null) {
     return;
   }
   stopHotkeyCapture();
 }
 
-function startHotkeyCapture(): void {
+function startHotkeyCapture(action: ShortcutAction): void {
   if (keyCapture !== null) return;
-  keyCapture = { chips: [] };
+  keyCapture = { action, chips: [] };
   renderHotkeyStatus();
   document.addEventListener("keydown", onCaptureKeydown, true);
   document.addEventListener("pointerdown", onCapturePointerdown, true);
@@ -3793,26 +3889,93 @@ async function loadHotkeyStatus(): Promise<void> {
   }
 }
 
-async function saveHotkey(value: string | null): Promise<void> {
+/** Transient note under the shortcut list. */
+function setHotkeyNote(text: string): void {
   const note = byId<HTMLElement>("hotkey-note");
-  const setNote = (text: string) => {
-    if (note) note.textContent = text;
-    window.setTimeout(() => {
-      if (note && note.textContent === text) note.textContent = "";
-    }, 2400);
-  };
+  if (note) note.textContent = text;
+  window.setTimeout(() => {
+    if (note && note.textContent === text) note.textContent = "";
+  }, 2400);
+}
+
+/** Write a binding for one action, then refresh what the drawer shows. */
+async function applyShortcut(action: ShortcutAction, combo: string): Promise<void> {
+  if (action === "global_wake") {
+    await applyGlobalHotkey(combo);
+    return;
+  }
+  const key = action === "focus_search" ? "focusSearch" : "palette";
+  const other = key === "focusSearch" ? "palette" : "focusSearch";
+  if (appShortcuts[other].includes(combo)) {
+    setHotkeyNote(t.keybindingTaken);
+    return;
+  }
+  await saveAppShortcuts({ ...appShortcuts, [key]: [combo] });
+}
+
+/** Clear one action's bindings; an empty list means "no shortcut". */
+async function clearShortcut(action: ShortcutAction): Promise<void> {
+  if (action === "global_wake") {
+    await applyGlobalHotkey(null);
+    return;
+  }
+  const key = action === "focus_search" ? "focusSearch" : "palette";
+  await saveAppShortcuts({ ...appShortcuts, [key]: [] });
+}
+
+async function saveAppShortcuts(next: AppShortcuts): Promise<void> {
   try {
     await api("/api/prefs", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({ shortcuts: next }),
+    });
+    appShortcuts = next;
+    syncShortcutHints();
+    setHotkeyNote(t.hotkeySaved);
+  } catch (error) {
+    console.error("shortcuts not saved", error);
+    setHotkeyNote(t.hotkeySaveFailed);
+  }
+  renderHotkeyStatus();
+}
+
+/**
+ * Ask the shell to register the new global shortcut and wait for its poll to
+ * apply it. No restart: the shell unregisters the old combination first.
+ */
+async function applyGlobalHotkey(value: string | null): Promise<void> {
+  try {
+    await api("/api/hotkey", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ hotkey: value }),
     });
-    setNote(t.hotkeySaved);
   } catch (error) {
     console.error("hotkey preference not saved", error);
-    setNote(t.hotkeySaveFailed);
+    setHotkeyNote(t.hotkeySaveFailed);
+    return;
   }
-  await loadHotkeyStatus();
+  setHotkeyNote(t.hotkeyApplying);
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    // ES2022 `lib` here; `Promise.withResolvers` is ES2024.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 400));
+    await loadHotkeyStatus();
+    if (hotkeyInfo !== null && hotkeyInfo.pending !== true) break;
+  }
+  if (hotkeyInfo?.pending === true) return;
+  // The preference is stored either way; the state line reports whether the
+  // shell managed to register it.
+  setHotkeyNote(t.hotkeySaved);
+}
+
+/** The topbar hint follows the configured focus-search binding. */
+function syncShortcutHints(): void {
+  const hint = byId<HTMLElement>("search-shortcut");
+  if (!hint) return;
+  const first = appShortcuts.focusSearch[0];
+  hint.textContent = first === undefined ? "" : chipsForHotkey(first).join("");
+  hint.hidden = first === undefined;
 }
 
 /** Drawer-only listeners; the body is repainted by every renderSettings call. */
@@ -3826,17 +3989,19 @@ function bindSettingsBody(): void {
     body.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
-      const action = target.closest<HTMLElement>(
-        "[data-hotkey-add], [data-hotkey-clear], [data-hotkey-reset]",
+      const control = target.closest<HTMLElement>(
+        "[data-shortcut-add], [data-shortcut-clear], [data-hotkey-reset]",
       );
-      if (!action) return;
-      if (action.hasAttribute("data-hotkey-add")) {
-        if (keyCapture !== null) stopHotkeyCapture();
-        else startHotkeyCapture();
+      if (!control) return;
+      const add = control.getAttribute("data-shortcut-add") as ShortcutAction | null;
+      if (add !== null) {
+        startHotkeyCapture(add);
         return;
       }
+      const clear = control.getAttribute("data-shortcut-clear") as ShortcutAction | null;
       stopHotkeyCapture();
-      void saveHotkey(action.hasAttribute("data-hotkey-clear") ? null : DEFAULT_HOTKEY);
+      if (clear !== null) void clearShortcut(clear);
+      else void applyGlobalHotkey(DEFAULT_HOTKEY);
     });
   }
   bindSavedList(body);

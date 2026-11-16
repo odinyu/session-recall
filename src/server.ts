@@ -31,9 +31,12 @@ import {
 import type { IndexedDatabase, SessionFlag } from "./db.ts";
 import { generateHandoff } from "./handoff.ts";
 import {
+  DEFAULT_HOTKEY,
   InvalidPrefsError,
   hotkeyStatus,
+  isHotkey,
   readPrefs,
+  requestHotkeyApply,
   requestUpdateInstall,
   requestChangelogOpen,
   summonCount,
@@ -532,10 +535,38 @@ export async function api(
     }
     return json({ error: "method not allowed" }, 405);
   }
-  if (request.method === "GET" && url.pathname === "/api/hotkey") {
-    // Read-only by design: the shell registers the shortcut once at launch, so
-    // this reports what that attempt did rather than changing anything.
-    return json(hotkeyStatus());
+  if (url.pathname === "/api/hotkey") {
+    if (request.method === "GET") {
+      // Reports what the shell currently owns, plus whether a saved change is
+      // still waiting for the shell's poll.
+      return json(hotkeyStatus());
+    }
+    if (request.method === "POST") {
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return json({ error: "invalid JSON body" }, 400);
+      }
+      if (typeof body !== "object" || body === null || Array.isArray(body)) {
+        return json({ error: "expected a JSON object" }, 400);
+      }
+      const hotkey = (body as Record<string, unknown>).hotkey;
+      if (hotkey === undefined || !isHotkey(hotkey)) {
+        return json(
+          { error: `invalid hotkey (expected null, or a shortcut such as ${DEFAULT_HOTKEY})` },
+          400,
+        );
+      }
+      updatePrefs({ hotkey });
+      const outcome = requestHotkeyApply(hotkey);
+      if (outcome === "failed") {
+        return json({ error: "could not ask the shell to apply the shortcut" }, 500);
+      }
+      // 202: the shell still has to pick the request up on its next poll.
+      return json({ ok: true, pending: true }, 202);
+    }
+    return json({ error: "method not allowed" }, 405);
   }
   if (request.method === "GET" && url.pathname === "/api/summon") {
     // The shell bumps this counter whenever the hotkey summons the window; the
