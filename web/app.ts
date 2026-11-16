@@ -3484,33 +3484,11 @@ function settingsHtml(): string {
     </section>
     <section class="settings-group" aria-labelledby="settings-shortcuts">
       <h3 class="settings-group-title" id="settings-shortcuts">${t.settingsShortcuts}</h3>
-      <div class="settings-line">
-        <span>${t.shortcutGlobalWake}</span>
-        <span class="settings-value" id="hotkey-current">${t.hotkeyLoading}</span>
-      </div>
-      <div class="settings-line" id="hotkey-state-line" hidden>
-        <span>${t.hotkeyCurrent}</span>
-        <span class="settings-value" id="hotkey-state"></span>
-      </div>
+      <div class="keybinding-list" id="keybinding-list">${keybindingListHtml()}</div>
+      <p class="settings-help keybinding-state" id="hotkey-state-line" hidden></p>
       <p class="settings-help" id="hotkey-help" hidden></p>
-      <div class="hotkey-row">
-        <input class="hotkey-input" id="hotkey-input" type="text" autocomplete="off" spellcheck="false"
-          placeholder="${escapeAttr(t.hotkeyPlaceholder)}" aria-label="${escapeAttr(t.hotkeyInputAria)}">
-        <button class="settings-action hotkey-save" type="button" data-hotkey-save>${t.hotkeySave}</button>
-      </div>
       <p class="settings-help" id="hotkey-note" aria-live="polite"></p>
-      <div class="hotkey-quick">
-        <button class="text-btn" type="button" data-hotkey-disable>${t.hotkeyDisable}</button>
-        <button class="text-btn" type="button" data-hotkey-reset>${t.hotkeyReset}</button>
-      </div>
-      <div class="settings-line">
-        <span>${t.shortcutInApp}</span>
-        <span class="settings-value">${t.shortcutFocusSearch}</span>
-      </div>
-      <div class="settings-line">
-        <span>${t.paletteAria}</span>
-        <span class="settings-value">${t.shortcutPalette}</span>
-      </div>
+      <button class="text-btn keybinding-reset" type="button" data-hotkey-reset>${t.hotkeyReset}</button>
     </section>
     <section class="settings-group" aria-labelledby="settings-saved">
       <h3 class="settings-group-title" id="settings-saved">${t.settingsSaved}</h3>
@@ -3530,8 +3508,8 @@ interface HotkeyInfo {
 }
 
 let hotkeyInfo: HotkeyInfo | null = null;
-/** What the user typed, kept across drawer repaints so a rerender keeps it. */
-let hotkeyDraft = "";
+/** The combination being pressed in a capturing row; null when no row waits. */
+let keyCapture: { chips: string[] } | null = null;
 
 /**
  * The default is `DEFAULT_HOTKEY` in src/prefs.ts. It is spelled out here
@@ -3582,32 +3560,201 @@ function canonicalHotkey(raw: string): string | null {
   return [...HOTKEY_MODIFIER_ORDER.filter((m) => modifiers.includes(m)), key].join("+");
 }
 
-/** Paint the fetched registration state into the drawer's live nodes. */
-function renderHotkeyStatus(): void {
-  const current = byId<HTMLElement>("hotkey-current");
-  const stateLine = byId<HTMLElement>("hotkey-state-line");
-  const stateNode = byId<HTMLElement>("hotkey-state");
-  const help = byId<HTMLElement>("hotkey-help");
-  if (!current || !stateLine || !stateNode || !help) return;
-  if (!hotkeyInfo) return;
-  const pending = hotkeyInfo.active !== undefined && hotkeyInfo.active !== hotkeyInfo.hotkey;
-  current.textContent = hotkeyInfo.hotkey ?? t.hotkeyNone;
-  if (pending) {
-    stateNode.textContent = t.hotkeyPendingRestart;
-    stateLine.hidden = false;
-    return;
+/* ---------- keybinding rows ---------- */
+
+/** Keycap glyphs for the modifier names `canonicalHotkey` returns. */
+const MODIFIER_SYMBOLS: Record<string, string> = {
+  Ctrl: "⌃",
+  Option: "⌥",
+  Shift: "⇧",
+  Command: "⌘",
+};
+
+/** `Option+Command+R` -> `⌥`, `⌘`, `R`. Stored order, one keycap per token. */
+function chipsForHotkey(hotkey: string | null): string[] {
+  if (!hotkey) return [];
+  return hotkey.split("+").map((token) => MODIFIER_SYMBOLS[token] ?? token.toUpperCase());
+}
+
+/** The keycap labels for the combination held down right now, if any. */
+function chipsForEvent(event: KeyboardEvent): string[] {
+  const chips: string[] = [];
+  if (event.ctrlKey) chips.push("⌃");
+  if (event.altKey) chips.push("⌥");
+  if (event.shiftKey) chips.push("⇧");
+  if (event.metaKey) chips.push("⌘");
+  const key = keyFromCode(event);
+  if (key !== null) chips.push(key);
+  return chips;
+}
+
+/** The physical key behind an event, ignoring shift's punctuation translation. */
+function keyFromCode(event: KeyboardEvent): string | null {
+  const letter = /^Key([A-Z])$/.exec(event.code);
+  if (letter) return letter[1] as string;
+  const digit = /^Digit([0-9])$/.exec(event.code);
+  if (digit) return digit[1] as string;
+  const fn = /^F([1-9]|1[0-2])$/.exec(event.code);
+  if (fn) return `F${fn[1]}`;
+  return null;
+}
+
+interface KeybindingRow {
+  id: string;
+  title: string;
+  /** One entry per binding, each a list of keycap labels. */
+  bindings: string[][];
+  editable: boolean;
+  capturing?: boolean;
+}
+
+function keybindingRowHtml(row: KeybindingRow): string {
+  const bindings = row.bindings
+    .map(
+      (chips) =>
+        `<span class="keybinding-binding">${chips
+          .map((chip) => `<kbd>${escapeHtml(chip)}</kbd>`)
+          .join("")}</span>`,
+    )
+    .join("");
+  let keys: string;
+  if (row.capturing) {
+    keys = bindings || `<span class="keybinding-capturing">${t.keybindingCapturing}</span>`;
+  } else if (bindings) {
+    keys = bindings;
+  } else {
+    keys = `<span class="keybinding-empty">${t.hotkeyNone}</span>`;
   }
-  if (hotkeyInfo.registered) {
-    stateNode.textContent = t.hotkeyRegistered;
-    stateLine.hidden = false;
+  let action = "";
+  if (row.editable && !row.capturing) {
+    action = row.bindings.length
+      ? `<button class="keybinding-action is-clear" type="button" data-hotkey-clear aria-label="${escapeAttr(t.keybindingClear)}" title="${escapeAttr(t.keybindingClear)}">×</button>`
+      : `<button class="keybinding-action is-add" type="button" data-hotkey-add aria-label="${escapeAttr(t.keybindingAdd)}" title="${escapeAttr(t.keybindingAdd)}">+</button>`;
+  }
+  return `<div class="keybinding-row${row.capturing ? " is-capturing" : ""}" data-binding="${row.id}">
+    <span class="keybinding-meta">
+      <span class="keybinding-title">${escapeHtml(row.title)}</span>
+      <code class="keybinding-id">${row.id}</code>
+    </span>
+    <span class="keybinding-keys">${keys}${action}</span>
+  </div>`;
+}
+
+/** The whole list: the editable global wake row, then the fixed in-app ones. */
+function keybindingListHtml(): string {
+  const hotkey = hotkeyInfo?.hotkey ?? null;
+  const chips = keyCapture !== null ? keyCapture.chips : chipsForHotkey(hotkey);
+  const rows: KeybindingRow[] = [
+    {
+      id: "global_wake",
+      title: t.shortcutGlobalWake,
+      bindings: chips.length > 0 ? [chips] : [],
+      editable: true,
+      capturing: keyCapture !== null,
+    },
+    {
+      id: "focus_search",
+      title: t.shortcutFocusSearch,
+      bindings: [["⌘", "K"], ["/"]],
+      editable: false,
+    },
+    {
+      id: "quick_search_palette",
+      title: t.shortcutPalette,
+      bindings: [["⌘", "⇧", "K"]],
+      editable: false,
+    },
+  ];
+  return rows.map(keybindingRowHtml).join("");
+}
+
+/** Paint the list and the fetched registration state into the drawer. */
+function renderHotkeyStatus(): void {
+  const list = byId<HTMLElement>("keybinding-list");
+  if (list) list.innerHTML = keybindingListHtml();
+  const stateLine = byId<HTMLElement>("hotkey-state-line");
+  const help = byId<HTMLElement>("hotkey-help");
+  if (!stateLine || !help) return;
+  if (!hotkeyInfo) {
+    stateLine.hidden = true;
     help.hidden = true;
     return;
   }
-  stateNode.textContent = t.hotkeyNotRegistered;
+  const pending = hotkeyInfo.active !== undefined && hotkeyInfo.active !== hotkeyInfo.hotkey;
   stateLine.hidden = false;
+  stateLine.classList.toggle("is-warn", pending || !hotkeyInfo.registered);
+  stateLine.classList.toggle("is-ok", !pending && hotkeyInfo.registered);
+  if (pending) {
+    stateLine.textContent = t.hotkeyPendingRestart;
+    help.hidden = true;
+    return;
+  }
+  if (hotkeyInfo.registered) {
+    stateLine.textContent = t.hotkeyRegistered;
+    help.hidden = true;
+    return;
+  }
+  stateLine.textContent = t.hotkeyNotRegistered;
   const error = hotkeyInfo.error ?? "";
   help.textContent = error.includes("not running") ? t.hotkeyNotRunning : error;
   help.hidden = help.textContent === "";
+}
+
+/**
+ * Capture the next combination while a row waits. Capture phase plus
+ * `preventDefault` keep the app's own shortcuts (⌘K, ⌘⇧K) out of the way.
+ */
+function onCaptureKeydown(event: KeyboardEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.key === "Escape") {
+    stopHotkeyCapture();
+    return;
+  }
+  const key = keyFromCode(event);
+  const modifiers = [
+    event.ctrlKey ? "Ctrl" : null,
+    event.altKey ? "Option" : null,
+    event.shiftKey ? "Shift" : null,
+    event.metaKey ? "Command" : null,
+  ].filter((name): name is string => name !== null);
+  // Show the held keys as keycaps while the user is still pressing them.
+  if (key === null || modifiers.length === 0) {
+    keyCapture = { chips: chipsForEvent(event) };
+    renderHotkeyStatus();
+    return;
+  }
+  const canonical = canonicalHotkey([...modifiers, key].join("+"));
+  stopHotkeyCapture();
+  if (canonical !== null) void saveHotkey(canonical);
+}
+
+/** A click outside the waiting row abandons the capture, like Escape does. */
+function onCapturePointerdown(event: PointerEvent): void {
+  const target = event.target;
+  if (
+    target instanceof Element &&
+    target.closest('.keybinding-row[data-binding="global_wake"]') !== null
+  ) {
+    return;
+  }
+  stopHotkeyCapture();
+}
+
+function startHotkeyCapture(): void {
+  if (keyCapture !== null) return;
+  keyCapture = { chips: [] };
+  renderHotkeyStatus();
+  document.addEventListener("keydown", onCaptureKeydown, true);
+  document.addEventListener("pointerdown", onCapturePointerdown, true);
+}
+
+function stopHotkeyCapture(): void {
+  document.removeEventListener("keydown", onCaptureKeydown, true);
+  document.removeEventListener("pointerdown", onCapturePointerdown, true);
+  if (keyCapture === null) return;
+  keyCapture = null;
+  renderHotkeyStatus();
 }
 
 async function loadHotkeyStatus(): Promise<void> {
@@ -3641,70 +3788,30 @@ async function saveHotkey(value: string | null): Promise<void> {
   await loadHotkeyStatus();
 }
 
-/** Save what the input holds; the canonical form is what gets stored. */
-async function saveHotkeyFromInput(): Promise<void> {
-  const input = byId<HTMLInputElement>("hotkey-input");
-  if (!input) return;
-  const raw = input.value.trim();
-  if (!raw) {
-    const note = byId<HTMLElement>("hotkey-note");
-    if (note) {
-      note.textContent = t.hotkeyInvalid;
-      window.setTimeout(() => {
-        if (note && note.textContent === t.hotkeyInvalid) note.textContent = "";
-      }, 2400);
-    }
-    return;
-  }
-  const canonical = canonicalHotkey(raw);
-  if (canonical === null) {
-    const note = byId<HTMLElement>("hotkey-note");
-    if (note) {
-      note.textContent = t.hotkeyInvalid;
-      window.setTimeout(() => {
-        if (note && note.textContent === t.hotkeyInvalid) note.textContent = "";
-      }, 2400);
-    }
-    input.focus();
-    return;
-  }
-  hotkeyDraft = canonical;
-  input.value = canonical;
-  await saveHotkey(canonical);
-}
-
 /** Drawer-only listeners; the body is repainted by every renderSettings call. */
 function bindSettingsBody(): void {
   const body = byId<HTMLDivElement>("settings-body");
   if (!body) return;
-  const input = body.querySelector<HTMLInputElement>("#hotkey-input");
-  if (input) {
-    input.value = hotkeyDraft;
-    input.addEventListener("input", () => {
-      hotkeyDraft = input.value;
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        void saveHotkeyFromInput();
+  // The keybinding rows are repainted in place by every status refresh, so their
+  // controls are handled by one delegated listener instead of per-node binds.
+  if (body.dataset.keybindingsBound !== "1") {
+    body.dataset.keybindingsBound = "1";
+    body.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const action = target.closest<HTMLElement>(
+        "[data-hotkey-add], [data-hotkey-clear], [data-hotkey-reset]",
+      );
+      if (!action) return;
+      if (action.hasAttribute("data-hotkey-add")) {
+        if (keyCapture !== null) stopHotkeyCapture();
+        else startHotkeyCapture();
+        return;
       }
+      stopHotkeyCapture();
+      void saveHotkey(action.hasAttribute("data-hotkey-clear") ? null : DEFAULT_HOTKEY);
     });
   }
-  body.querySelector("[data-hotkey-save]")?.addEventListener("click", () => {
-    void saveHotkeyFromInput();
-  });
-  body.querySelector("[data-hotkey-disable]")?.addEventListener("click", () => {
-    hotkeyDraft = "";
-    const input = body.querySelector<HTMLInputElement>("#hotkey-input");
-    if (input) input.value = "";
-    void saveHotkey(null);
-  });
-  body.querySelector("[data-hotkey-reset]")?.addEventListener("click", () => {
-    hotkeyDraft = DEFAULT_HOTKEY;
-    const input = body.querySelector<HTMLInputElement>("#hotkey-input");
-    if (input) input.value = DEFAULT_HOTKEY;
-    void saveHotkey(DEFAULT_HOTKEY);
-  });
   bindSavedList(body);
 }
 
@@ -4138,6 +4245,7 @@ async function saveCurrentSearch(): Promise<void> {
 function renderSettings(): void {
   const body = byId<HTMLDivElement>("settings-body");
   if (!body) return;
+  stopHotkeyCapture();
   const focus = focusedControlSelector();
   body.innerHTML = settingsHtml();
   bindSettingsBody();
@@ -4164,6 +4272,7 @@ function openSettings(focusFirst = true): void {
 
 function closeSettings(): void {
   if (!settingsOpen) return;
+  stopHotkeyCapture();
   settingsOpen = false;
   const panel = byId<HTMLElement>("settings");
   if (panel) panel.hidden = true;

@@ -7,6 +7,15 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## Unreleased
+
+- **Shortcut settings read as keybindings.** The shortcuts group lists each
+  action as a row with its name, command id and keycap chips instead of a text
+  input. The global hotkey row reveals `+` on hover while it has no binding and
+  `×` once it has one; `+` captures the next combination (Escape or a click
+  elsewhere abandons it) and `×` clears it. In-app shortcuts (⌘K, ⌘⇧K) are
+  listed read-only in the same form.
+
 ## 1.8.0 — 2026-11-15
 
 - **Searchable titles.** The index only covered turn text, so a renamed session
