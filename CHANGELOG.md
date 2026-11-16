@@ -34,6 +34,12 @@ release workflow builds the macOS app from the tag.
   artifacts (and says so) when `TAURI_SIGNING_PRIVATE_KEY` is unset, instead of
   failing after the .app was assembled; CI still signs them from its secrets.
 
+- **A wrapped Chinese phrase is searchable as written.** Transcripts wrap long
+  lines, so a prompt can store 「使用不同的模型协同」 as 「使用不 同的模型协同」.
+  The LIKE fallback now also compares whitespace-stripped columns against the
+  query with CJK-internal spaces removed, so the correct spelling finds it (the
+  wrapped spelling still matches through FTS). English word boundaries are
+  untouched, and no re-index is needed.
 - **Cindy's scratch directories are no longer projects.** Cindy records its own
   per-dialogue directory (`owners/<owner>/dialogues/<date>/<id>`) and
   `learn/staging/<id>` as the session's `working_dir`, and agents it launched

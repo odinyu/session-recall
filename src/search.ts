@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { AgentId } from "./adapters/types.ts";
 import { getMeta, indexStats } from "./db.ts";
+import { compactCjkWhitespace } from "./util/cjk.ts";
 import { escapeLike } from "./util/values.ts";
 
 export type SearchRole = "all" | "user" | "assistant";
@@ -167,16 +168,38 @@ function baseClause(params: SearchParams): Clause {
 
 function likeClause(term: string, role: SearchRole): Clause {
   const pattern = likePattern(term);
-  if (role === "user") {
-    return { sql: "t.user_text LIKE ? ESCAPE '\\'", params: [pattern] };
+  const fields =
+    role === "user"
+      ? ["t.user_text"]
+      : role === "assistant"
+        ? ["t.assistant_text"]
+        : ["t.user_text", "t.assistant_text"];
+  const clauses: string[] = [];
+  const params: (string | number)[] = [];
+  for (const field of fields) {
+    clauses.push(`${field} LIKE ? ESCAPE '\\'`);
+    params.push(pattern);
   }
-  if (role === "assistant") {
-    return { sql: "t.assistant_text LIKE ? ESCAPE '\\'", params: [pattern] };
+  // A wrapped transcript stores 「使用不 同的模型协同」 with a space inside the
+  // phrase. Compare whitespace-free columns against the compacted query so the
+  // correct spelling finds it without weakening English word boundaries.
+  const compact = compactCjkWhitespace(term);
+  if (hasCjk(compact)) {
+    const compactPattern = likePattern(compact);
+    for (const field of fields) {
+      clauses.push(`${strippedColumn(field)} LIKE ? ESCAPE '\\'`);
+      params.push(compactPattern);
+    }
   }
-  return {
-    sql: "(t.user_text LIKE ? ESCAPE '\\' OR t.assistant_text LIKE ? ESCAPE '\\')",
-    params: [pattern, pattern],
-  };
+  return { sql: `(${clauses.join(" OR ")})`, params };
+}
+
+/** `field` with every whitespace character removed, for {@link likeClause}. */
+function strippedColumn(field: string): string {
+  return [" ", "\t", "\n", "\r", "\u3000"].reduce(
+    (sql, ch) => `replace(${sql}, char(${ch.codePointAt(0)}), '')`,
+    field,
+  );
 }
 
 function ftsMatch(terms: string[], role: SearchRole): string {

@@ -58,6 +58,31 @@ const beta = session("beta", [
 beta.updatedAt = Date.UTC(2026, 9, 3);
 writeSession(db, beta);
 
+// A line-wrapped transcript: the phrase carries a space the user would not type.
+writeSession(
+  db,
+  session("gamma", [
+    {
+      idx: 0,
+      ts: Date.UTC(2026, 9, 4),
+      userText: "worker 使用不 同的模型协同工作",
+      assistantText: "按角色分配模型",
+    },
+  ]),
+);
+// The same wrap inside the answer, for the role filter.
+writeSession(
+  db,
+  session("delta", [
+    {
+      idx: 0,
+      ts: Date.UTC(2026, 9, 5),
+      userText: "怎么做",
+      assistantText: "可以 使用 不 同的模型协同",
+    },
+  ]),
+);
+
 afterAll(() => {
   db.close();
   rmSync(dir, { recursive: true, force: true });
@@ -103,7 +128,7 @@ test("role filter searches only prompts", () => {
 test("empty query lists one prompt per session", () => {
   const result = searchTurns(db, { ...base, q: "" });
   expect(result.mode).toBe("recent");
-  expect(result.sessions.length).toBe(2);
+  expect(result.sessions.length).toBe(4);
   expect(result.sessions.every((session) => session.hits.length === 1)).toBe(true);
 });
 
@@ -119,4 +144,28 @@ test("combines an agent filter with a trigram FTS query", () => {
 test("combines a project filter with a trigram FTS query", () => {
   const hit = searchTurns(db, { ...base, q: "findFileByName", project: "/tmp/project" });
   expect(hit.sessions.map((session) => session.id)).toEqual(["omp:beta"]);
+});
+
+test("an unspaced Chinese phrase finds the line-wrapped spelling", () => {
+  const result = searchTurns(db, { ...base, q: "使用不同的模型协同" });
+  expect(result.sessions.map((session) => session.id)).toContain("omp:gamma");
+});
+
+test("the wrapped spelling keeps working too", () => {
+  const result = searchTurns(db, { ...base, q: "使用不 同的模型协同" });
+  expect(result.sessions.map((session) => session.id)).toContain("omp:gamma");
+});
+
+test("the wrap-tolerant pass honours the role filter", () => {
+  const assistant = searchTurns(db, {
+    ...base,
+    q: "使用不同的模型协同",
+    role: "assistant",
+  });
+  expect(assistant.sessions.map((session) => session.id)).toContain("omp:delta");
+  expect(assistant.sessions.map((session) => session.id)).not.toContain("omp:gamma");
+
+  const user = searchTurns(db, { ...base, q: "使用不同的模型协同", role: "user" });
+  expect(user.sessions.map((session) => session.id)).toContain("omp:gamma");
+  expect(user.sessions.map((session) => session.id)).not.toContain("omp:delta");
 });
