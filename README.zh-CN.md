@@ -21,7 +21,7 @@ bun run sr "websocket" --limit 3   # 在终端里搜索（见「搜索」）
 bun run start     # 构建 UI 并服务 http://127.0.0.1:4319
 ```
 
-`bun run start` 启动时也会扫描一次，之后每 90 秒刷新索引。左侧栏底部可以在 Auto（跟随 macOS）、Light、Dark 之间切换主题，也可以在中文和 English 之间切换界面语言；选择由服务端保存在 `<app dir>/prefs.json`（见 `src/prefs.ts`），而不是 `localStorage`，所以应用换端口重启后仍然保留；`localStorage` 只用于首屏同源缓存。偏好 API：`GET /api/prefs`，以及 `PATCH /api/prefs` 传 `{"theme": …}` 或 `{"language": …}`（`auto`/`light`/`dark`，`auto`/`zh`/`en`），其他值返回 400。
+`bun run start` 启动时也会扫描一次，之后每 90 秒刷新索引。左侧栏底部可以在 Auto（跟随 macOS）、Light、Dark 之间切换主题，也可以在 Auto（跟随浏览器）、中文和 English 之间切换界面语言；选择由服务端保存在 `<app dir>/prefs.json`（见 `src/prefs.ts`），而不是 `localStorage`，所以应用换端口重启后仍然保留；`localStorage` 只用于首屏同源缓存。偏好 API：`GET /api/prefs`，以及 `PATCH /api/prefs` 传 `{"theme": …}` 或 `{"language": …}`（`auto`/`light`/`dark`，`auto`/`zh`/`en`），其他值返回 400。
 
 ## 打包应用
 
@@ -35,7 +35,7 @@ bash scripts/make-app.sh
 
 脚本也可以直接调用：`POST /api/hotkey`，请求体 `{"hotkey": "Option+Command+K"}`（`null` 表示关闭），返回 `202` 与 `pending: true`；`GET /api/hotkey` 报告注册状态。应用内快捷键存放在 `shortcuts` 偏好里（`focusSearch` 与 `palette`，各是一个列表，空列表表示未绑定）。已知的 macOS 限制：在某些 macOS 版本上，重复注册可以静默共存——另一个应用（或本应用的第二个副本）占用同一组合键时不会报错，`/api/hotkey` 只报告本应用自己的注册状态。
 
-它会构建 Web UI，把 Bun CLI 编译成自包含的 sidecar 二进制（约 63 MB，按宿主 target triple 命名），再交给 Tauri 打包：
+它会构建 Web UI，把 Bun CLI 编译成自包含的 sidecar 二进制（约 61 MB，按宿主 target triple 命名），再交给 Tauri 打包：
 
 ```text
 src-tauri/target/release/bundle/macos/Session Recall.app
@@ -62,7 +62,7 @@ UI 由 Bun 以和 `bun run serve` 完全相同的方式提供，所以应用和 
 
 **链接如何找到应用。** 预留端口每次启动都会变，所以任何 `http://127.0.0.1:<port>` URL 都只能在一次运行内有效。因此 bundle 注册了自己的 URL scheme（`sessionrecall`，在 `tauri.conf.json` 的 `plugins.deep-link` 里声明，这也是 `Info.plist` 里 `CFBundleURLTypes` 的来源）。像 `sessionrecall://session/alma%3Amwbhgpzz9n7zy56fdm` 这样的链接会：应用没运行时启动它，已在运行时聚焦它，并且最终都落到那个会话。如果链接在 webview 加载完成前到达，会先排队，等第一次页面加载完成后再应用，所以冷启动不会丢链接。
 
-`bash scripts/make-app.sh` 只构建宿主架构（Apple silicon 上是 arm64，约 67 MB）。`--arch aarch64-apple-darwin` / `--arch x86_64-apple-darwin` 构建指定切片，必要时交叉编译 sidecar；`--universal` 构建同时覆盖 arm64 和 x86_64 的 bundle（约 140 MB，体积大约翻倍，因为带了两份 Bun runtime）。
+`bash scripts/make-app.sh` 只构建宿主架构（Apple silicon 上是 arm64，约 72 MB）。`--arch aarch64-apple-darwin` / `--arch x86_64-apple-darwin` 构建指定切片，必要时交叉编译 sidecar；`--universal` 构建同时覆盖 arm64 和 x86_64 的 bundle（约 141 MB，体积大约翻倍，因为带了两份 Bun runtime）。
 
 ## 截图
 
@@ -143,7 +143,9 @@ cursor '/path/to/project'               # cross-agent: open the project
 alma://thread/<thread-id>
 ```
 
-跨 agent 交接不能传递 session id：session id 只对各自的 agent 有意义。因此操作栏是在目标 agent 中新开一个 **新会话**，并把复制的交接卡作为上下文。Alma 和 Cindy 没有 shell 入口，所以它们的条目显示一条普通说明（“新建会话并粘贴交接卡”），而不是一条坏命令。
+只有 5 个 agent 提供精确的原位恢复命令——omp、pi、OpenCode、Claude Code 和 Codex；Alma 提供线程深链。其余 agent（Cursor、Cindy、Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose）没有按 session id 恢复的入口，所以对应条目给的是交接卡，以及（在可能时）新开会话或打开项目的命令。
+
+跨 agent 交接不能传递 session id：session id 只对各自的 agent 有意义。因此操作栏是在目标 agent 中新开一个 **新会话**，并把复制的交接卡作为上下文。Alma 和 Cindy 没有 shell 入口，所以它们的条目显示一条普通说明（“新建会话并粘贴交接卡”），而不是一条坏命令。Alma 的深链只打开它自己的线程，所以把 Alma 作为别的 agent 会话的目标（以及选择 Cindy）时，显示的就是这条普通说明。
 
 `GET /api/session/<id>/handoff?targetAgent=<id>`（以及 UI 按钮）为选中的目标渲染卡片，并加一段 `## 在 <Agent> 中继续`，带上该 agent 的命令或说明。会话 API 返回完整的 `continuations` 列表，所以 UI 不会猜另一个 agent 的 CLI。
 
@@ -164,7 +166,7 @@ sessionrecall://session/<id>?turn=3&q=websocket
 - `turn` 在指定 turn index 打开会话并居中；非数字、越界或过期索引会打开顶部。
 - `q` 是产生链接的搜索。应用会在提问、回答和代码块中高亮这些词，在操作栏上方显示一条「来自搜索 “…” · 查看搜索结果」，并让「返回搜索」指向这些结果——所以从链接冷启动不会落到空白搜索页。没有 `q` 时行为和以前完全一致。
 
-## 报告（日报与周报）
+## 报告（日报、周报与月报）
 
 日报默认是简短的 **standup**；旧的完整 dump 仍然只差一个 flag。
 
@@ -177,7 +179,7 @@ bun run brief --month 2026-11              # monthly report (or --format month 2
 bun run brief --help                       # flags
 ```
 
-应用的侧栏底部也提供这两种报告：在日历里选一天，选择 **日报** 或 **周报**，然后按 **生成**。报告在内容区打开（周报链接到 `#/brief/2026-W46?format=week`），也可以下载 `.md`。
+应用的侧栏底部生成日报与周报：在日历里选一天，选择 **日报** 或 **周报**，然后按 **生成**。报告在内容区打开（周报链接到 `#/brief/2026-W46?format=week`），也可以下载 `.md`。月报通过 CLI 与 HTTP API 生成（MCP 可读取已生成的报告），侧栏还没有月报入口。
 
 文件在 `<app dir>/brief/` 下——默认是 `~/Library/Application Support/session-recall/brief/`，和索引放在一起，所以在打包的 `.app` 里也能用。用 `SESSION_RECALL_BRIEF_DIR=/some/dir` 覆盖。
 
@@ -185,8 +187,9 @@ bun run brief --help                       # flags
 brief/
   daily/2026-11-11.md     # standup
   weekly/2026-W46.md      # weekly
+  monthly/2026-11.md      # monthly
   2026-11-11.md          # archive, the legacy path
-  index.md                # newest daily + weekly entries
+  index.md                # 最新的日报、周报和月报
 ```
 
 - **standup**（默认）：YAML front-matter（`kind`、`date`、`projects`、`sessions`、`turns`、`agents`、`generated_at`），一句总结，然后是 `进展 / 决策 / 待续 / 明天第一件事 / 概览`。原始提问不进入这个视图。
@@ -275,8 +278,8 @@ bun run sr "ENOENT" --scope process
 ## 索引与隐私
 
 - 索引：`~/Library/Application Support/session-recall/index.db`（SQLite WAL）。
-- 偏好：`<app dir>/prefs.json`，目前是主题和界面语言。原子写入（临时文件 + rename）并在写入时合并；文件缺失或损坏只会回到默认值。
-- 一切都跑在 `127.0.0.1`；没有网络调用、账号或 telemetry。
+- 偏好：`<app dir>/prefs.json`，包括主题、界面语言、全局热键与应用内快捷键、更新检查开关（`checkUpdates`）和报告定时（`briefSchedule`）。原子写入（临时文件 + rename）并在写入时合并；文件缺失或损坏只会回到默认值。
+- 索引、搜索、报告、交接卡和 MCP server 都不发网络请求，也不需要账号。打包应用唯一的外发请求是 GitHub 更新检查（启动时、每 6 小时一次，以及你点「检查更新…」时）；在 `prefs.json` 里设 `"checkUpdates": false` 可关闭。`bun run serve` 不发任何请求。
 - Agent 数据库以 `readonly: true` 和 busy timeout 打开。源目录里的内容不会被修改或复制。
 - `is_incognito = 1` 的 Alma 线程在读取消息前就在 SQL 里排除，所以无痕对话不会被列出、索引或搜索。
 - 用 `SESSION_RECALL_DB=/path/to/index.db` 覆盖索引位置；`SESSION_RECALL_HOME=/some/dir` 覆盖 app dir；`SESSION_RECALL_PORT=4319` 覆盖端口；`SESSION_RECALL_BRIEF_DIR` 覆盖报告目录；`SESSION_RECALL_WEB_DIST=/path/to/web/dist` 覆盖服务的 UI 目录。Alma 存储从 `SESSION_RECALL_ALMA_DB` 读取，默认 `~/Library/Application Support/alma/chat_threads.db`。Cindy 的目录和数据库可用 `SESSION_RECALL_CINDY_DIR` 和 `SESSION_RECALL_CINDY_DB` 固定；默认目录是 `~/Library/Application Support/CindyGlobal`。Claude Code 的 `~/.claude` 和 Codex 的 `~/.codex` 根目录可用 `SESSION_RECALL_CLAUDE_DIR` 和 `SESSION_RECALL_CODEX_DIR` 移动。
@@ -298,7 +301,7 @@ bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304 # undo
 src/
   adapters/       omp/pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、
                   Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 解析器
-  brief.ts        日报 standup / archive / 周报生成
+  brief.ts        日报 standup / archive / 周报 / 月报生成
   cli-search.ts   search 子命令：参数解析、文本/JSON 输出
   config.ts       路径和端口（APP_DIR 遵循 SESSION_RECALL_HOME）
   freshness.ts    indexAgeMs、scanIfStale、后台刷新
@@ -327,14 +330,14 @@ scripts/
   make-app.sh     打包 macOS .app
   make-icon.py    渲染 app-icon.png（PIL，镜像 web/favicon.svg）
 test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、web app、Alma、Cindy、Claude Code、Codex、Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 测试
-brief/            生成的日报（git-ignored）
+brief/            生成的报告（git-ignored）
 doc/              长篇文档，每篇都有英文和中文版
 ```
 
 ## 开发
 
 ```bash
-bun test          # 224 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose, pi
+bun test          # 284 个测试、37 个文件：markdown、搜索、标题搜索、过程事件、CLI 搜索、MCP、扫描锁、新鲜度、日报/周报/月报、交接卡、链接、偏好、热键、脱敏、forget、i18n、Web UI、中文换行检索，以及全部 agent 适配器
 bun run build     # bundle web/app.ts -> web/dist
 ```
 
@@ -362,7 +365,7 @@ bun run build     # bundle web/app.ts -> web/dist
 
 - [`doc/USAGE.zh-CN.md`](doc/USAGE.zh-CN.md)——所有 CLI 与 MCP 选项、JSON schema、退出码和 recipes。
 - [`doc/MCP.zh-CN.md`](doc/MCP.zh-CN.md)——应用和 stdio MCP 客户端如何共用一个索引。
-- [`doc/REPORTS.zh-CN.md`](doc/REPORTS.zh-CN.md)——日报和周报的模板。
+- [`doc/REPORTS.zh-CN.md`](doc/REPORTS.zh-CN.md)——日报、周报和月报的模板。
 - [`doc/DESIGN.zh-CN.md`](doc/DESIGN.zh-CN.md)——布局、字号阶梯、设计 token 和交互规则。
 - [`doc/PRODUCT.zh-CN.md`](doc/PRODUCT.zh-CN.md)——这个应用是什么、给谁用、故意不做什么。
 - [`doc/POSITIONING.zh-CN.md`](doc/POSITIONING.zh-CN.md)——和其他 agent 记忆工具的位置关系，以及路线图。

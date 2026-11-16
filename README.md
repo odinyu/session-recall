@@ -29,7 +29,8 @@ bun run start     # build the UI and serve http://127.0.0.1:4319
 
 `bun run start` also scans on boot and refreshes the index every 90 seconds.
 The rail footer switches the theme between Auto (follows macOS), Light, and
-Dark, and the UI language between Chinese and English. Both choices are stored by
+Dark, and the UI language between Auto (follows the browser), Chinese and
+English. Both choices are stored by
 the server in `<app dir>/prefs.json` (see `src/prefs.ts`) rather than in
 `localStorage`, so they survive the app restarting on a different port;
 `localStorage` is only a same-origin cache for the first paint. API:
@@ -63,7 +64,7 @@ this one) can hold the same combination without any error — `/api/hotkey`
 reports only this app's own registration state.
 
 It builds the web UI, compiles the Bun CLI into a self-contained sidecar binary
-(~63 MB, named for the host target triple), and lets Tauri bundle both:
+(~61 MB, named for the host target triple), and lets Tauri bundle both:
 
 ```text
 src-tauri/target/release/bundle/macos/Session Recall.app
@@ -114,9 +115,9 @@ link that arrives before the webview has finished loading is queued and applied
 on the first finished page load, so a cold start cannot drop it.
 
 `bash scripts/make-app.sh` builds for the host architecture only (arm64 on
-Apple silicon, ~67 MB). `--arch aarch64-apple-darwin` / `--arch
+Apple silicon, ~72 MB). `--arch aarch64-apple-darwin` / `--arch
 x86_64-apple-darwin` build one specific slice, cross-compiling the sidecar if
-needed; `--universal` builds one bundle covering both arm64 and x86_64 (~140 MB,
+needed; `--universal` builds one bundle covering both arm64 and x86_64 (~141 MB,
 roughly double the size because it carries two Bun runtimes).
 
 ## Screenshots
@@ -249,11 +250,19 @@ machine). Alma's equivalent is the deep link that opens the thread in the Alma a
 alma://thread/<thread-id>
 ```
 
+Only five agents expose an exact in-place resume command — omp, pi, OpenCode,
+Claude Code and Codex — and Alma exposes a thread deep link. Every other agent
+(Cursor, Cindy, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose) has no
+session-id resume, so its entry shows the handoff card and, where possible, a
+command that starts a new session (or opens the project).
+
 Cross-agent handoff cannot transfer a session id: session ids only mean
 something to their own agent. The bar therefore launches a **new** session in
 the target agent and the copied handoff card becomes its context. Alma and Cindy
 have no shell entry point, so their entries show a plain instruction (“start a new
-session and paste the handoff card”) instead of a broken command.
+session and paste the handoff card”) instead of a broken command. Alma's deep
+link only opens its own threads, so choosing Alma as the target for another
+agent's session (or Cindy at all) shows that plain instruction.
 
 `GET /api/session/<id>/handoff?targetAgent=<id>` (and the UI button) renders
 the card for the selected target, adding a `## Continue in <Agent>` section with
@@ -287,7 +296,7 @@ sessionrecall://session/<id>?turn=3&q=websocket
   cold start from a link does not land in a blank search page. Without `q` the
   link behaves exactly as before.
 
-## Reports (daily and weekly)
+## Reports (daily, weekly, monthly)
 
 Daily reports are short **standups** by default; the old full dump is still one
 flag away.
@@ -301,10 +310,12 @@ bun run brief --month 2026-11              # monthly report (or --format month 2
 bun run brief --help                       # flags
 ```
 
-The app's sidebar footer carries the same two reports: pick a day in the
+The app's sidebar footer generates the daily and weekly views: pick a day in the
 calendar, choose **Daily** or **Weekly**, then press **Generate**. The report opens in
 the content pane (a weekly one links to `#/brief/2026-W46?format=week`) and is
-also offered as a `.md` download.
+also offered as a `.md` download. Monthly reports are available from the CLI
+and the HTTP API (MCP can read a generated one); the sidebar has no monthly
+entry yet.
 
 Files live under `<app dir>/brief/` — `~/Library/Application Support/session-recall/brief/`
 by default, next to the index, so this works from inside the packaged `.app`
@@ -314,7 +325,7 @@ too. Override with `SESSION_RECALL_BRIEF_DIR=/some/dir`.
 brief/
   daily/2026-11-11.md     # standup
   weekly/2026-W46.md      # weekly
-  monthly/2026-11.md     # monthly
+  monthly/2026-11.md      # monthly
   2026-11-11.md          # archive, the legacy path
   index.md                # newest daily + weekly + monthly entries
 ```
@@ -379,7 +390,7 @@ Derivation is deterministic — no model calls:
   sessions in the last answer.
 - A session spanning several days is counted **once**, on its last active day;
   `active_days` counts days with at least one session.
-- `brief/index.md` lists recent daily and weekly files, newest first.
+- `brief/index.md` lists recent daily, weekly and monthly files, newest first.
 
 The rail's `Generate` button creates the standup view for the chosen date; the
 download keeps the YAML front-matter.
@@ -494,11 +505,15 @@ Tools:
 ## Index and privacy
 
 - Index: `~/Library/Application Support/session-recall/index.db` (SQLite WAL).
-- Preferences: `<app dir>/prefs.json`, currently the theme and UI language. It is written
-  atomically (temp file + rename) and merged on write; a missing or corrupt file
-  just means the defaults.
-- Everything runs on `127.0.0.1`; there are no network calls, accounts, or
-  telemetry.
+- Preferences: `<app dir>/prefs.json` — theme, UI language, the global hotkey
+  and in-app shortcuts, the update-check switch (`checkUpdates`) and the report
+  schedule (`briefSchedule`). It is written atomically (temp file + rename) and
+  merged on write; a missing or corrupt file just means the defaults.
+- Indexing, search, reports, handoff cards and the MCP server make no network
+  calls and need no account. The packaged app's only outbound request is the
+  GitHub update check (at launch, every six hours, and when you choose
+  **Check for Updates…**); set `"checkUpdates": false` in `prefs.json` to stop
+  it. `bun run serve` makes none.
 - Agent databases are opened with `readonly: true` and a busy timeout. Nothing
   in the source folders is modified or copied.
 - Alma threads with `is_incognito = 1` are excluded in SQL before their messages
@@ -554,7 +569,7 @@ forget tool.
 src/
   adapters/       omp/pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex,
                   Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose parsers
-  brief.ts        daily standup / archive / weekly report generation
+  brief.ts        daily standup / archive / weekly / monthly report generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
   freshness.ts    indexAgeMs, scanIfStale, background refresh
@@ -583,14 +598,14 @@ scripts/
   make-app.sh     package the macOS .app
   make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
 test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose tests
-brief/            generated daily briefs (git-ignored)
+brief/            generated reports (git-ignored)
 doc/              long-form docs, each in English and zh-CN
 ```
 
 ## Development
 
 ```bash
-bun test          # 224 tests: markdown, search, process events, CLI search, MCP, scan lock, freshness, daily brief, links, prefs, redaction, forget, i18n, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose
+bun test          # 284 tests across 37 files: markdown, search, title search, process events, CLI search, MCP, scan lock, freshness, daily/weekly/monthly reports, handoff, links, prefs, hotkey, redaction, forget, i18n, web app, CJK, and every agent adapter
 bun run build     # bundle web/app.ts -> web/dist
 ```
 
@@ -642,7 +657,7 @@ Longer notes live in [`doc/`](doc); every page exists in English and in
 
 - [`doc/USAGE.md`](doc/USAGE.md) — every CLI and MCP option, JSON schemas, exit codes and recipes.
 - [`doc/MCP.md`](doc/MCP.md) — how the app and a stdio MCP client share one index.
-- [`doc/REPORTS.md`](doc/REPORTS.md) — the daily and weekly report templates.
+- [`doc/REPORTS.md`](doc/REPORTS.md) — the daily, weekly and monthly report templates.
 - [`doc/DESIGN.md`](doc/DESIGN.md) — layout, type scale, tokens and interaction rules.
 - [`doc/PRODUCT.md`](doc/PRODUCT.md) — what the app is, who it is for, and what it deliberately is not.
 - [`doc/POSITIONING.md`](doc/POSITIONING.md) — where it sits next to other agent-memory tools, and the roadmap.
