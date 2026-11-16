@@ -9,60 +9,74 @@
 
 为 **omp**、**pi**、**OpenCode**、**Cursor**、**Alma**、**Cindy**、**Claude Code**、**Codex**、**Gemini CLI**、**Qwen Code**、**Kimi Code**、**Copilot CLI** 和 **Goose** 这些工具积累下来的会话而做。它从不写入 agent 自己的存储。
 
-## 快速开始
+## 下载
 
-需要 macOS 和 Bun 1.3+。
+每次 [release](https://github.com/odinyu/session-recall/releases) 都附有构建好的
+macOS 应用。按芯片选一个：
 
-```bash
-git clone https://github.com/odinyu/session-recall.git
-cd session-recall
-bun run scan      # 建立索引（第一次几秒钟）
-bun run sr "websocket" --limit 3   # 在终端里搜索（见「搜索」）
-bun run start     # 构建 UI 并服务 http://127.0.0.1:4319
-```
+| Mac | 下载 |
+| --- | --- |
+| Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——28.5 MB |
+| Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——31.4 MB |
 
-`bun run start` 启动时也会扫描一次，之后每 90 秒刷新索引。左侧栏底部可以在 Auto（跟随 macOS）、Light、Dark 之间切换主题，也可以在 Auto（跟随浏览器）、中文和 English 之间切换界面语言；选择由服务端保存在 `<app dir>/prefs.json`（见 `src/prefs.ts`），而不是 `localStorage`，所以应用换端口重启后仍然保留；`localStorage` 只用于首屏同源缓存。偏好 API：`GET /api/prefs`，以及 `PATCH /api/prefs` 传 `{"theme": …}` 或 `{"language": …}`（`auto`/`light`/`dark`，`auto`/`zh`/`en`），其他值返回 400。
-
-## 打包应用
-
-构建可双击的 macOS `.app`：
+解压后把 **Session Recall** 拖进 `/Applications`，首次启动前清除一次 quarantine
+标记（构建是 ad-hoc 签名、未公证）：
 
 ```bash
-bash scripts/make-app.sh
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+open -a "Session Recall"
 ```
 
-打包后的 app 会注册一个全局快捷键（默认 `⌥⌘R`），在任何应用里都能显示或隐藏窗口。设置抽屉的「快捷键」区可直接改绑：点 `×` 清除，点 `+` 后按下组合键即可；「聚焦搜索框」（默认 `⌘K` / `/`）和「快速搜索浮窗」（默认 `⌘⇧K`）也在同一处修改。改动即时生效：抽屉写入 `hotkey-request.json`，桌面壳在下一轮轮询（约 2 秒）时重新注册，期间状态显示为「正在应用…」，无需重启。
+也可以右键应用选「打开」。需要 macOS 11 或更高版本。应用自带运行环境，不需要额外
+安装任何东西，也不需要账号。更新是内置的：菜单 **文件 → 检查更新…**，有新版本时
+应用里也会提示。
 
-脚本也可以直接调用：`POST /api/hotkey`，请求体 `{"hotkey": "Option+Command+K"}`（`null` 表示关闭），返回 `202` 与 `pending: true`；`GET /api/hotkey` 报告注册状态。应用内快捷键存放在 `shortcuts` 偏好里（`focusSearch` 与 `palette`，各是一个列表，空列表表示未绑定）。已知的 macOS 限制：在某些 macOS 版本上，重复注册可以静默共存——另一个应用（或本应用的第二个副本）占用同一组合键时不会报错，`/api/hotkey` 只报告本应用自己的注册状态。
+## 首次启动
 
-它会构建 Web UI，把 Bun CLI 编译成自包含的 sidecar 二进制（约 61 MB，按宿主 target triple 命名），再交给 Tauri 打包：
+打开应用，它会扫描本机的 agent 存储，建立
+`~/Library/Application Support/session-recall/index.db`，之后每 90 秒刷新。没有
+任何配置步骤：侧栏里的项目、agent 和日期都来自磁盘上已有的内容。
 
-```text
-src-tauri/target/release/bundle/macos/Session Recall.app
-```
+左侧栏底部可以在 Auto（跟随 macOS）、Light、Dark 之间切换主题，也可以在 Auto
+（跟随浏览器）、中文和 English 之间切换界面语言；选择保存在
+`<app dir>/prefs.json`，换端口重启后仍然保留。偏好 API：`GET /api/prefs`，以及
+`PATCH /api/prefs` 传 `{"theme": …}` 或 `{"language": …}`（`auto`/`light`/`dark`，
+`auto`/`zh`/`en`），其他值返回 400。
 
-这个 bundle 是 ad-hoc 签名的（`signingIdentity: "-"`）；下载或拷贝后先清除 quarantine 标记：
+## 能做什么
 
-```bash
-xattr -dr com.apple.quarantine "Session Recall.app"
-```
+- **一次搜全部。** 提问、回答、会话标题，以及**过程**范围里的工具输入、命令和
+  错误输出，都在这一个查询里；覆盖 13 个 coding agent。中文短语、代码标识符和
+  路径都能搜。
+- **直接跳到那一刻。** 命中会打开会话的对应轮次并高亮匹配文字；过程命中还会展开
+  对应的工具行。
+- **换个 agent 接着做。**「继续到」为 5 个支持恢复命令的 agent 生成原位命令；其余
+  agent 给出交接卡（项目、改过的文件、跑过的命令、报错、Git 分支），粘贴即可接力。
+- **不离开键盘。** <kbd>⌘⇧K</kbd> 打开快速搜索；全局快捷键（默认 <kbd>⌥⌘R</kbd>）
+  可在任何应用里唤起窗口。两者和 <kbd>⌘K</kbd> 都可改绑，且即时生效。
+- **回看这一周。** 侧栏可生成日报和周报；月报与周期对比可通过命令行和 HTTP API
+  生成。
+- **让 agent 自己来查。** 内置 MCP server 通过 stdio 把同一份索引交给 Claude、
+  Codex 等 MCP 客户端。
 
-**它如何找到自己的部件。** Tauri 把 Bun CLI 作为 `externalBin` sidecar 放在 `Contents/MacOS/session-recall`，把构建好的 Web UI 作为 bundle resource 放在 `Contents/Resources/web/dist`。启动时 Rust 外壳（`src-tauri/src/main.rs`）会：
+## 实现方式
 
-1. 预留一个空闲的 loopback 端口；
-2. 定位 sidecar：先看 `$SESSION_RECALL_SIDECAR`，再看主可执行文件旁的 `session-recall*` 文件，最后看 `src-tauri/binaries/`（用于 `cargo tauri dev`）；
-3. 用 `SESSION_RECALL_PORT` 指向预留端口、`SESSION_RECALL_WEB_DIST` 指向资源目录来启动它；
-4. 等端口可连接后，在 `http://127.0.0.1:<port>` 上打开 `WKWebView` 窗口；
-5. 通过驱动 UI 的 hash router 来响应 `sessionrecall://` 深链（见下），必要时把窗口带到前台；
-6. 退出时杀掉 sidecar，不留下孤儿进程。
+窗口是一个原生 macOS 外壳，里面是监听随机 loopback 端口的本地服务；同一份二进制
+也负责索引和 MCP server，并打包在应用内。Agent 存储以只读方式打开，不会复制出去。
+`sessionrecall://session/<id>?turn=<n>` 链接会打开应用并落到那一轮。
 
-UI 由 Bun 以和 `bun run serve` 完全相同的方式提供，所以应用和 CLI 共用 `~/Library/Application Support/session-recall/index.db`，窗口只是同一套 HTTP API 的视图。Web 资源作为 bundle resource 发布而不是嵌进二进制，所以在没有 `web/dist` 的新克隆里 `bun run scan` 仍然可用。
+## 快捷键
 
-图标在 `src-tauri/app-icon.png`；用 `python3 scripts/make-icon.py` 重新生成 PNG，在 `src-tauri/` 下用 `cargo tauri icon` 重新生成整套图标。
+应用会注册一个全局快捷键（默认 `⌥⌘R`），在任何应用里都能显示或隐藏窗口。设置抽屉
+的「快捷键」区可直接改绑：点 `×` 清除，点 `+` 后按下组合键即可；「聚焦搜索框」
+（默认 `⌘K` / `/`）和「快速搜索浮窗」（默认 `⌘⇧K`）也在同一处修改。改动即时生效，
+无需重启。已知的 macOS 限制：在某些 macOS 版本上，重复注册可以静默共存——另一个
+应用（或本应用的第二个副本）占用同一组合键时不会报错。
 
-**链接如何找到应用。** 预留端口每次启动都会变，所以任何 `http://127.0.0.1:<port>` URL 都只能在一次运行内有效。因此 bundle 注册了自己的 URL scheme（`sessionrecall`，在 `tauri.conf.json` 的 `plugins.deep-link` 里声明，这也是 `Info.plist` 里 `CFBundleURLTypes` 的来源）。像 `sessionrecall://session/alma%3Amwbhgpzz9n7zy56fdm` 这样的链接会：应用没运行时启动它，已在运行时聚焦它，并且最终都落到那个会话。如果链接在 webview 加载完成前到达，会先排队，等第一次页面加载完成后再应用，所以冷启动不会丢链接。
+## 从源码构建
 
-`bash scripts/make-app.sh` 只构建宿主架构（Apple silicon 上是 arm64，约 72 MB）。`--arch aarch64-apple-darwin` / `--arch x86_64-apple-darwin` 构建指定切片，必要时交叉编译 sidecar；`--universal` 构建同时覆盖 arm64 和 x86_64 的 bundle（约 141 MB，体积大约翻倍，因为带了两份 Bun runtime）。
+构建、测试和打包 `.app` 的过程见
+[`doc/BUILD.zh-CN.md`](doc/BUILD.zh-CN.md)。从 release 下载的应用不需要这些步骤。
 
 ## 截图
 
@@ -168,15 +182,17 @@ sessionrecall://session/<id>?turn=3&q=websocket
 
 ## 报告（日报、周报与月报）
 
-日报默认是简短的 **standup**；旧的完整 dump 仍然只差一个 flag。
+日报默认是简短的 **standup**；旧的完整 dump 仍然只差一个 flag。应用包里带着同一个
+命令行工具，不需要另外安装：
 
 ```bash
-bun run brief                              # today, standup
-bun run brief 2026-11-11                   # a specific day, standup
-bun run brief 2026-11-11 --format archive  # legacy full dump
-bun run brief --week 2026-W46              # weekly rollup
-bun run brief --month 2026-11              # monthly report (or --format month 2026-11)
-bun run brief --help                       # flags
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" brief                              # today, standup
+"$SR" brief 2026-11-11                   # a specific day, standup
+"$SR" brief 2026-11-11 --format archive  # legacy full dump
+"$SR" brief --week 2026-W46              # weekly rollup
+"$SR" brief --month 2026-11              # monthly report (or --format month 2026-11)
+"$SR" brief --help                       # flags
 ```
 
 应用的侧栏底部生成日报与周报：在日历里选一天，选择 **日报** 或 **周报**，然后按 **生成**。报告在内容区打开（周报链接到 `#/brief/2026-W46?format=week`），也可以下载 `.md`。月报通过 CLI 与 HTTP API 生成（MCP 可读取已生成的报告），侧栏还没有月报入口。
@@ -232,12 +248,13 @@ API：`POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week|month`（默�
 - 查询语法：裸词，或 `"精确短语"`；多个词是 AND。
 - API：`GET /api/search?q=…&scope=qa|process&agent=…&project=…&from=…&to=…&role=…`；结果带 `totalSessions`、`totalTurns`/`processTotal`、分组会话，以及 `hits` 或 `processHits`。
 
-从 shell 或带 shell 权限的 agent 使用（不需要 server）：
+从 shell 或带 shell 权限的 agent 使用（不需要 server）。用应用包里的命令行工具：
 
 ```bash
-bun run sr "目录范围" --limit 5
-bun run sr "websocket" --agent omp --json
-bun run sr "ENOENT" --scope process
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" search "目录范围" --limit 5
+"$SR" search "websocket" --agent omp --json
+"$SR" search "ENOENT" --scope process
 ```
 
 - `--limit <n>` 限制返回的会话数（1–5000，默认 10）；`--agent` 可重复或用逗号分隔；`--scope qa|process` 选择问答对或工具调用与错误。
@@ -248,18 +265,21 @@ bun run sr "ENOENT" --scope process
 
 ## MCP server
 
-`bun run mcp`（或 `bun run src/cli.ts mcp`）通过 **stdio** 用换行分隔的 JSON-RPC 2.0 把索引提供给 agent。没有网络端口，没有新依赖。把 MCP 客户端指向绝对路径：
+应用包里也带有 stdio MCP server：换行分隔的 JSON-RPC 2.0，不占网络端口，不需要额外
+安装。把 MCP 客户端指向应用里的二进制：
 
 ```json
 {
   "mcpServers": {
     "session-recall": {
-      "command": "bun",
-      "args": ["run", "/absolute/path/to/session-recall/src/cli.ts", "mcp"]
+      "command": "/Applications/Session Recall.app/Contents/MacOS/session-recall",
+      "args": ["mcp"]
     }
   }
 }
 ```
+
+应用不在 `/Applications` 时，把路径改成实际位置。
 
 工具：
 
@@ -279,7 +299,7 @@ bun run sr "ENOENT" --scope process
 
 - 索引：`~/Library/Application Support/session-recall/index.db`（SQLite WAL）。
 - 偏好：`<app dir>/prefs.json`，包括主题、界面语言、全局热键与应用内快捷键、更新检查开关（`checkUpdates`）和报告定时（`briefSchedule`）。原子写入（临时文件 + rename）并在写入时合并；文件缺失或损坏只会回到默认值。
-- 索引、搜索、报告、交接卡和 MCP server 都不发网络请求，也不需要账号。打包应用唯一的外发请求是 GitHub 更新检查（启动时、每 6 小时一次，以及你点「检查更新…」时）；在 `prefs.json` 里设 `"checkUpdates": false` 可关闭。`bun run serve` 不发任何请求。
+- 索引、搜索、报告、交接卡和 MCP server 都不发网络请求，也不需要账号。打包应用唯一的外发请求是 GitHub 更新检查（启动时、每 6 小时一次，以及你点「检查更新…」时）；在 `prefs.json` 里设 `"checkUpdates": false` 可关闭。
 - Agent 数据库以 `readonly: true` 和 busy timeout 打开。源目录里的内容不会被修改或复制。
 - `is_incognito = 1` 的 Alma 线程在读取消息前就在 SQL 里排除，所以无痕对话不会被列出、索引或搜索。
 - 用 `SESSION_RECALL_DB=/path/to/index.db` 覆盖索引位置；`SESSION_RECALL_HOME=/some/dir` 覆盖 app dir；`SESSION_RECALL_PORT=4319` 覆盖端口；`SESSION_RECALL_BRIEF_DIR` 覆盖报告目录；`SESSION_RECALL_WEB_DIST=/path/to/web/dist` 覆盖服务的 UI 目录。Alma 存储从 `SESSION_RECALL_ALMA_DB` 读取，默认 `~/Library/Application Support/alma/chat_threads.db`。Cindy 的目录和数据库可用 `SESSION_RECALL_CINDY_DIR` 和 `SESSION_RECALL_CINDY_DB` 固定；默认目录是 `~/Library/Application Support/CindyGlobal`。Claude Code 的 `~/.claude` 和 Codex 的 `~/.codex` 根目录可用 `SESSION_RECALL_CLAUDE_DIR` 和 `SESSION_RECALL_CODEX_DIR` 移动。
@@ -289,59 +309,12 @@ bun run sr "ENOENT" --scope process
 不想再被搜索的会话可以在不碰原始 transcript 的情况下移出索引：
 
 ```bash
-bun run src/cli.ts forget omp:2026-11-10T01-13-16-427Z_01a1c304   # rows + FTS
-bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304 # undo
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" forget omp:2026-11-10T01-13-16-427Z_01a1c304    # rows + FTS
+"$SR" unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
 ```
 
 `forget` 删除会话行和 FTS 条目，重建索引，并把 id 记到 `forgotten_session`，之后每次扫描都会跳过它。`unforget` 清除标记，下次扫描重新索引。同一操作也是会话页上的「忘记此会话」按钮，状态行提供「撤销」。生成的报告是纯 Markdown 副本，从不改写：CLI 和 UI 都会列出仍提到该会话的报告文件，供你重新生成或删除。MCP server 保持只读——没有 forget 工具。
-
-## 项目结构
-
-```text
-src/
-  adapters/       omp/pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、
-                  Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 解析器
-  brief.ts        日报 standup / archive / 周报 / 月报生成
-  cli-search.ts   search 子命令：参数解析、文本/JSON 输出
-  config.ts       路径和端口（APP_DIR 遵循 SESSION_RECALL_HOME）
-  freshness.ts    indexAgeMs、scanIfStale、后台刷新
-  index-read.ts   带 schema 版本检查的只读索引打开
-  mcp.ts          stdio MCP server：JSON-RPC、紧凑工具、深链
-  db.ts           schema、FTS 触发器、upsert
-  handoff.ts      会话交接卡生成
-  prefs.ts        prefs.json：默认值、写时合并、原子写入
-  scan.ts         增量扫描编排
-  scan-lock.ts    跨进程扫描锁（O_EXCL + 过期接管）
-  search.ts       查询构建、排序、facets
-  server.ts       Bun.serve API + 静态 UI
-  util/resume.ts  shell 恢复命令和应用深链
-  util/redact.ts  写入时脱敏密钥和 PII
-web/
-  app.ts          hash 路由 UI
-  handoff.ts      交接卡缓存键、有界缓存与有界等待
-  markdown.ts     安全的 Markdown 渲染器
-  links.ts        应用内链接（深链、loopback）-> hash 路由映射
-  styles.css      设计 token 和组件
-src-tauri/
-  src/main.rs     外壳：预留端口、启动 sidecar、打开窗口、深链
-  tauri.conf.json bundle 配置；sidecar、Web 资源、深链 scheme
-scripts/
-  build.ts        Bun.build bundle
-  make-app.sh     打包 macOS .app
-  make-icon.py    渲染 app-icon.png（PIL，镜像 web/favicon.svg）
-test/             markdown、搜索、过程搜索、事件、brief/reports、handoff、links、prefs、web app、Alma、Cindy、Claude Code、Codex、Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 测试
-brief/            生成的报告（git-ignored）
-doc/              长篇文档，每篇都有英文和中文版
-```
-
-## 开发
-
-```bash
-bun test          # 284 个测试、37 个文件：markdown、搜索、标题搜索、过程事件、CLI 搜索、MCP、扫描锁、新鲜度、日报/周报/月报、交接卡、链接、偏好、热键、脱敏、forget、i18n、Web UI、中文换行检索，以及全部 agent 适配器
-bun run build     # bundle web/app.ts -> web/dist
-```
-
-没有运行时依赖。`bun:sqlite` 提供带两种 tokenizer 的 FTS5。
 
 ## 已知限制
 
@@ -357,12 +330,11 @@ bun run build     # bundle web/app.ts -> web/dist
 - **Cindy 工具配对**：`tool_result` 行没有工具 id，所以输出按到达顺序挂到最老的未回答 `tool_use` 上。并行调用几乎总按调用顺序完成；交错的结果会落到错误行的输出上，但不会落到不同 turn。
 - **Cindy 隐藏消息**：`messages.rewind_at`（编辑/回退）和早于 `sessions.cleared_at` 的行在 SQL 里过滤，和 Cindy UI 显示一致。Fork 的会话在索引里保留 `parent_session_id`。
 
-预构建的 macOS 版本（每个切片一个单架构 bundle——Apple silicon 和 Intel——ad-hoc 签名，未公证）附在每次 [release](https://github.com/odinyu/session-recall/releases) 上。
-
 ## 文档
 
 更长的说明放在 [`doc/`](doc)，每一篇都有英文原版和 `.zh-CN.md` 中文版，顶部可互相切换。
 
+- [`doc/BUILD.zh-CN.md`](doc/BUILD.zh-CN.md)——从源码构建应用和运行测试。
 - [`doc/USAGE.zh-CN.md`](doc/USAGE.zh-CN.md)——所有 CLI 与 MCP 选项、JSON schema、退出码和 recipes。
 - [`doc/MCP.zh-CN.md`](doc/MCP.zh-CN.md)——应用和 stdio MCP 客户端如何共用一个索引。
 - [`doc/REPORTS.zh-CN.md`](doc/REPORTS.zh-CN.md)——日报、周报和月报的模板。

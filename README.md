@@ -15,110 +15,86 @@ Built for the sessions that pile up across **omp**, **pi**, **OpenCode**,
 **Qwen Code**, **Kimi Code**, **Copilot CLI**, and **Goose**. It never writes to
 an agent's own storage.
 
-## Quick start
+## Download
 
-Requires macOS and Bun 1.3+.
+Prebuilt macOS builds are attached to every
+[release](https://github.com/odinyu/session-recall/releases). Pick the one for
+your Mac:
+
+| Mac | Download |
+| --- | --- |
+| Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 28.5 MB |
+| Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip) — 31.4 MB |
+
+Unzip it, drag **Session Recall** into `/Applications`, and clear the quarantine
+flag once (the build is ad-hoc signed, not notarized):
 
 ```bash
-git clone https://github.com/odinyu/session-recall.git
-cd session-recall
-bun run scan      # build the index (first run: a few seconds)
-bun run sr "websocket" --limit 3   # search from the shell (see Search)
-bun run start     # build the UI and serve http://127.0.0.1:4319
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+open -a "Session Recall"
 ```
 
-`bun run start` also scans on boot and refreshes the index every 90 seconds.
+You can also right-click the app and choose **Open** instead of the command.
+Requires macOS 11 or later. The app carries its own runtime — there is nothing
+else to install and no account to create. Updates are built in: **File → Check
+for Updates…**, and a new version is announced inside the app.
+
+## First run
+
+Launch the app and it scans the agent stores on this Mac, builds
+`~/Library/Application Support/session-recall/index.db`, and refreshes it every
+90 seconds. There is no setup: the projects, agents and dates in the rail come
+from what is already on disk.
+
 The rail footer switches the theme between Auto (follows macOS), Light, and
 Dark, and the UI language between Auto (follows the browser), Chinese and
-English. Both choices are stored by
-the server in `<app dir>/prefs.json` (see `src/prefs.ts`) rather than in
-`localStorage`, so they survive the app restarting on a different port;
-`localStorage` is only a same-origin cache for the first paint. API:
-`GET /api/prefs`, and `PATCH /api/prefs` with `{"theme": …}` or
+English. Both choices live in `<app dir>/prefs.json`, so they survive restarts.
+API: `GET /api/prefs`, and `PATCH /api/prefs` with `{"theme": …}` or
 `{"language": …}` for `auto`, `light`/`dark` or `auto`/`zh`/`en`; anything
 else is rejected with a 400.
 
-## Packaged app
+## What it does
 
-Build a double-clickable macOS `.app`:
+- **Search everything.** One query covers prompts, answers, session titles and
+  — in the **Process** scope — tool inputs, commands and error output, across 13
+  coding agents. Chinese phrases, code identifiers and paths all work.
+- **Open the exact moment.** A hit opens the session at that turn, highlights the
+  matched text, and expands the matching tool row for a process hit.
+- **Keep going elsewhere.** **Continue in** builds a resume command for the five
+  agents that support one, or a handoff card (project, files touched, commands,
+  errors, Git branch) to paste into any other agent.
+- **Find it without leaving the keyboard.** <kbd>⌘⇧K</kbd> opens quick search;
+  the global shortcut (<kbd>⌥⌘R</kbd> by default) summons the app from anywhere.
+  Both, and <kbd>⌘K</kbd>, are rebindable and apply immediately.
+- **Read the week back.** Generate daily and weekly reports from the sidebar;
+  monthly reports and period comparisons are available from the command line
+  and HTTP API.
+- **Let an agent search for you.** The bundled MCP server exposes the same index
+  to Claude, Codex and other MCP clients over stdio.
 
-```bash
-bash scripts/make-app.sh
-```
+## How it works
 
-The packaged app registers a global shortcut, `⌥⌘R` by default, that shows or
-hides the window from any app. The Settings drawer's **Shortcuts** section
-rebinds it — click `×` to clear, `+` and press a combination to set it — and
-also rebinds the two in-app shortcuts (**focus search field**, `⌘K` / `/` by
-default, and **quick search palette**, `⌘⇧K`). Changes apply immediately: the
-drawer writes `hotkey-request.json`, the shell re-registers on its next poll
-(≈2 s) and reports `pending` until it has, so nothing needs a restart.
+The window is a native macOS shell around a local server that opens a random
+loopback port; the same binary also hosts the index and the MCP server, and it
+is bundled inside the app. Agent stores are opened read-only, and nothing is
+copied out of them. `sessionrecall://session/<id>?turn=<n>` links open the app
+and land on that turn.
 
-`POST /api/hotkey` with `{"hotkey": "Option+Command+K"}` (or `null` to disable)
-does the same from a script; it answers `202` with `pending: true`, and
-`GET /api/hotkey` reports the registration state. In-app bindings live in the
-`shortcuts` preference (`focusSearch` and `palette`, each a list whose empty
-list means "not bound"). Known macOS limitation: duplicate registrations can
-silently co-exist on some macOS builds, so another app (or a second copy of
-this one) can hold the same combination without any error — `/api/hotkey`
-reports only this app's own registration state.
+## Shortcuts
 
-It builds the web UI, compiles the Bun CLI into a self-contained sidecar binary
-(~61 MB, named for the host target triple), and lets Tauri bundle both:
+The app registers a global shortcut, `⌥⌘R` by default, that shows or hides the
+window from any app. The Settings drawer's **Shortcuts** section rebinds it —
+click `×` to clear, `+` and press a combination to set it — and also rebinds the
+two in-app shortcuts (**focus search field**, `⌘K` / `/` by default, and
+**quick search palette**, `⌘⇧K`). Changes apply immediately; nothing needs a
+restart. Known macOS limitation: duplicate registrations can silently co-exist
+on some macOS builds, so another app (or a second copy of this one) can hold the
+same combination without any error.
 
-```text
-src-tauri/target/release/bundle/macos/Session Recall.app
-```
+## Build from source
 
-The bundle is ad-hoc signed (`signingIdentity: "-"`); if you download or copy it
-around, clear the quarantine flag first:
-
-```bash
-xattr -dr com.apple.quarantine "Session Recall.app"
-```
-
-**How it finds its parts.** Tauri ships the Bun CLI as an `externalBin` sidecar
-at `Contents/MacOS/session-recall`, and the built web UI as a bundle resource at
-`Contents/Resources/web/dist`. On launch the Rust shell
-(`src-tauri/src/main.rs`):
-
-1. reserves a free loopback port,
-2. locates the sidecar — `$SESSION_RECALL_SIDECAR`, then any `session-recall*`
-   file next to the main executable, then `src-tauri/binaries/` (for
-   `cargo tauri dev`),
-3. spawns it with `SESSION_RECALL_PORT` set to the reserved port and
-   `SESSION_RECALL_WEB_DIST` pointing at the resource dir,
-4. waits until the port accepts connections, then opens a `WKWebView` window on
-   `http://127.0.0.1:<port>`,
-5. answers `sessionrecall://` deep links (see below) by driving the UI's hash
-   router, bringing the window forward if it was in the background,
-6. kills the sidecar on quit, so no orphaned process is left behind.
-
-The UI is served by Bun exactly as in `bun run serve`, so the app and the CLI
-share one index at `~/Library/Application Support/session-recall/index.db` — and
-so the window is purely a view over the same HTTP API. Web assets are shipped as
-a bundle resource rather than embedded in the binary, so `bun run scan` still
-works on a fresh clone that has no `web/dist`.
-
-The icon lives at `src-tauri/app-icon.png`; regenerate the PNG with
-`python3 scripts/make-icon.py` and the whole icon set with `cargo tauri icon`
-from `src-tauri/`.
-
-**How links find the app.** The reserved port changes on every launch, so no
-`http://127.0.0.1:<port>` URL can address the app for longer than one run. The
-bundle therefore registers its own URL scheme (`sessionrecall`, declared in
-`tauri.conf.json` under `plugins.deep-link`, which is what puts the
-`CFBundleURLTypes` entry in `Info.plist`). A link such as
-`sessionrecall://session/alma%3Amwbhgpzz9n7zy56fdm` opens the app if it is not
-running, focuses it if it is, and — in every case — lands on that session. A
-link that arrives before the webview has finished loading is queued and applied
-on the first finished page load, so a cold start cannot drop it.
-
-`bash scripts/make-app.sh` builds for the host architecture only (arm64 on
-Apple silicon, ~72 MB). `--arch aarch64-apple-darwin` / `--arch
-x86_64-apple-darwin` build one specific slice, cross-compiling the sidecar if
-needed; `--universal` builds one bundle covering both arm64 and x86_64 (~141 MB,
-roughly double the size because it carries two Bun runtimes).
+Building and testing the app, including the `.app` bundle, is covered in
+[`doc/BUILD.md`](doc/BUILD.md). The packaged app you download needs none of it.
 
 ## Screenshots
 
@@ -301,13 +277,17 @@ sessionrecall://session/<id>?turn=3&q=websocket
 Daily reports are short **standups** by default; the old full dump is still one
 flag away.
 
+The app ships the same command-line tool inside the bundle, so no separate
+install is needed:
+
 ```bash
-bun run brief                              # today, standup
-bun run brief 2026-11-11                   # a specific day, standup
-bun run brief 2026-11-11 --format archive  # legacy full dump
-bun run brief --week 2026-W46              # weekly rollup
-bun run brief --month 2026-11              # monthly report (or --format month 2026-11)
-bun run brief --help                       # flags
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" brief                              # today, standup
+"$SR" brief 2026-11-11                   # a specific day, standup
+"$SR" brief 2026-11-11 --format archive  # legacy full dump
+"$SR" brief --week 2026-W46              # weekly rollup
+"$SR" brief --month 2026-11              # monthly report (or --format month 2026-11)
+"$SR" brief --help                       # flags
 ```
 
 The app's sidebar footer generates the daily and weekly views: pick a day in the
@@ -441,12 +421,14 @@ Invalid dates, weeks and formats are rejected with a 400.
   results carry `totalSessions`, `totalTurns`/`processTotal`, grouped sessions,
   and either `hits` or `processHits`.
 
-From a shell or an agent with shell access (no server required):
+From a shell or an agent with shell access (no server required). Use the
+command-line tool inside the app bundle:
 
 ```bash
-bun run sr "directory scope" --limit 5
-bun run sr "websocket" --agent omp --json
-bun run sr "ENOENT" --scope process
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" search "directory scope" --limit 5
+"$SR" search "websocket" --agent omp --json
+"$SR" search "ENOENT" --scope process
 ```
 
 - `--limit <n>` caps the returned sessions (1–5000, default 10); `--agent` is
@@ -464,20 +446,22 @@ bun run sr "ENOENT" --scope process
 
 ## MCP server
 
-`bun run mcp` (or `bun run src/cli.ts mcp`) serves the index to an agent over
-**stdio**, using newline-delimited JSON-RPC 2.0. No network port, no new
-dependencies. Point an MCP client at the absolute path:
+The app bundle also contains a stdio MCP server: newline-delimited JSON-RPC
+2.0, no network port, no extra install. Point an MCP client at the binary inside
+the app:
 
 ```json
 {
   "mcpServers": {
     "session-recall": {
-      "command": "bun",
-      "args": ["run", "/absolute/path/to/session-recall/src/cli.ts", "mcp"]
+      "command": "/Applications/Session Recall.app/Contents/MacOS/session-recall",
+      "args": ["mcp"]
     }
   }
 }
 ```
+
+Change the path if the app lives somewhere other than `/Applications`.
 
 Tools:
 
@@ -513,7 +497,7 @@ Tools:
   calls and need no account. The packaged app's only outbound request is the
   GitHub update check (at launch, every six hours, and when you choose
   **Check for Updates…**); set `"checkUpdates": false` in `prefs.json` to stop
-  it. `bun run serve` makes none.
+  it.
 - Agent databases are opened with `readonly: true` and a busy timeout. Nothing
   in the source folders is modified or copied.
 - Alma threads with `is_incognito = 1` are excluded in SQL before their messages
@@ -550,8 +534,9 @@ A session you no longer want searchable can be dropped without touching the
 original transcript:
 
 ```bash
-bun run src/cli.ts forget omp:2026-11-10T01-13-16-427Z_01a1c304   # rows + FTS
-bun run src/cli.ts unforget omp:2026-11-10T01-13-16-427Z_01a1c304 # undo
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" forget omp:2026-11-10T01-13-16-427Z_01a1c304    # rows + FTS
+"$SR" unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
 ```
 
 `forget` deletes the session's rows and FTS entries, rebuilds the indexes, and
@@ -562,54 +547,6 @@ in the status line. Generated briefs are plain Markdown copies and are never
 rewritten: both the CLI and the UI list the brief files that still mention the
 session so you can regenerate or delete them. The MCP server stays read-only — it has no
 forget tool.
-
-## Project layout
-
-```text
-src/
-  adapters/       omp/pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex,
-                  Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose parsers
-  brief.ts        daily standup / archive / weekly / monthly report generation
-  cli-search.ts   search subcommand: arg parsing, text/JSON output
-  config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)
-  freshness.ts    indexAgeMs, scanIfStale, background refresh
-  index-read.ts   read-only index open with schema-version checks
-  mcp.ts          stdio MCP server: JSON-RPC, compact tools, deep links
-  db.ts           schema, FTS triggers, upserts
-  handoff.ts      session handoff card generation
-  prefs.ts        prefs.json: defaults, merge-on-write, atomic writes
-  scan.ts         incremental scan orchestration
-  scan-lock.ts    cross-process scan lock (O_EXCL + stale takeover)
-  search.ts       query building, ranking, facets
-  server.ts       Bun.serve API + static UI
-  util/resume.ts  shell resume commands and app deep links
-  util/redact.ts  write-time redaction of secrets and PII
-web/
-  app.ts          hash-routed UI
-  handoff.ts      handoff card cache key, bounded cache and bounded wait
-  markdown.ts     safe Markdown renderer
-  links.ts        in-app link (deep link, loopback) -> hash route mapping
-  styles.css      design tokens and components
-src-tauri/
-  src/main.rs     shell: reserve port, spawn sidecar, open window, deep links
-  tauri.conf.json bundle config; sidecar, web assets, deep-link scheme
-scripts/
-  build.ts        Bun.build bundle
-  make-app.sh     package the macOS .app
-  make-icon.py    render app-icon.png (PIL, mirrors web/favicon.svg)
-test/             markdown, search, process search, events, brief/reports, handoff, links, prefs, web app, Alma, Cindy, Claude Code, Codex, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose tests
-brief/            generated reports (git-ignored)
-doc/              long-form docs, each in English and zh-CN
-```
-
-## Development
-
-```bash
-bun test          # 284 tests across 37 files: markdown, search, title search, process events, CLI search, MCP, scan lock, freshness, daily/weekly/monthly reports, handoff, links, prefs, hotkey, redaction, forget, i18n, web app, CJK, and every agent adapter
-bun run build     # bundle web/app.ts -> web/dist
-```
-
-No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
 
 ## Known limits
 
@@ -646,15 +583,12 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
   than `sessions.cleared_at` are filtered in SQL, matching what the Cindy UI
   shows. Forked sessions keep their `parent_session_id` in the index.
 
-Prebuilt macOS builds (one single-architecture bundle per slice — Apple silicon
-and Intel — ad-hoc signed, not notarized) are attached to each
-[release](https://github.com/odinyu/session-recall/releases).
-
 ## Documentation
 
 Longer notes live in [`doc/`](doc); every page exists in English and in
 `.zh-CN.md`, with a language switch at the top.
 
+- [`doc/BUILD.md`](doc/BUILD.md) — building the app from source and running the tests.
 - [`doc/USAGE.md`](doc/USAGE.md) — every CLI and MCP option, JSON schemas, exit codes and recipes.
 - [`doc/MCP.md`](doc/MCP.md) — how the app and a stdio MCP client share one index.
 - [`doc/REPORTS.md`](doc/REPORTS.md) — the daily, weekly and monthly report templates.
