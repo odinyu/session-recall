@@ -290,6 +290,12 @@ button {
   color: var(--faint);
 }
 
+/* No accent ring inside the popup: the caret marks the field, and the rows'
+   own highlight marks the keyboard position. */
+.agent-search-input:focus {
+  outline: none;
+}
+
 .agent-options {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -308,19 +314,16 @@ button {
 
 /* Selected rows stay highlighted so the ✓ is never the only signal (the
    trigger's count and the checkmark alone read as "nothing chosen" at a
-   glance); the keyboard-active row adds an inset outline on top. */
-.agent-option:hover {
+   glance). The keyboard-active row uses the same tint instead of an accent
+   outline, so no row ever draws a border. */
+.agent-option:hover,
+.agent-option.is-active {
   background: var(--surface-2);
 }
 
 .agent-option.is-selected {
   background: var(--surface-2);
   color: var(--ink);
-}
-
-.agent-option.is-active {
-  outline: 1.5px solid var(--accent);
-  outline-offset: -1.5px;
 }
 
 .agent-check {
@@ -551,11 +554,6 @@ button {
   color: var(--accent);
 }
 
-.project-option.is-selected.is-active {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
 .segmented {
   display: inline-flex;
   padding: 2px;
@@ -614,7 +612,7 @@ button {
   width: 100%;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid var(--accent);
+  border: 1px solid transparent;
   border-radius: 8px;
   background: var(--accent-soft);
   color: var(--accent);

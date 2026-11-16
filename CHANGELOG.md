@@ -22,6 +22,11 @@ release workflow builds the macOS app from the tag.
   for an increase. Cmd-Tab back into the app leaves the palette closed, and a
   summon while the settings or update dialog is open just raises the window.
 
+- **The filter popups draw no accent outlines.** The agent popup's search field,
+  its selected/keyboard-active rows and the Clear filters button now rely on
+  their tint (and the caret, the checkmark) instead of a border or focus ring;
+  the project list drops its inset outline for the same reason.
+
 ## 1.8.0 — 2026-11-15
 
 - **Searchable titles.** The index only covered turn text, so a renamed session
