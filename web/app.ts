@@ -2253,6 +2253,19 @@ function bindShell(): void {
       return;
     }
     if (event.key === "Escape") {
+      // Both dropdowns close from anywhere, including when focus stayed on
+      // <body> (macOS webviews do not focus a clicked button), so Escape cannot
+      // depend on a keydown listener bound to their triggers.
+      if (agentOpen) {
+        event.preventDefault();
+        closeAgentPopup(true);
+        return;
+      }
+      if (projectOpen) {
+        event.preventDefault();
+        closeProjectPopup(true);
+        return;
+      }
       if (datePicker) {
         closeDatePicker();
         return;
@@ -2532,6 +2545,19 @@ function openAgentPopup(): void {
   search?.focus();
 }
 
+/**
+ * Return focus to a combobox trigger without painting its focus ring: Escape
+ * is keyboard input, so the browser would otherwise mark the trigger's
+ * `:focus-visible` until the user moves on. The suppression lifts on blur.
+ */
+function focusQuietly(element: HTMLElement): void {
+  element.classList.add("is-quiet-focus");
+  element.addEventListener("blur", () => element.classList.remove("is-quiet-focus"), {
+    once: true,
+  });
+  element.focus();
+}
+
 function closeAgentPopup(focusTrigger = false): void {
   if (!agentOpen) return;
   agentOpen = false;
@@ -2541,7 +2567,7 @@ function closeAgentPopup(focusTrigger = false): void {
   if (trigger) {
     trigger.setAttribute("aria-expanded", "false");
     trigger.removeAttribute("aria-activedescendant");
-    if (focusTrigger) trigger.focus();
+    if (focusTrigger) focusQuietly(trigger);
   }
 }
 
@@ -2852,7 +2878,7 @@ function closeProjectPopup(focusTrigger = false): void {
   if (trigger) {
     trigger.setAttribute("aria-expanded", "false");
     trigger.removeAttribute("aria-activedescendant");
-    if (focusTrigger) trigger.focus();
+    if (focusTrigger) focusQuietly(trigger);
   }
 }
 

@@ -659,9 +659,19 @@ button {
   font-size: 12px;
 }
 
-/* The brief controls sit above the agent filter in one compact row: mode on
-   its own line only when the row is too narrow, date + generate sharing it. */
+/* Escape hands focus back to a combobox trigger without a ring; the class
+   lifts on blur, so returning by Tab still shows the normal indicator. */
+.agent-trigger.is-quiet-focus:focus-visible,
+.project-trigger.is-quiet-focus:focus-visible,
+.resume-trigger.is-quiet-focus:focus-visible {
+  outline: none;
+}
+
+/* The brief controls take two rail-width rows in every language: the mode
+   switch alone, then date + generate. One row cannot hold the English labels
+   without truncating the date or pushing Generate onto a third line. */
 .brief-line {
+  --brief-control-h: 30px;
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;
@@ -669,21 +679,28 @@ button {
 }
 
 .brief-line .brief-mode {
-  flex: 1 1 120px;
+  flex: 1 0 100%;
   display: flex;
   box-sizing: border-box;
-  min-width: 96px;
+  height: var(--brief-control-h);
+  min-width: 0;
 }
 
-/* The date button and the 生成 button share one height, radius and type size so
-   the control reads as part of the rail rather than a native widget. */
+/* Both halves fill the 30px control, so the switch and the buttons below it
+   are exactly as tall as each other. */
+.brief-line .brief-mode .seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+}
+
+/* The date button and the 生成 button share the switch's height, radius and
+   type size so the control reads as one row of rail widgets. */
 .brief-date,
 .brief-button {
   box-sizing: border-box;
-  /* Matches the inner .seg height of the 日报/周报 segmented control above
-     (12px/19.2px line + 2 × 5px padding ≈ 29px), so the date row reads as the
-     same weight as the segmented rows instead of a shorter 26px row. */
-  height: 29px;
+  height: var(--brief-control-h);
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: var(--surface);
@@ -697,7 +714,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   padding: 0 8px;
   color: var(--ink);
@@ -733,6 +750,7 @@ button {
   padding: 0 10px;
   color: var(--muted);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .brief-button:hover {

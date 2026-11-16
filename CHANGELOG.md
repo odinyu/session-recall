@@ -34,6 +34,16 @@ release workflow builds the macOS app from the tag.
   artifacts (and says so) when `TAURI_SIGNING_PRIVATE_KEY` is unset, instead of
   failing after the .app was assembled; CI still signs them from its secrets.
 
+- **Escape closes both rail dropdowns, quietly.** The agent and project lists
+  now close on Escape from anywhere on the page (a macOS webview does not focus
+  a clicked button, so the trigger-only handler missed the project list), and
+  focus returns to the trigger without drawing its focus ring; a second Escape
+  changes nothing.
+- **One report-toolbar layout in both languages.** The rail's mode switch now
+  owns a full row and the date and Generate buttons share the next one, all at
+  the same 30 px height; the English labels no longer wrap Generate onto a
+  third line or truncate the date.
+
 ## 1.8.0 — 2026-11-15
 
 - **Searchable titles.** The index only covered turn text, so a renamed session
