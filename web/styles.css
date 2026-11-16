@@ -974,12 +974,10 @@ button {
   color: var(--faint);
 }
 
-/* The input opts out of the global focus ring; give the whole field a clear
-   one instead, so keyboard users can see where focus is. */
+/* The input keeps the global ring off; the field itself signals focus through
+   the icon and caret alone — no accent outline is drawn around the search bar. */
 .search-field input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 6px;
-  border-radius: 6px;
+  outline: none;
 }
 
 .search-field:focus-within .search-icon {
@@ -3051,9 +3049,9 @@ mark {
   color: var(--faint);
 }
 
+/* The caret is the focus cue here; the palette never draws an accent ring. */
 .palette-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline: none;
 }
 
 .palette-list {

@@ -27,6 +27,13 @@ release workflow builds the macOS app from the tag.
   their tint (and the caret, the checkmark) instead of a border or focus ring;
   the project list drops its inset outline for the same reason.
 
+- **No accent rings on the search inputs.** The topbar search bar no longer
+  draws a focus outline around the field, and the quick-search palette's input
+  drops its ring too; the caret and the search icon carry the focus cue.
+- **Local app builds need no release key.** `make-app.sh` now skips the updater
+  artifacts (and says so) when `TAURI_SIGNING_PRIVATE_KEY` is unset, instead of
+  failing after the .app was assembled; CI still signs them from its secrets.
+
 ## 1.8.0 — 2026-11-15
 
 - **Searchable titles.** The index only covered turn text, so a renamed session

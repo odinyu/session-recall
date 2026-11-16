@@ -122,6 +122,13 @@ run_tauri_build() {
     unset CI
   fi
   local -a args=(--bundles app)
+  if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+    # The updater artifacts are signed with the release key, which only CI has.
+    # A local test build has no use for them, so skip them rather than failing
+    # after the .app itself was already assembled.
+    echo "note: TAURI_SIGNING_PRIVATE_KEY is unset; building without updater artifacts"
+    args+=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
+  fi
   if [[ -n "${1:-}" ]]; then
     args=(--target "$1" "${args[@]}")
   fi
