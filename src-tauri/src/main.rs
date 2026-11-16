@@ -31,7 +31,7 @@
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Once};
 use std::time::{Duration, Instant};
 
@@ -68,6 +68,10 @@ const HOTKEY_ENV: &str = "SESSION_RECALL_HOTKEY";
 const DISABLED_HOTKEY_VALUES: [&str; 4] = ["", "off", "none", "false"];
 /// The file the shell writes after registering the shortcut, for `GET /api/hotkey`.
 const HOTKEY_STATE_FILE: &str = "hotkey-state.json";
+/// Incremented every time the shortcut summons the window, for `GET /api/summon`.
+/// The webview opens the quick-search palette only for a summon, never for an
+/// ordinary refocus (Cmd-Tab back into the app).
+const SUMMON_STATE_FILE: &str = "summon-state.json";
 /// The file the shell writes after every update check, for `GET /api/update`.
 const UPDATE_STATE_FILE: &str = "update-state.json";
 /// Written by the sidecar when the user clicks "install"; the shell consumes it.
@@ -89,6 +93,9 @@ const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 /// Guards the update watcher so whichever path opens the window first starts
 /// it exactly once.
 static UPDATE_WATCHER: Once = Once::new();
+/// Monotonic per-launch count of hotkey summons; the webview compares it with
+/// the value it saw on boot to tell a summon from an ordinary refocus.
+static SUMMON_COUNT: AtomicU64 = AtomicU64::new(0);
 /// Appended to every registration failure: on macOS an unapproved app is the
 /// likeliest reason, and the dialog that explains it never appears on its own.
 const HOTKEY_FAILURE_HINT: &str = "Another app may already own this shortcut, or macOS may be withholding it: allow Session Recall under System Settings → Privacy & Security → Accessibility and Input Monitoring, then restart the app.";
@@ -468,6 +475,19 @@ fn record_hotkey_state(port: u16, hotkey: Option<&str>, registered: bool, error:
     write_app_state(HOTKEY_STATE_FILE, &state, "hotkey state");
 }
 
+/// Publish a hotkey summon for `GET /api/summon`.
+///
+/// Written before the window is shown and focused, so the webview's `focus`
+/// handler (which then polls the endpoint) can never read the previous count.
+fn record_summon() {
+    let count = SUMMON_COUNT.fetch_add(1, Ordering::Relaxed) + 1;
+    write_app_state(
+        SUMMON_STATE_FILE,
+        &serde_json::json!({ "count": count }),
+        "summon state",
+    );
+}
+
 /// Atomically replace a state file in the app directory, temp file + rename.
 ///
 /// Shared by the hotkey and update state files: both are read by the sidecar
@@ -535,6 +555,9 @@ fn toggle_main_window(app: &AppHandle) {
         }
         return;
     }
+    // Only the hotkey takes this branch: the deep link and the menu summon
+    // through `summon_main_window` directly and must not open the palette.
+    record_summon();
     summon_main_window(app);
 }
 

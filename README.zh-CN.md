@@ -216,7 +216,7 @@ API：`POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week|month`（默�
 两个范围：
   - **问答** 搜索提问和回答。
   - **过程** 搜索工具输入（`path`、`command` 等）、工具输出和提取出的错误行。
-- **快速搜索浮窗**：按 <kbd>⌘⇧K</kbd>，或在隐藏状态下用全局快捷键唤起窗口，都会打开一个 Spotlight 式浮窗，边输入边搜索整个索引——<kbd>↑↓</kbd> 移动，<kbd>Enter</kbd> 打开会话，<kbd>⌘↵</kbd> 复制会话深链，<kbd>Esc</kbd> 关闭。
+- **快速搜索浮窗**：按 <kbd>⌘⇧K</kbd>，或用全局快捷键唤起窗口时打开一个 Spotlight 式浮窗（普通 Cmd-Tab 切回不打开），边输入边搜索整个索引——<kbd>↑↓</kbd> 移动，<kbd>Enter</kbd> 打开会话，<kbd>⌘↵</kbd> 复制会话深链，<kbd>Esc</kbd> 关闭。
 - SQLite FTS5，两个范围都覆盖：
   - `trigram` 用于中文短语和子串/代码标识符匹配。
   - `porter` 词干作为英文回退。

@@ -79,6 +79,31 @@ const HOTKEY_MODIFIERS: Record<string, string> = {
 /** The file the shell writes after registering the shortcut (see main.rs). */
 const HOTKEY_STATE_FILE = "hotkey-state.json";
 
+/** The file the shell bumps on every hotkey summon (see `record_summon`). */
+const SUMMON_STATE_FILE = "summon-state.json";
+
+/**
+ * The hotkey's summon counter, or 0 when the shell never summoned the window
+ * this launch or the file is missing/malformed. The webview opens the palette
+ * only when this increases between polls, so a Cmd-Tab refocus opens nothing.
+ */
+export function summonCount(dir = APP_DIR): number {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, SUMMON_STATE_FILE), "utf8");
+  } catch {
+    return 0;
+  }
+  try {
+    const raw = JSON.parse(text) as { count?: unknown };
+    return typeof raw.count === "number" && Number.isSafeInteger(raw.count) && raw.count > 0
+      ? raw.count
+      : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function prefsPath(dir = APP_DIR): string {
   return join(dir, "prefs.json");
 }

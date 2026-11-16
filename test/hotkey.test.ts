@@ -10,6 +10,7 @@ import {
   isHotkey,
   prefsPath,
   readPrefs,
+  summonCount,
   updatePrefs,
   effectiveHotkey,
 } from "../src/prefs.ts";
@@ -265,4 +266,15 @@ test("serialises to the endpoint's documented shape", () => {
   });
   // Reading the status writes nothing, so `prefs.json` stays absent.
   expect(() => readFileSync(prefsPath(dir), "utf8")).toThrow();
+});
+
+test("reports the summon counter and treats junk as zero", () => {
+  const dir = freshDir();
+  expect(summonCount(dir)).toBe(0);
+  writeFileSync(join(dir, "summon-state.json"), JSON.stringify({ count: 3 }), "utf8");
+  expect(summonCount(dir)).toBe(3);
+  for (const junk of ["", "not json", "[]", '{"count":"2"}', '{"count":-1}', '{"count":1.5}']) {
+    writeFileSync(join(dir, "summon-state.json"), junk, "utf8");
+    expect(summonCount(dir)).toBe(0);
+  }
 });

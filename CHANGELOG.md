@@ -16,6 +16,12 @@ release workflow builds the macOS app from the tag.
   elsewhere abandons it) and `×` clears it. In-app shortcuts (⌘K, ⌘⇧K) are
   listed read-only in the same form.
 
+- **The palette no longer opens on an ordinary refocus.** The shell now bumps a
+  summon counter (`GET /api/summon`) only when the global hotkey brings the
+  window forward; the webview polls it and opens the quick-search palette only
+  for an increase. Cmd-Tab back into the app leaves the palette closed, and a
+  summon while the settings or update dialog is open just raises the window.
+
 ## 1.8.0 — 2026-11-15
 
 - **Searchable titles.** The index only covered turn text, so a renamed session

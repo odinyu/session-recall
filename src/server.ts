@@ -36,6 +36,7 @@ import {
   readPrefs,
   requestUpdateInstall,
   requestChangelogOpen,
+  summonCount,
   updatePrefs,
   updateStatus,
 } from "./prefs.ts";
@@ -535,6 +536,11 @@ export async function api(
     // Read-only by design: the shell registers the shortcut once at launch, so
     // this reports what that attempt did rather than changing anything.
     return json(hotkeyStatus());
+  }
+  if (request.method === "GET" && url.pathname === "/api/summon") {
+    // The shell bumps this counter whenever the hotkey summons the window; the
+    // webview polls it on focus to tell a summon from an ordinary refocus.
+    return json({ count: summonCount() });
   }
   if (request.method === "GET" && url.pathname === "/api/update") {
     // Read-only view of the shell's last check; the drawer renders it.

@@ -3175,10 +3175,11 @@ function setFootNote(text: string): void {
 
 /**
  * Spotlight-style palette: a centered overlay with one input and a live result
- * list. Opened by Cmd-Shift-K in-app, and focused and emptied when the window
- * is summoned by the global hotkey (the app's window may have been hidden, so
- * there is no page state to restore into). Cmd-K stays on the topbar search
- * box exactly as before.
+ * list. Opened by Cmd-Shift-K in-app, and when the shell reports a hotkey
+ * summon through `/api/summon` — the only case where the window may have been
+ * hidden with no page state to restore into. An ordinary refocus (Cmd-Tab back
+ * into the app) reports no summon and opens nothing. Cmd-K stays on the topbar
+ * search box exactly as before.
  */
 const PALETTE_DEBOUNCE_MS = 120;
 const PALETTE_LIMIT = 20;
@@ -3189,8 +3190,8 @@ let paletteResults: ResultSession[] = [];
 let paletteActive = 0;
 let paletteTimer = 0;
 let paletteRequestId = 0;
-/** Armed on window blur (a hidden window), consumed on the following focus. */
-let paletteSummonArm = false;
+/** Last summon counter seen; null until the first poll sets the baseline. */
+let lastSummonCount: number | null = null;
 
 /** The in-flight search, aborted as soon as the query changes. */
 let paletteAbort: AbortController | null = null;
@@ -3887,22 +3888,38 @@ async function pollUpdateAnnouncement(): Promise<void> {
   announceUpdate();
 }
 
+/**
+ * Open the palette only when the shell summoned the window, never on an
+ * ordinary refocus. The shell bumps `/api/summon`'s counter on each hotkey
+ * summon, so Cmd-Tab back into the app leaves it unchanged and opens nothing.
+ */
+async function pollSummon(): Promise<void> {
+  let count: number;
+  try {
+    const info = await api<{ count: number }>("/api/summon");
+    count = info.count;
+  } catch {
+    return;
+  }
+  const previous = lastSummonCount;
+  lastSummonCount = count;
+  if (previous === null || count <= previous) return;
+  // A dialog owns the screen: the summon only brings the window forward.
+  if (paletteOpen || settingsOpen || updateModalOpen) return;
+  summonPalette();
+}
+
 function scheduleUpdatePolling(): void {
   void pollUpdateAnnouncement();
   window.setInterval(() => void pollUpdateAnnouncement(), 30_000);
   window.addEventListener("focus", () => void pollUpdateAnnouncement());
-  // Summon path: the global hotkey un-hides a hidden window, which fires a
-  // `focus` event here with no page state to restore into. Arm the palette
-  // on the hidden side, open it on the focus side — so it opens exactly when
-  // the window is actually re-shown, not on the first ever focus.
-  window.addEventListener("blur", () => {
-    paletteSummonArm = true;
-  });
-  window.addEventListener("focus", () => {
-    if (!paletteSummonArm || paletteOpen) return;
-    paletteSummonArm = false;
-    summonPalette();
-  });
+  // Summon path: the shell records the hotkey summon before showing the window,
+  // so the focus handler already reads the new count. The timer is a fallback
+  // for a missed focus event; a counter that only moves on summons is safe to
+  // poll.
+  void pollSummon();
+  window.addEventListener("focus", () => void pollSummon());
+  window.setInterval(() => void pollSummon(), 3_000);
 }
 
 /**
