@@ -34,6 +34,11 @@ release workflow builds the macOS app from the tag.
   artifacts (and says so) when `TAURI_SIGNING_PRIVATE_KEY` is unset, instead of
   failing after the .app was assembled; CI still signs them from its secrets.
 
+- **Shortcut rows read as rows, not cards.** The rows' rounded bottom borders
+  no longer bend into an outline around each row: separators are straight
+  hairlines. The clear affordance on hover is the reference's red circular ×,
+  the empty row shows a bordered +, and Reset to default is a quiet muted action
+  instead of the accent-underlined link.
 - **Escape closes both rail dropdowns, quietly.** The agent and project lists
   now close on Escape from anywhere on the page (a macOS webview does not focus
   a clicked button, so the trigger-only handler missed the project list), and

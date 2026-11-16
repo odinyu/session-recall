@@ -2611,18 +2611,25 @@ mark {
 }
 
 .keybinding-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 8px;
   border-radius: 8px;
-  border-bottom: 1px solid var(--line);
   transition: background 0.12s ease;
 }
 
-.keybinding-row:last-child {
-  border-bottom: 0;
+/* Hairlines stay straight: a radius on the row would bend a bottom border into
+   a card outline around every row. */
+.keybinding-row + .keybinding-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--line);
 }
 
 .keybinding-row:hover,
@@ -2719,8 +2726,14 @@ mark {
 }
 
 .keybinding-row:hover .keybinding-action,
+.keybinding-row:focus-within .keybinding-action,
 .keybinding-action:focus-visible {
   opacity: 1;
+}
+
+.keybinding-action.is-add {
+  border-color: var(--line-strong);
+  border-radius: 6px;
 }
 
 .keybinding-action.is-add:hover {
@@ -2728,15 +2741,24 @@ mark {
   color: var(--accent);
 }
 
+/* The clear affordance is the reference's red circle with a white ×. */
 .keybinding-action.is-clear {
-  border-color: transparent;
-}
-
-.keybinding-action.is-clear:hover {
-  border-color: transparent;
+  width: 22px;
+  height: 22px;
+  border: 0;
   border-radius: 999px;
   background: var(--danger);
   color: var(--accent-ink);
+  font-size: 13px;
+}
+
+.keybinding-action.is-clear:hover {
+  background: var(--danger);
+  filter: brightness(0.94);
+}
+
+.keybinding-state {
+  margin-top: 10px;
 }
 
 .keybinding-state.is-ok {
@@ -2747,8 +2769,18 @@ mark {
   color: var(--danger);
 }
 
+/* A quiet text action, not the accent-underlined link used for navigation. */
 .keybinding-reset {
   margin-top: 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+  text-decoration: none;
+}
+
+.keybinding-reset:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .settings-help {
