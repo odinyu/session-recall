@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { isAgentId } from "./adapters/types.ts";
 import type { AgentId, ParsedEvent, ParsedSession } from "./adapters/types.ts";
 import { capEventText, EVENT_CAPS, limitEvents } from "./util/events.ts";
+import { normalizeProjectPath } from "./util/projects.ts";
 import { redactSession } from "./util/redact.ts";
 
 const ERROR_LINE =
@@ -406,7 +407,7 @@ export function writeSession(db: IndexedDatabase, raw: ParsedSession): void {
         session.agent,
         session.externalId,
         session.parentId ?? null,
-        session.projectPath,
+        normalizeProjectPath(session.projectPath),
         session.title,
         session.startedAt,
         session.updatedAt,

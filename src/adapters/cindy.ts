@@ -273,7 +273,7 @@ export function cindyAdapter(dbPath: string = cindyDbPath()): Adapter {
   return {
     id: "cindy",
     label: "Cindy",
-    version: 3,
+    version: 4,
 
     async list(): Promise<SessionRef[]> {
       const opened = open();

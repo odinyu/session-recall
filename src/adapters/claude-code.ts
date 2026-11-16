@@ -77,7 +77,7 @@ export function claudeCodeAdapter(projectsDir: string = PROJECTS_DIR): Adapter {
   return {
     id: "claude-code",
     label: "Claude Code",
-    version: 1,
+    version: 2,
 
     async list(): Promise<SessionRef[]> {
       return filesInChildDirs(projectsDir).map((file) => ({

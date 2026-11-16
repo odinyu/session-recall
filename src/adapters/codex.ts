@@ -100,7 +100,7 @@ export function codexAdapter(
   return {
     id: "codex",
     label: "Codex",
-    version: 3,
+    version: 4,
 
     async list(): Promise<SessionRef[]> {
       const refs: SessionRef[] = [];

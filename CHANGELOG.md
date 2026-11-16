@@ -34,6 +34,13 @@ release workflow builds the macOS app from the tag.
   artifacts (and says so) when `TAURI_SIGNING_PRIVATE_KEY` is unset, instead of
   failing after the .app was assembled; CI still signs them from its secrets.
 
+- **Cindy's scratch directories are no longer projects.** Cindy records its own
+  per-dialogue directory (`owners/<owner>/dialogues/<date>/<id>`) and
+  `learn/staging/<id>` as the session's `working_dir`, and agents it launched
+  inherited the same cwd — so the project filter filled with raw dialogue ids.
+  Project paths are now normalized once at the index write boundary: those
+  directories index as "no project", real folders are unchanged. Adapter
+  versions were bumped so the next scan rewrites the affected rows.
 - **Shortcut rows read as rows, not cards.** The rows' rounded bottom borders
   no longer bend into an outline around each row: separators are straight
   hairlines. The clear affordance on hover is the reference's red circular ×,

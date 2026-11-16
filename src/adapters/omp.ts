@@ -283,7 +283,7 @@ export function piAdapter(roots: string[] = piSessionRoots()): Adapter {
     id: "pi",
     label: "pi",
     roots,
-    version: 2,
+    version: 3,
     flat: true,
   });
 }
