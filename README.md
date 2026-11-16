@@ -1,4 +1,4 @@
-# session recall
+# Session Recall
 
 [English](README.md) | [Chinese](README.zh-CN.md)
 
@@ -10,23 +10,19 @@ over the coding-agent sessions on this Mac. Search a half-remembered Chinese
 phrase or a code identifier and get back the question, the answer, the agent,
 the project, and the date.
 
-Built for the sessions that pile up across **omp**, **pi**, **OpenCode**,
-**Cursor**, **Alma**, **Cindy**, **Claude Code**, **Codex**, **Gemini CLI**,
-**Qwen Code**, **Kimi Code**, **Copilot CLI**, and **Goose**. It never writes to
-an agent's own storage.
+Built for sessions across **omp**, **pi**, **OpenCode**, **Cursor**, **Alma**,
+**Cindy**, **Claude Code**, **Codex**, **Gemini CLI**, **Qwen Code**,
+**Kimi Code**, **Copilot CLI**, and **Goose**. It never writes to an agent's
+own storage.
 
 ## Download
-
-Prebuilt macOS builds are attached to every
-[release](https://github.com/odinyu/session-recall/releases). Pick the one for
-your Mac:
 
 | Mac | Download |
 | --- | --- |
 | Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 28.5 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip) — 31.4 MB |
 
-Unzip it, drag **Session Recall** into `/Applications`, and clear the quarantine
+Unzip, drag **Session Recall** into `/Applications`, and clear the quarantine
 flag once (the build is ad-hoc signed, not notarized):
 
 ```bash
@@ -34,73 +30,19 @@ xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
 open -a "Session Recall"
 ```
 
-You can also right-click the app and choose **Open** instead of the command.
-Requires macOS 11 or later. The app carries its own runtime — there is nothing
-else to install and no account to create. Updates are built in: **File → Check
-for Updates…**, and a new version is announced inside the app.
+You can also right-click the app and choose **Open**. Requires macOS 11 or
+later. Session Recall carries its own runtime — nothing else to install, no
+account to create. Updates live under **File → Check for Updates…**.
 
-## First run
-
-Launch the app and it scans the agent stores on this Mac, builds
-`~/Library/Application Support/session-recall/index.db`, and refreshes it every
-90 seconds. There is no setup: the projects, agents and dates in the rail come
-from what is already on disk.
-
-The rail footer switches the theme between Auto (follows macOS), Light, and
-Dark, and the UI language between Auto (follows the browser), Chinese and
-English. Both choices live in `<app dir>/prefs.json`, so they survive restarts.
-API: `GET /api/prefs`, and `PATCH /api/prefs` with `{"theme": …}` or
-`{"language": …}` for `auto`, `light`/`dark` or `auto`/`zh`/`en`; anything
-else is rejected with a 400.
-
-## What it does
-
-- **Search everything.** One query covers prompts, answers, session titles and
-  — in the **Process** scope — tool inputs, commands and error output, across 13
-  coding agents. Chinese phrases, code identifiers and paths all work.
-- **Open the exact moment.** A hit opens the session at that turn, highlights the
-  matched text, and expands the matching tool row for a process hit.
-- **Keep going elsewhere.** **Continue in** builds a resume command for the five
-  agents that support one, or a handoff card (project, files touched, commands,
-  errors, Git branch) to paste into any other agent.
-- **Find it without leaving the keyboard.** <kbd>⌘⇧K</kbd> opens quick search;
-  the global shortcut (<kbd>⌥⌘R</kbd> by default) summons the app from anywhere.
-  Both, and <kbd>⌘K</kbd>, are rebindable and apply immediately.
-- **Read the week back.** Generate daily and weekly reports from the sidebar;
-  monthly reports and period comparisons are available from the command line
-  and HTTP API.
-- **Let an agent search for you.** The bundled MCP server exposes the same index
-  to Claude, Codex and other MCP clients over stdio.
-
-## How it works
-
-The window is a native macOS shell around a local server that opens a random
-loopback port; the same binary also hosts the index and the MCP server, and it
-is bundled inside the app. Agent stores are opened read-only, and nothing is
-copied out of them. `sessionrecall://session/<id>?turn=<n>` links open the app
-and land on that turn.
-
-## Shortcuts
-
-The app registers a global shortcut, `⌥⌘R` by default, that shows or hides the
-window from any app. The Settings drawer's **Shortcuts** section rebinds it —
-click `×` to clear, `+` and press a combination to set it — and also rebinds the
-two in-app shortcuts (**focus search field**, `⌘K` / `/` by default, and
-**quick search palette**, `⌘⇧K`). Changes apply immediately; nothing needs a
-restart. Known macOS limitation: duplicate registrations can silently co-exist
-on some macOS builds, so another app (or a second copy of this one) can hold the
-same combination without any error.
-
-## Build from source
-
-Building and testing the app, including the `.app` bundle, is covered in
-[`doc/BUILD.md`](doc/BUILD.md). The packaged app you download needs none of it.
+On first launch it scans the agent stores on this Mac, builds
+`~/Library/Application Support/session-recall/index.db`, and refreshes every 90
+seconds. There is no setup: projects, agents and dates come from what is already
+on disk.
 
 ## Screenshots
 
-Every screenshot below is rendered from a handful of invented sessions seeded
-into a throwaway index by `scripts/capture-screenshots.sh`; the real index is
-never read and never photographed.
+Every screenshot is rendered from invented sessions in a throwaway index; the
+real index is never read.
 
 ![Search results for a WebSocket reconnect query](docs/screenshots/en/search-results.png)
 
@@ -109,103 +51,116 @@ and each hit shows the question, the answer, and where the terms matched.
 
 ![One session, deep-linked to a single highlighted question](docs/screenshots/en/session-detail.png)
 
-One session, opened through a `?turn=` deep link that jumps to a single turn in
-the dark theme: the addressed question is highlighted, its answer follows, and
-the continue-in strip carries the exact resume command.
+One session, opened through a `?turn=` deep link: the addressed question is
+highlighted, its answer follows, and the continue-in strip carries the resume
+command.
 
 ![Process search for a tool error](docs/screenshots/en/process-search.png)
 
 Process search looks past the prose into tool calls, commands and error output,
 which is how a failing run behind a conversation gets found.
 
+## Handoff card
 
-## What gets indexed
+Every session page has **Copy handoff** in the sticky action bar. It copies a
+Markdown card for another agent or a scratchpad: project, agent, time range,
+resume command (or Alma deep link), the last few prompts, the last answer, files
+touched, commands run, tool errors, and the current Git branch/status. The card
+is generated from the local index and never uploaded.
+
+**Continue in** creates the same context for another agent. Five agents have an
+exact in-place resume command — omp, pi, OpenCode, Claude Code and Codex — and
+Alma opens its own threads with `alma://thread/<id>`. Every other agent gets a
+command that starts a new session (or opens the project) plus the handoff card
+to paste as context.
+
+## Reports
+
+The sidebar footer generates **daily** and **weekly** reports: pick a day, choose
+Daily or Weekly, press **Generate**. A report opens in the content pane and can
+be downloaded as Markdown.
+
+Monthly reports and period comparisons come from the command-line tool bundled
+inside the app:
+
+```bash
+SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$SR" brief --month 2026-11
+```
+
+Reports are written under `~/Library/Application Support/session-recall/brief/`
+(`daily/`, `weekly/`, `monthly/`). `briefSchedule` in `prefs.json` can generate
+the current daily or weekly report on a local timer; the Settings drawer does not
+expose it yet.
+
+<details>
+<summary><b>Search</b> — scopes, filters, sorting and the API</summary>
+
+- **Q&A** searches prompts, answers and session titles. **Process** searches
+  tool inputs (`path`, `command`, …), tool outputs and extracted error lines.
+  Reasoning stays out of search.
+- SQLite FTS5 with a `trigram` index for Chinese phrases and substring/code
+  identifiers, plus `porter` stemming for English. Queries under three
+  characters fall back to indexed `LIKE`.
+- <kbd>⌘⇧K</kbd> opens quick search from anywhere in the app (rebindable):
+  <kbd>↑↓</kbd> move, <kbd>Enter</kbd> opens, <kbd>⌘↵</kbd> copies the deep link,
+  <kbd>Esc</kbd> closes.
+- Filters: agent, project, date range, role (prompt / answer / both), starred
+  and hidden. The role filter is hidden in the process scope.
+- Results group by session and sort by the session's last activity, newest
+  first. A process hit opens its turn and expands the matching tool row; an
+  answer hit scrolls to the answer.
+- The first screen loads 200 rows; the footer offers **Show more** up to 5,000.
+- API: `GET /api/search?q=…&scope=qa|process&agent=…&project=…&from=…&to=…&role=…`.
+
+</details>
+
+<details>
+<summary><b>What gets indexed</b> — 13 agents and their local stores</summary>
 
 | Agent | Source | Extract |
 |---|---|---|
-| omp | `~/.omp/agent/sessions/<cwd>/*.jsonl` (plus profile roots) | user/assistant text messages; titles |
-| pi | `~/Library/Application Support/CindyGlobal/pi-agent-home/sessions/*.jsonl`, `.../pi-package-home/sessions/*.jsonl`, and `~/.pi/agent/sessions/*.jsonl` | official pi shares omp's JSONL format: turns, thinking and tool calls become text + process events |
-| OpenCode | `~/.local/share/opencode/opencode.db` | `session_v2` + `session_message` (falls back to the v1 `session`/`message`/`part` tables) |
-| Cursor | `~/.cursor/projects/*/agent-transcripts/**/*.jsonl` and `state.vscdb` (`composerData` + `bubbleId`) | transcripts first, KV for chats without a transcript; project path from `workspaceIdentifier` |
-| Alma | `~/Library/Application Support/alma/chat_threads.db` | `chat_threads` + `chat_messages` (message JSON `parts`); project path from `workspaces.path`; threads marked `is_incognito` are never listed |
-| Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` (newest match wins) | `sessions` + `messages`: user rows are JSON `{text}` or an Orca task `{orcaSource, content}`, assistant rows plain text, `thinking`/`tool_use`/`ask_user` rows become process events; project path from `working_dir`; `rewind_at` and messages before `cleared_at` are excluded |
-| Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | `user`/`assistant` records with Anthropic content blocks: text, `thinking` and `tool_use` become turns + process events, `tool_result` user records attach to their call; title from `ai-title`; project path from `cwd`; `isSidechain` subagent records are skipped |
-| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, plus Cindy's `CindyGlobal/codex-home/sessions` and `.../archived_sessions` | `session_meta` + `turn_context` for cwd/model; `response_item` messages, `function_call`/`*_output` and `reasoning` become turns + process events; `event_msg` message echoes are ignored unless a rollout has no `response_item` messages |
-| Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` (`$GEMINI_DATA_DIR` overrides the root; older builds write the same conversation as one `.json` document) | `user` messages start turns, `gemini` messages supply the text, `model`, `thoughts` and `toolCalls` (name, `args`, `result`, `status`) become turns + process events; `info`/`error` notices and `$patch`/`$set`/`$rewindTo` edit records are skipped; title is the first prompt; project path from the `.project_root` marker (`projects.json` registry as fallback); subagent chats under `chats/<parentSessionId>/` are skipped |
-| Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` (`$QWEN_DATA_DIR` overrides the root) | Gemini-CLI lineage records with `type` `user`/`assistant`/`tool_result`/`system`: `message.parts` text, `thought` parts and `functionCall` calls become turns + process events, `functionResponse` fills the matching call's output; title from a `custom_title` system record; project path from each record's `cwd`; user records with `system`/`external_agent` provenance or `agent_*` subtypes are skipped |
-| Kimi Code | `~/.kimi/sessions/<workdir-digest>/<sessionId>/wire.jsonl`, plus `~/.kimi-code` (`$KIMI_DATA_DIR` overrides both) | wire envelopes `{timestamp, message: {type, payload}}`: `TurnBegin`/`SteerInput` prompts, `ContentPart` text and `think` chunks, `ToolCall`/`ToolResult` pairs become turns + process events; control and UI events (`Step*`, `TurnEnd`, `StatusUpdate`, `Notification`, `Approval*`, `Question*`) are skipped; title from `state.json` `custom_title`; project path by matching the md5 digest of `kimi.json` `work_dirs`; subagent transcripts under `agents/*/wire.jsonl` are skipped |
-| Copilot CLI | `~/.copilot/session-state/<session-id>/events.jsonl` (`$COPILOT_HOME` overrides the root; pre-1.0.11 flat `<session-id>.jsonl`, plus `history-session-state`) | `user.message` starts a turn, `assistant.message` supplies text, `model` and `toolRequests`, `tool.execution_complete` fills the call output; `session.*`, `assistant.turn_*`/`assistant.reasoning`, `hook.*`, `subagent.*` and encrypted payloads are skipped; title from `workspace.yaml` `name`; project path from `session.start` `cwd` or `workspace.yaml` |
-| Goose | `~/Library/Application Support/goose/sessions/sessions.db` (`$GOOSE_PATH_ROOT/data/sessions/sessions.db`, Linux `~/.local/share/goose/sessions` or `~/.local/share/Block/goose/sessions`, opened readonly) | `sessions` + `messages`: `content_json` text and `thinking` blocks become turns + process events, `toolRequest`/`toolResponse` blocks pair by id; rows with `metadata_json.userVisible: false` are skipped; title from `sessions.name` then `description`; project path from `working_dir`; columns are probed with `PRAGMA table_info` |
+| omp | `~/.omp/agent/sessions/<cwd>/*.jsonl` (plus profile roots) | user/assistant text; titles |
+| pi | `~/Library/Application Support/CindyGlobal/pi-agent-home/sessions/*.jsonl`, `.../pi-package-home/sessions/*.jsonl`, `~/.pi/agent/sessions/*.jsonl` | pi shares omp's JSONL format: turns, thinking and tool calls become text + process events |
+| OpenCode | `~/.local/share/opencode/opencode.db` | `session_v2` + `session_message` (falls back to the v1 tables) |
+| Cursor | `~/.cursor/projects/*/agent-transcripts/**/*.jsonl` and `state.vscdb` | transcripts first, KV for chats without one; project from `workspaceIdentifier` |
+| Alma | `~/Library/Application Support/alma/chat_threads.db` | `chat_threads` + `chat_messages`; incognito threads never listed |
+| Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` | `sessions` + `messages`; thinking/tool rows become process events; rewound and cleared messages excluded |
+| Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | text, thinking and tool calls; `tool_result` attaches to its call; subagent sidechains skipped |
+| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, plus Cindy's `codex-home` | `session_meta` + `turn_context`; response items, calls and reasoning become turns + process events |
+| Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | user/gemini messages, thoughts and tool calls; edit records and subagent chats skipped |
+| Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` | Gemini-lineage records; `message.parts`, thoughts and function calls become turns + events |
+| Kimi Code | `~/.kimi/sessions/<workdir-digest>/<sessionId>/wire.jsonl`, plus `~/.kimi-code` | prompt/text/tool envelopes; control and UI events skipped |
+| Copilot CLI | `~/.copilot/session-state/<session-id>/events.jsonl` | user/assistant messages, tool requests and completions; encrypted payloads skipped |
+| Goose | `~/Library/Application Support/goose/sessions/sessions.db` | `sessions` + `messages`; text/thinking/tool blocks, hidden rows skipped |
 
-The index unit is a **turn**: one user prompt plus the assistant text that
-followed it before the next prompt. Tool calls and reasoning traces are stored
-separately as process events (see below); their inputs, outputs, and errors are
-searchable in the **Process** scope, while reasoning text stays out of search.
-Each turn also stores the model that produced its answer when the agent
-records one. omp, pi, OpenCode, Alma, Cindy, Claude Code, Codex, Gemini CLI,
-Qwen Code and Copilot CLI record it per turn; Gemini CLI and Qwen Code take the
-model stamped on each assistant message, and Copilot CLI the one on each
-`assistant.message` (its `session.model_change` value is the fallback). Cursor
-and Goose record only a session-level selection (`composerData.modelConfig.modelName`
-and `model_config_json.model_name`), which is stamped on every turn of that
-session — Cursor transcripts and KV bubbles carry no per-turn model, and
-Cursor's placeholder `default` stays blank. Kimi Code records no model. The
-session page shows the model next to the agent badge.
+The index unit is a **turn**: one prompt plus the assistant text before the next
+prompt. Tool calls and reasoning live as process events under that turn. Each
+turn also stores the model when the agent records one; Cursor, Goose and Kimi
+Code limitations are listed under Known limits.
 
-## Process
+</details>
 
-When a turn has tool calls or reasoning, its transcript row shows a `Process`
-disclosure. Opening it lazily loads that turn's events; each reasoning block and
-tool call is its own collapsed row, and tool inputs/outputs are displayed as
-plain text.
+<details>
+<summary><b>Process events</b> — tool calls, commands and errors</summary>
 
-- Events live in the `event` table keyed by `(session_id, turn_idx, seq)`.
-- Limits keep the index bounded: 30 events per turn, 1,200 per session;
-  reasoning is capped at 2,000 characters, tool input at 1,000, and tool output
-  at 2,000. Long values keep a head and a tail and are marked truncated.
-- omp and pi attach `toolResult` messages to their `toolCall` by id; OpenCode reads
-  the tool state's `input`/`output`; Cursor transcripts expose tool calls but
-  usually not their results.
-- Alma reads each `tool-<Name>` part directly: `input` is serialized as JSON and
-  `output` (an object such as `{stdout, stderr, exitCode}`) is serialized as
-  JSON. A call that had not produced output yet, that errored, or that the user
-  denied keeps an empty output — nothing is invented — and the state shows up as
-  the row's status (`ok`, `error`, `denied`, `input-available`, `input-streaming`).
-- API: `GET /api/session/:id/events?turn=N` returns `{ turn, events }`.
-- Search uses the same `scope` parameter as the UI: `scope=process` searches
-  tool inputs, outputs, and extracted error text. It groups hits by session and
-  reports `processTotal` plus each hit's `tool`, `turnIdx`, `status`, and
-  `matchField` (`input`, `output`, or `error`). A result link carries the event
-  sequence (`event=<seq>`), so opening it expands the turn's process, opens the
-  matching event row, and scrolls that row under the sticky action bar. Reasoning
-  is deliberately excluded from search. The process index is `event_search` (FTS5 `trigram` + `porter`,
-  with a `LIKE` fallback for queries under three characters); it is rebuilt
-  automatically when an older index is opened.
+When a turn has tool calls or reasoning, its row shows a **Process**
+disclosure. Opening it loads that turn's events lazily; each reasoning block and
+tool call is a collapsed row, and inputs/outputs are plain text.
 
-## Handoff card
+- Events are keyed by `(session_id, turn_idx, seq)` and capped at 30 per turn,
+  1,200 per session; reasoning 2,000 characters, input 1,000, output 2,000.
+- omp/pi pair results by id; OpenCode reads tool state; Cursor transcripts
+  usually carry no results; Alma reads `tool-<Name>` parts and shows status
+  (`ok`, `error`, `denied`, `input-available`, `input-streaming`).
+- API: `GET /api/session/:id/events?turn=N`.
+- Process search links carry `event=<seq>`, so opening a hit expands the turn,
+  opens the matching row and scrolls it under the sticky action bar.
 
-Every session page has a `Copy handoff` button in the same sticky action bar. It copies a Markdown card meant to
-be pasted into another agent or a scratchpad: project, agent, time range, resume
-command (or Alma deep link), the last few prompts, the last answer (truncated
-verbatim), files touched by tool calls, commands run, tool errors, and the
-current Git branch/status when the project is a Git worktree. The card is
-generated on demand from the local index; nothing is sent anywhere.
+</details>
 
-- API: `GET /api/session/:id/handoff` returns the Markdown (`text/markdown`);
-  add `?targetAgent=<id>` for a cross-agent card.
-- The UI prefetches the card when a session opens, so the copy button can write
-  to the clipboard synchronously from the click (async work before
-  `navigator.clipboard` loses the browser's user activation).
-
-## Resume and cross-agent handoff
-
-Every session page has a `Continue in` selector in the sticky action bar. It lists
-every supported agent and shows how to continue *this* session there:
-
-| Target | What the bar shows |
-| --- | --- |
-| Same agent | The exact resume command, or the app deep link where one exists |
-| Another agent | A new-session command in that agent, with the handoff card as context |
+<details>
+<summary><b>Resume commands</b> — exact commands for the five supported agents</summary>
 
 ```bash
 cd '/path/to/project' && omp --resume <session-uuid>
@@ -213,242 +168,21 @@ cd '/path/to/project' && opencode --session <session-id>
 cd '/path/to/project' && claude --resume <session-id>
 cd '/path/to/project' && pi --session <session-uuid>
 cd '/path/to/project' && codex resume <session-uuid>
-cd '/path/to/project' && omp            # cross-agent: new session
-cursor '/path/to/project'               # cross-agent: open the project
-```
-
-The path is shell-quoted; the omp/pi uuid is the suffix after the timestamp in
-the stored session filename, and for Codex it is the trailing uuid of the rollout
-file (Codex's `resume` syntax is version-dependent and unverified on this
-machine). Alma's equivalent is the deep link that opens the thread in the Alma app:
-
-```text
 alma://thread/<thread-id>
 ```
 
-Only five agents expose an exact in-place resume command — omp, pi, OpenCode,
-Claude Code and Codex — and Alma exposes a thread deep link. Every other agent
-(Cursor, Cindy, Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose) has no
-session-id resume, so its entry shows the handoff card and, where possible, a
-command that starts a new session (or opens the project).
+Paths are shell-quoted. For omp and pi the id is the uuid after the timestamp in
+the stored filename; for Codex it is the trailing rollout uuid. Cross-agent
+handoff cannot transfer a session id — the target starts a new session and the
+handoff card supplies the context.
 
-Cross-agent handoff cannot transfer a session id: session ids only mean
-something to their own agent. The bar therefore launches a **new** session in
-the target agent and the copied handoff card becomes its context. Alma and Cindy
-have no shell entry point, so their entries show a plain instruction (“start a new
-session and paste the handoff card”) instead of a broken command. Alma's deep
-link only opens its own threads, so choosing Alma as the target for another
-agent's session (or Cindy at all) shows that plain instruction.
+</details>
 
-`GET /api/session/<id>/handoff?targetAgent=<id>` (and the UI button) renders
-the card for the selected target, adding a `## Continue in <Agent>` section with
-that agent's command or instruction (the generator currently emits this heading
-in Chinese). The session API returns the full
-`continuations` list, so the UI never guesses another agent's CLI.
+<details>
+<summary><b>MCP server</b> — let an agent search your history</summary>
 
-The app addresses its own pages the same way, with the `sessionrecall://` scheme
-it registers at install time:
-
-```text
-sessionrecall://session/<session-id with : percent-encoded>
-```
-
-That is the link a daily brief emits and the link the iOS-style "open in app"
-gesture resolves to. It is also accepted inside the app, where it is routed
-directly rather than round-tripping through the OS.
-
-Two query parameters carry context into the session page:
-
-```text
-sessionrecall://session/<id>?turn=3&q=websocket
-```
-
-- `turn` opens the session at that turn index and centres it in the viewport; a
-  non-numeric or out-of-range value (or a stale index) opens the top instead.
-- `q` is the search that produced the link. The app highlights those terms in
-  the prompt, the answer and its code blocks, shows a “From the search … · View
-  search results” strip above the action bar, and points “Back to search” at
-  those results — so a
-  cold start from a link does not land in a blank search page. Without `q` the
-  link behaves exactly as before.
-
-## Reports (daily, weekly, monthly)
-
-Daily reports are short **standups** by default; the old full dump is still one
-flag away.
-
-The app ships the same command-line tool inside the bundle, so no separate
-install is needed:
-
-```bash
-SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$SR" brief                              # today, standup
-"$SR" brief 2026-11-11                   # a specific day, standup
-"$SR" brief 2026-11-11 --format archive  # legacy full dump
-"$SR" brief --week 2026-W46              # weekly rollup
-"$SR" brief --month 2026-11              # monthly report (or --format month 2026-11)
-"$SR" brief --help                       # flags
-```
-
-The app's sidebar footer generates the daily and weekly views: pick a day in the
-calendar, choose **Daily** or **Weekly**, then press **Generate**. The report opens in
-the content pane (a weekly one links to `#/brief/2026-W46?format=week`) and is
-also offered as a `.md` download. Monthly reports are available from the CLI
-and the HTTP API (MCP can read a generated one); the sidebar has no monthly
-entry yet.
-
-Files live under `<app dir>/brief/` — `~/Library/Application Support/session-recall/brief/`
-by default, next to the index, so this works from inside the packaged `.app`
-too. Override with `SESSION_RECALL_BRIEF_DIR=/some/dir`.
-
-```text
-brief/
-  daily/2026-11-11.md     # standup
-  weekly/2026-W46.md      # weekly
-  monthly/2026-11.md      # monthly
-  2026-11-11.md          # archive, the legacy path
-  index.md                # newest daily + weekly + monthly entries
-```
-
-- **standup** (default): YAML front-matter (`kind`, `date`, `projects`,
-  `sessions`, `turns`, `agents`, `generated_at`), a one-line summary, then
-  `Progress / Decisions / Open threads / First task tomorrow / Overview`. Raw
-  prompts stay out of this view.
-- **archive**: exactly the previous dump — per-project prompts, tool/reasoning
-  counts, resume command and deep link — still written to the legacy
-  `<date>.md` path.
-- **month**: front-matter with `kind: monthly`, `month`, `range`, then the archive-style
-  overview table, per-project sections and highlights, plus a comparison with the
-  previous month and index-only rankings (top projects by turns, agents by
-  sessions, busiest days/hours). Written to `monthly/YYYY-MM.md`.
-- **week**: front-matter with `kind: weekly`, `week`, `range`, `active_days`,
-  then `Highlights / By project / Themes and decisions / Metrics / Risks / Next week`.
-  It aggregates
-  **from the DB by date range**, not by concatenating daily files, so days
-  without a generated brief still count.
-
-Weekly and monthly reports also carry a **comparison** with the previous period
-(sessions, turns, active projects, per-agent share and the biggest movers) and
-**rankings**. When the previous period has no sessions, the report says so rather
-than printing a fake percentage; all numbers come from the local index, with no
-model calls or network access.
-
-**Scheduled reports (local only):** `briefSchedule` in `prefs.json` accepts
-`off` (default), `daily` or `weekly`. While the app is running the sidecar writes
-the current period's report on a 10-minute timer, at most once per period per
-calendar day, and never during a scan. It uses the same generators and brief
-directory as the UI; no network, no daemon outside the app. Example:
-`PATCH /api/prefs {"briefSchedule":"weekly"}`. The web UI does not expose this
-setting yet.
-
-An MCP client can read an already-generated report with `recall_brief`
-(`format`, plus `date`/`week`/`month`); it never generates or uploads anything.
-
-Reports skip hidden sessions: hiding a session drops it from daily, weekly and
-archive output and from their counts, while a handoff card still opens it by id
-when you ask for it.
-
-Report templates exist in Chinese and English. The app writes the report in
-its interface language (`auto` follows the browser); the CLI's `--lang zh|en`
-overrides the stored preference; and the front matter records the choice as
-`lang:`. When nothing else decides it, the report is Chinese.
-
-Derivation is deterministic — no model calls:
-
-- **Decisions** only from explicit `<!-- decision: … -->` markers in assistant text.
-- **Open threads** from each session's last assistant message: unchecked
-  `- [ ]` items plus lines that, after stripping a list prefix, **start with**
-  `TODO` or with the localized to-do / next-step markers the generator
-  recognizes (the exact marker list lives in `src/brief.ts`) — a passing mention
-  mid-sentence is ignored. Code fences,
-  table rows and schema-like text (`description:`, `{`, `|`, backticks) are
-  dropped so noise does not become a task.
-- **Risks** from the same last answers, with the same guard: the cleaned line
-  must start with the localized risk / blocked / unresolved markers (or the
-  English equivalents), so a passing mention of a risk inside a sentence is not
-  counted as a blocker; weekly completion / in-progress markers classify
-  sessions in the last answer.
-- A session spanning several days is counted **once**, on its last active day;
-  `active_days` counts days with at least one session.
-- `brief/index.md` lists recent daily, weekly and monthly files, newest first.
-
-The rail's `Generate` button creates the standup view for the chosen date; the
-download keeps the YAML front-matter.
-
-API: `POST /api/brief?date=YYYY-MM-DD&format=standup|archive|week|month` (default
-`standup`; weekly takes `week=YYYY-Www`, monthly takes `month=YYYY-MM`) generates
-the file and returns its Markdown; `GET /api/brief/file?format=…&date=…`
-(or `&week=…` / `&month=…`) downloads it.
-Invalid dates, weeks and formats are rejected with a 400.
-
-## Search
-
-- **Session titles are searched too** (Q&A scope). A session whose title
-  matches every query term appears in the results even when no turn matches,
-  behind a `title` hit whose snippet is the title itself. Title matches ride
-  the same `LIKE` pass as the content fallback, so no FTS index change and no
-  re-index is required — an existing index finds title matches on its next
-  query. Turn-matched sessions still rank first; title-only sessions are
-  appended, and every filter (agent, project, date range, role, starred,
-  hidden) applies to them exactly as it does to content matches.
-- A **quick-search palette** opens with <kbd>⌘⇧K</kbd> (rebindable in
-  Settings → Shortcuts), or when the global
-  hotkey summons the window (a plain Cmd-Tab back into the app opens nothing).
-  It searches the whole index
-  as you type: <kbd>↑↓</kbd> to move, <kbd>Enter</kbd> to open a session,
-  <kbd>⌘↵</kbd> to copy its deep link, <kbd>Esc</kbd> to close.
-- Two scopes, chosen beside the search box:
-  - **Q&A** searches prompts and answers.
-  - **Process** searches tool inputs (`path`, `command`, …), tool outputs, and
-    extracted error lines.
-- SQLite FTS5, over both scopes:
-  - `trigram` for Chinese phrases and substring/code-identifier matching.
-  - `porter` stemming as an English fallback.
-- A query shorter than three characters (for example a two-character Chinese
-  word) falls back to indexed `LIKE` with the same filters.
-- Filters: agent, project, date range, and role (prompt / answer / both); the
-  role filter is hidden in the process scope.
-- Results group by session and sort by the session's last activity (newest
-  first); within a session, matching turns sort newest first, with FTS rank as
-  the final tie-break. A process hit links directly to its turn and opens the
-  process disclosure; an answer hit scrolls to the answer rather than the start
-  of the turn.
-- The first screen loads 200 matching rows. If that covers only part of the
-  sessions, the list footer offers `Show more` instead of telling you to narrow
-  the filters; the UI can raise the limit up to 5,000 rows.
-- Query syntax: bare terms, or `"an exact phrase"`; multi-term queries are ANDed.
-- API: `GET /api/search?q=…&scope=qa|process&agent=…&project=…&from=…&to=…&role=…`;
-  results carry `totalSessions`, `totalTurns`/`processTotal`, grouped sessions,
-  and either `hits` or `processHits`.
-
-From a shell or an agent with shell access (no server required). Use the
-command-line tool inside the app bundle:
-
-```bash
-SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$SR" search "directory scope" --limit 5
-"$SR" search "websocket" --agent omp --json
-"$SR" search "ENOENT" --scope process
-```
-
-- `--limit <n>` caps the returned sessions (1–5000, default 10); `--agent` is
-  repeatable or comma-separated; `--scope qa|process` picks question/answer
-  pairs or tool calls and errors.
-- `--json` prints a stable object: `query`, `scope`, `mode`, `returned`,
-  `totalSessions`, and `results[]` with `sessionId`, `agent`, `project`, `date`,
-  and `hits[]` carrying `question`, `answer`, `tool`, `status`, `matchField`.
-- Exit codes: `0` for results or no matches, `1` for a missing or unreadable
-  index, `2` for invalid arguments.
-- The CLI reuses `searchTurns` from `src/search.ts`: it never scans, mutates the
-  index, or touches an agent's store.
-- Full reference — every option, the JSON schema, exit codes, recipes and how to
-  hand it to an agent — is in [doc/USAGE.md](doc/USAGE.md).
-
-## MCP server
-
-The app bundle also contains a stdio MCP server: newline-delimited JSON-RPC
-2.0, no network port, no extra install. Point an MCP client at the binary inside
-the app:
+The bundle includes a stdio MCP server (newline-delimited JSON-RPC 2.0, no
+network port). Point an MCP client at it:
 
 ```json
 {
@@ -461,77 +195,35 @@ the app:
 }
 ```
 
-Change the path if the app lives somewhere other than `/Applications`.
+Change the path if the app lives elsewhere. Tools: `recall_search`,
+`recall_session`, `recall_facets`, `recall_handoff`, `recall_scan`. Read tools
+open the index read-only and refresh it in the background when the last scan is
+older than five minutes; every reply reports `refresh` and `indexAgeMs`.
 
-Tools:
+</details>
 
-| Tool | Input | Output |
-| --- | --- | --- |
-| `recall_search` | `query`, `agent?`, `scope?` (`qa`/`process`), `project?`, `from?`, `to?`, `limit?` (default 5) | One clipped question/answer per session with `sessionId`, `agent`, `project`, `date`, `title`, `turn`, `deepLink`, plus `indexAgeMs` and `totalSessions` |
-| `recall_session` | `sessionId`, `turn?` | The whole session (most recent 20 turns) or one turn |
-| `recall_facets` | — | Agents and projects with counts |
-| `recall_handoff` | `sessionId`, `targetAgent?` | Markdown handoff card; with `targetAgent` it carries that agent's resume/new-session command |
-| `recall_scan` | — | Refreshes the index and returns scan stats |
-
-- Read tools open the index **read-only**; they never scan inline or block on
-  one. When the last scan is older than 5 minutes the server takes
-  `index.db.scan.lock` and refreshes in the background, and every search reply
-  says what happened: `refresh: "fresh" | "started" | "locked"` with
-  `indexAgeMs`. `recall_scan` is the explicit, awaited refresh.
-- `deepLink` is `sessionrecall://session/<id>?turn=<n>`: hand it to the user and
-  the app opens that session and scrolls to the turn. The Rust URL handler and
-  the web router both forward `?turn=`; a turn that no longer exists (or a
-  non-numeric one) falls back to the top of the session.
-- The server is compact by default — one hit per session, clipped text, capped
-  turn lists — because agent context is expensive. It reuses `searchTurns`,
-  `getSessionDetail`, `facets` and `generateHandoff` from the core.
-
-## Index and privacy
+<details>
+<summary><b>Privacy and the index</b></summary>
 
 - Index: `~/Library/Application Support/session-recall/index.db` (SQLite WAL).
-- Preferences: `<app dir>/prefs.json` — theme, UI language, the global hotkey
-  and in-app shortcuts, the update-check switch (`checkUpdates`) and the report
-  schedule (`briefSchedule`). It is written atomically (temp file + rename) and
-  merged on write; a missing or corrupt file just means the defaults.
-- Indexing, search, reports, handoff cards and the MCP server make no network
-  calls and need no account. The packaged app's only outbound request is the
-  GitHub update check (at launch, every six hours, and when you choose
-  **Check for Updates…**); set `"checkUpdates": false` in `prefs.json` to stop
-  it.
-- Agent databases are opened with `readonly: true` and a busy timeout. Nothing
-  in the source folders is modified or copied.
-- Alma threads with `is_incognito = 1` are excluded in SQL before their messages
-  are read, so an incognito conversation is never listed, indexed, or searchable.
-- Override the index location with `SESSION_RECALL_DB=/path/to/index.db`, the
-  app dir with `SESSION_RECALL_HOME=/some/dir`, the port with
-  `SESSION_RECALL_PORT=4319`, the brief dir with `SESSION_RECALL_BRIEF_DIR`, and
-  the served UI directory with `SESSION_RECALL_WEB_DIST=/path/to/web/dist`.
-  Alma's store is read from `SESSION_RECALL_ALMA_DB`, which defaults to
-  `~/Library/Application Support/alma/chat_threads.db`. Cindy's directory and
-  database can be pinned with `SESSION_RECALL_CINDY_DIR` and
-  `SESSION_RECALL_CINDY_DB`; the default directory is
-  `~/Library/Application Support/CindyGlobal`. Claude Code's `~/.claude` and
-  Codex's `~/.codex` roots can be moved with `SESSION_RECALL_CLAUDE_DIR` and
-  `SESSION_RECALL_CODEX_DIR`.
+- Preferences: `<app dir>/prefs.json` — theme, language, hotkey, in-app
+  shortcuts, update check and report schedule; written atomically.
+- Agent databases are opened `readonly: true` with a busy timeout. Nothing in
+  their folders is modified or copied. Incognito Alma threads are excluded in
+  SQL before their messages are read.
+- Indexing, search, reports, handoff cards and MCP make no network calls and
+  need no account. The only outbound request is the GitHub update check (launch,
+  every six hours, and **Check for Updates…**); set `"checkUpdates": false` in
+  `prefs.json` to stop it.
+- Secrets are redacted before rows are written: API keys, Bearer tokens, JWTs,
+  PEM private keys, `KEY=value` credentials, connection strings with embedded
+  credentials, e-mail addresses and Chinese mobile numbers become placeholders
+  such as `[REDACTED:api-key]`.
+- Override paths with `SESSION_RECALL_DB`, `SESSION_RECALL_HOME`,
+  `SESSION_RECALL_PORT`, `SESSION_RECALL_BRIEF_DIR` and
+  `SESSION_RECALL_WEB_DIST`.
 
-Secrets are redacted before a row is written, so the index rows, the FTS
-tables and every report built from them hold placeholders such as
-`[REDACTED:api-key]` instead: API keys (OpenAI/Anthropic `sk-`, Stripe
-`sk_live_`, AWS `AKIA`, GitHub `ghp_`/`github_pat_`, Slack
-`xox[baprs]-`, Google `AIza`), `Bearer` and `Authorization` tokens, JWTs, PEM
-private-key blocks, `KEY=value` credentials in shell, `.env`, YAML and JSON
-text, database connection strings with an embedded credential, e-mail addresses
-and Chinese mobile numbers. The rule is a pure text pass over titles, project
-paths, turn text and tool/reasoning events, so every adapter and every read
-path (CLI search, MCP, handoff cards, briefs) sees the same redacted content;
-placeholders keep JSON and Markdown well formed and leave the surrounding
-wording searchable. Redacting the local home user inside an absolute path
-(`/Users/<name>/`, `/home/<name>/`) is opt-in: pass that user name through
-`RedactOptions.homeUsers`. The writer does not enable it by default, so
-fixture paths and paths belonging to other machines are never rewritten.
-
-A session you no longer want searchable can be dropped without touching the
-original transcript:
+Drop a session without touching its transcript:
 
 ```bash
 SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
@@ -539,62 +231,46 @@ SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
 "$SR" unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
 ```
 
-`forget` deletes the session's rows and FTS entries, rebuilds the indexes, and
-records the id in `forgotten_session`, so every later scan keeps skipping it.
-`unforget` clears that mark and the next scan indexes the session again. The
-same action is a “Forget this session” button on the session page, with “Undo”
-in the status line. Generated briefs are plain Markdown copies and are never
-rewritten: both the CLI and the UI list the brief files that still mention the
-session so you can regenerate or delete them. The MCP server stays read-only — it has no
-forget tool.
+The same action is **Forget this session** on the session page, with Undo in the
+status line.
 
-## Known limits
+</details>
 
-- **Cursor tool results**: transcript files contain `tool_use` calls but usually
-  no `tool_result` blocks, so Cursor process rows show the call and input
-  without output.
-- **WorkBuddy**: its local SQLite stores session metadata only; transcripts are
-  cloud-side, so it is not indexed yet.
-- **Codex format**: the adapter follows the documented rollout format and reads
-  real Cindy `codex-home` sessions, but field names may still drift between Codex
-  releases; the parser remains fixture-tested.
-- **Claude Code sidechains**: subagent (`isSidechain`) records are skipped so
-  they cannot interleave with the main conversation; their work is not indexed
-  on its own.
+<details>
+<summary><b>Known limits</b></summary>
+
+- **Cursor tool results**: transcripts usually have calls but no results, so
+  Cursor process rows show input without output.
 - **Cursor timestamps**: project transcripts carry no top-level timestamps, so
-  their activity date falls back to the file modification time.
-- **Unresolved Cursor projects**: a chat whose project no longer exists on disk
-  is indexed without a project path.
+  activity falls back to file modification time. Chats whose project no longer
+  exists are indexed without a project path.
+- **Alma branches**: edit/regenerate leaves sibling messages; the adapter
+  flattens them by time instead of resolving the active branch. Alma subagent
+  transcripts fold into the surrounding turn.
+- **Cindy pairing**: results carry no tool id, so outputs attach to the oldest
+  unanswered call in arrival order.
+- **Claude Code subagents**: `isSidechain` records are skipped and their work is
+  not indexed separately.
+- **Codex format**: follows the documented rollout format; field names may drift
+  between Codex releases.
+- **Kimi Code** records no model. **WorkBuddy** stores metadata only, so it is
+  not indexed.
 - **Archived chats** are included; there is no archive filter yet.
-- **Alma edited / regenerated branches**: Alma can edit or regenerate a message,
-  which leaves several sibling messages per slot (`parent_id`/`slot_id`/`depth`).
-  The Alma adapter does not resolve the active branch — it flattens every message
-  into linear `(timestamp, id)` order. An edited or regenerated branch therefore
-  shows up as additional turns rather than replacing the message you actually
-  kept. The newest copy is not preferred; the adapter has no notion of "active".
-- **Alma subagent transcripts** live in the same `chat_messages` table as the
-  parent thread (depth 0, no parent), so their assistant text is folded into the
-  surrounding turn like any other consecutive assistant message.
-- **Cindy tool pairing**: `tool_result` rows carry no tool id, so outputs are
-  attached to the oldest unanswered `tool_use` in arrival order. Parallel calls
-  almost always resolve in call order; an interleaved result would land on the
-  wrong row's output but never on a different turn.
-- **Cindy hidden messages**: `messages.rewind_at` (edit/rewind) and rows older
-  than `sessions.cleared_at` are filtered in SQL, matching what the Cindy UI
-  shows. Forked sessions keep their `parent_session_id` in the index.
 
-## Documentation
+</details>
 
-Longer notes live in [`doc/`](doc); every page exists in English and in
-`.zh-CN.md`, with a language switch at the top.
+<details>
+<summary><b>Documentation and building from source</b></summary>
 
-- [`doc/BUILD.md`](doc/BUILD.md) — building the app from source and running the tests.
-- [`doc/USAGE.md`](doc/USAGE.md) — every CLI and MCP option, JSON schemas, exit codes and recipes.
-- [`doc/MCP.md`](doc/MCP.md) — how the app and a stdio MCP client share one index.
-- [`doc/REPORTS.md`](doc/REPORTS.md) — the daily, weekly and monthly report templates.
-- [`doc/DESIGN.md`](doc/DESIGN.md) — layout, type scale, tokens and interaction rules.
-- [`doc/PRODUCT.md`](doc/PRODUCT.md) — what the app is, who it is for, and what it deliberately is not.
-- [`doc/POSITIONING.md`](doc/POSITIONING.md) — where it sits next to other agent-memory tools, and the roadmap.
+- [`doc/BUILD.md`](doc/BUILD.md) — build the `.app`, run tests, project layout.
+- [`doc/USAGE.md`](doc/USAGE.md) — every CLI and MCP option, JSON schemas, exit codes.
+- [`doc/MCP.md`](doc/MCP.md) — sharing one index with a stdio MCP client.
+- [`doc/REPORTS.md`](doc/REPORTS.md) — daily, weekly and monthly templates.
+- [`doc/DESIGN.md`](doc/DESIGN.md) — layout, type scale, tokens, interactions.
+- [`doc/PRODUCT.md`](doc/PRODUCT.md) — what Session Recall is and is not.
+- [`doc/POSITIONING.md`](doc/POSITIONING.md) — the landscape and roadmap.
+
+</details>
 
 ## License
 
