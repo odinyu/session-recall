@@ -7,9 +7,6 @@ export type AgentId =
   | "cindy"
   | "claude-code"
   | "codex"
-  | "gemini-cli"
-  | "qwen-code"
-  | "goose"
   /** Any slug a user declared in sources.json. */
   | (string & {});
 
@@ -23,9 +20,6 @@ export const AGENT_IDS = [
   "cindy",
   "claude-code",
   "codex",
-  "gemini-cli",
-  "qwen-code",
-  "goose",
 ] as const;
 
 /** Human-facing names, shared by the brief, handoff card and MCP tools. */
@@ -38,9 +32,6 @@ export const AGENT_LABELS: Record<string, string> = {
   cindy: "Cindy",
   "claude-code": "Claude Code",
   codex: "Codex",
-  "gemini-cli": "Gemini CLI",
-  "qwen-code": "Qwen Code",
-  goose: "Goose",
 };
 
 /** Human label for any agent id, falling back to the id itself. */

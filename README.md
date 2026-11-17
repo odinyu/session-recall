@@ -9,7 +9,7 @@
 
 A local, read-only index over every coding-agent session on this Mac. One
 search box for the question, the answer, the agent, the project and the date —
-across 11 agents, with no account and no network call. Press `⌥⌘R` from any app.
+across 8 agents, with no account and no network call. Press `⌥⌘R` from any app.
 
 > *"How did we fix the websocket reconnect?"* → the session where you did, with
 > the answer and the dead end you tried first.
@@ -29,9 +29,9 @@ takes you to the question that provoked it — and the answer that resolved it.
   the only thing it creates is its own index.
 - **Chinese and code in one query.** A trigram index, so 半句中文 and
   `reconnect_backoff` both land, in the same box.
-- **Eleven agents, one index.** omp · pi · OpenCode · Cursor · Alma · Cindy ·
-  Claude Code · Codex · Gemini CLI · Qwen Code · Goose — plus any other agent you
-  declare in a small JSON file (see *Adding your own agent* below).
+- **Eight agents, one index.** omp · pi · OpenCode · Cursor · Alma · Cindy ·
+  Claude Code · Codex — plus any other agent you add with two lines of JSON (see
+  *Adding your own agent* below).
 - **Reports, not just search.** Daily standups, weekly and monthly reports, and a
   handoff card that carries the context into a new agent session.
 - **Your agents can use it too.** A stdio MCP server and a portable skill;
@@ -44,14 +44,18 @@ takes you to the question that provoked it — and the answer that resolved it.
 | Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip) — 29.9 MB |
 
-Or let Homebrew do it, which also puts the `session-recall` CLI on your PATH
-and skips the quarantine step below:
+Or install with Homebrew, which also puts the `session-recall` CLI on your PATH:
 
 ```bash
 brew tap odinyu/tap
 brew trust odinyu/tap          # one-time: Homebrew 7 asks before loading a tap
 brew install --cask session-recall
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
 ```
+
+Homebrew quarantines what it downloads, and a quarantined ad-hoc-signed build
+cannot run its command line — the CLI hangs instead of failing, so that last line
+is not optional. It is the same reason the zip route below needs it.
 
 Otherwise unzip, drag **Session Recall** into `/Applications`, and clear the quarantine
 flag once (the build is ad-hoc signed, not notarized):
@@ -72,43 +76,40 @@ on disk.
 
 ## Adding your own agent
 
-Eleven agents ship with a hand-written parser. For anything else, declare the
-store in `~/Library/Application Support/session-recall/sources.json` — no code,
-no rebuild:
+Eight agents ship with a hand-written parser. For anything else, add two lines to
+`~/Library/Application Support/session-recall/sources.json`:
 
 ```json
 {
   "sources": [
-    {
-      "id": "mytool",
-      "label": "My Tool",
-      "format": "jsonl",
-      "root": "~/.mytool/sessions",
-      "role": "role",
-      "text": "content",
-      "time": "created_at",
-      "cwd": "meta.cwd",
-      "title": "meta.title"
-    }
+    { "id": "mytool", "root": "~/.mytool/sessions" }
   ]
 }
 ```
 
-That covers a store shaped like most of them: one JSON or JSONL document per
-session, a list of messages inside. `format` is `jsonl` (one object per line) or
-`json` (one document, array at `messages`), `root` is the directory, and every
-other field is a dot path into a record. `userRoles` and `assistantRoles`
-override the defaults (`user`/`human`/`prompt` and
-`assistant`/`agent`/`ai`/`model`/`bot`). Text can be a string or a list of
-blocks under `text`; timestamps can be epoch seconds, milliseconds or ISO.
+That is the whole declaration. Everything else has a fallback:
+
+- **Format** comes from the file extension — `.jsonl` is one message per line,
+  `.json` is one document with the array under `messages`.
+- **Role** is read from `role`, `sender`, `who`, `author`, `type` or `from`, and
+  matched against `user`/`human`/`prompt` and
+  `assistant`/`agent`/`ai`/`model`/`bot`.
+- **Text** is read from `content`, `text`, `message`, `body`, `parts` or
+  `payload`, as a string or as a list of blocks with a `text` field.
+- **Time** is read from `timestamp`, `time`, `created_at`, `createdAt`, `ts`,
+  `sentAt` or `date`, as epoch seconds, milliseconds or an ISO string.
+- **Project and title** come from `cwd`/`working_dir`/`project` and
+  `title`/`name`/`summary`.
+
+If the store uses none of those names, name them yourself — every default has an
+override (`role`, `text`, `time`, `title`, `cwd`, `messages`, `format`,
+`userRoles`, `assistantRoles`), documented with a full example in
+[`doc/sources.example.json`](doc/sources.example.json).
 
 The next scan picks it up, `--agent mytool` filters by it, and
 `session-recall doctor` reports a broken declaration instead of quietly indexing
-nothing. Two limits worth knowing: the `id` cannot collide with a built-in
-agent, and a SQLite store still needs an adapter in `src/adapters/`.
-
-A filled-in example with every field documented lives in
-[`doc/sources.example.json`](doc/sources.example.json).
+nothing. Two limits: the `id` cannot collide with a built-in agent, and a SQLite
+store still needs an adapter in `src/adapters/`.
 
 ## Screenshots
 
@@ -187,7 +188,7 @@ expose it yet.
 </details>
 
 <details>
-<summary><b>What gets indexed</b> — 11 agents and their local stores</summary>
+<summary><b>What gets indexed</b> — 8 agents and their local stores</summary>
 
 | Agent | Source | Extract |
 |---|---|---|
@@ -199,14 +200,12 @@ expose it yet.
 | Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` | `sessions` + `messages`; thinking/tool rows become process events; rewound and cleared messages excluded |
 | Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | text, thinking and tool calls; `tool_result` attaches to its call; subagent sidechains skipped |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, plus Cindy's `codex-home` | `session_meta` + `turn_context`; response items, calls and reasoning become turns + process events |
-| Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | user/gemini messages, thoughts and tool calls; edit records and subagent chats skipped |
-| Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` | Gemini-lineage records; `message.parts`, thoughts and function calls become turns + events |
-| Goose | `~/Library/Application Support/goose/sessions/sessions.db` | `sessions` + `messages`; text/thinking/tool blocks, hidden rows skipped |
+
 
 The index unit is a **turn**: one prompt plus the assistant text before the next
 prompt. Tool calls and reasoning live as process events under that turn. Each
-turn also stores the model when the agent records one; Cursor and Goose
-limitations are listed under Known limits.
+turn also stores the model when the agent records one; Cursor's limitations are
+listed under Known limits.
 
 </details>
 

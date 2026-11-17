@@ -11,17 +11,20 @@ import type { Adapter, ParsedSession, ParsedTurn, SessionRef } from "./types.ts"
  * Agents described by a configuration file instead of by code.
  *
  * The built-in adapters exist because those agents are common enough to deserve
- * a hand-written parser. Everything else - a new CLI, a niche tool, a store we
- * have never seen - used to mean another parser plus tests plus permanent
- * maintenance, for a source that may have zero sessions on any given machine.
- * This module replaces that with a declaration: which directory, which file
- * shape, which field holds the role, the text and the timestamp.
+ * a hand-written parser. Everything else gets a declaration, and the declaration
+ * is meant to be two lines:
  *
- * It is deliberately not a general plugin system. It covers the layout most
- * agents use - one JSON or JSONL document per session, a list of messages
- * inside - and says so when it cannot. SQLite sources are not expressible here;
- * inventing a query language for them is where a declarative format stops
- * paying for itself and code is the honest answer.
+ *     { "id": "mytool", "root": "~/.mytool/sessions" }
+ *
+ * That is enough because every other field has an ordered fallback: the file
+ * format comes from the extension, the role and text keys are tried against the
+ * names agents actually use, and the message array defaults to "messages". The
+ * explicit overrides exist for stores that do none of the above, and are
+ * optional - the common case never has to name them.
+ *
+ * It is deliberately not a general plugin system. SQLite sources are not
+ * expressible here; inventing a query language for them is where a declarative
+ * format stops paying for itself and code is the honest answer.
  */
 
 export const SOURCES_FILENAME = "sources.json";
@@ -36,15 +39,12 @@ export interface CustomSource {
   id: string;
   /** Shown in the UI; defaults to the id. */
   label?: string;
-  format: "json" | "jsonl";
   /** Directory to scan; a leading ~/ is expanded. */
   root: string;
-  /** File name filter; defaults from format. Only the suffix is used. */
-  glob?: string;
-  /** json only: dot path to the message array. Default "messages". */
+  /** Optional override; otherwise the file extension decides. */
+  format?: "json" | "jsonl";
+  /** json only: dot path to the message array (default "messages"). */
   messages?: string;
-  /** Dot path to a session id; defaults to the file name without extension. */
-  sessionId?: string;
   /** Dot paths read from the first record that carries them. */
   title?: string;
   cwd?: string;
@@ -59,8 +59,19 @@ export interface CustomSource {
   assistantRoles?: string[];
 }
 
-const DEFAULT_USER_ROLES = ["user", "human", "prompt"];
-const DEFAULT_ASSISTANT_ROLES = ["assistant", "agent", "ai", "model", "bot"];
+const USER_ROLES = ["user", "human", "prompt"];
+const ASSISTANT_ROLES = ["assistant", "agent", "ai", "model", "bot"];
+
+/**
+ * Keys tried in order when the declaration does not name one. These are the
+ * names the agent CLIs on this machine actually use; a store that matches none
+ * of them names its own fields.
+ */
+const ROLE_KEYS = ["role", "sender", "who", "author", "type", "from"];
+const TEXT_KEYS = ["content", "text", "message", "body", "parts", "payload"];
+const TIME_KEYS = ["timestamp", "time", "created_at", "createdAt", "ts", "sentAt", "date"];
+const TITLE_KEYS = ["title", "name", "summary"];
+const CWD_KEYS = ["cwd", "working_dir", "workingDir", "project", "projectPath", "meta.cwd"];
 
 function expandHome(path: string): string {
   if (path === "~") return HOME;
@@ -68,8 +79,7 @@ function expandHome(path: string): string {
   return path;
 }
 
-function field(record: Record<string, unknown>, path: string | undefined): unknown {
-  if (!path) return undefined;
+function at(record: Record<string, unknown>, path: string): unknown {
   let current: unknown = record;
   for (const part of path.split(".")) {
     const holder = objectValue(current);
@@ -77,6 +87,16 @@ function field(record: Record<string, unknown>, path: string | undefined): unkno
     current = holder[part];
   }
   return current;
+}
+
+/** The first candidate path that yields a value, so defaults need no config. */
+function pick(record: Record<string, unknown>, explicit: string | undefined, candidates: string[]): unknown {
+  if (explicit) return at(record, explicit);
+  for (const path of candidates) {
+    const value = at(record, path);
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
 }
 
 /** Message text in the shapes agents actually write. */
@@ -146,8 +166,8 @@ export function loadCustomSources(path: string = sourcesPath()): CustomSource[] 
     }
     if (seen.has(id)) throw new InvalidSourcesError(where + ': duplicate id "' + id + '"');
     seen.add(id);
-    const format = readString(entry, "format") || "jsonl";
-    if (format !== "json" && format !== "jsonl") {
+    const format = readString(entry, "format");
+    if (format && format !== "json" && format !== "jsonl") {
       throw new InvalidSourcesError(where + ': format must be "json" or "jsonl"');
     }
     const root = readString(entry, "root");
@@ -155,11 +175,9 @@ export function loadCustomSources(path: string = sourcesPath()): CustomSource[] 
     out.push({
       id,
       label: readString(entry, "label") || id,
-      format,
       root: expandHome(root),
-      glob: readString(entry, "glob") || undefined,
+      format: (format as "json" | "jsonl" | undefined) || undefined,
       messages: readString(entry, "messages") || undefined,
-      sessionId: readString(entry, "sessionId") || undefined,
       title: readString(entry, "title") || undefined,
       cwd: readString(entry, "cwd") || undefined,
       startedAt: readString(entry, "startedAt") || undefined,
@@ -167,8 +185,8 @@ export function loadCustomSources(path: string = sourcesPath()): CustomSource[] 
       role: readString(entry, "role") || undefined,
       text: readString(entry, "text") || undefined,
       time: readString(entry, "time") || undefined,
-      userRoles: stringArray(entry, "userRoles") ?? DEFAULT_USER_ROLES,
-      assistantRoles: stringArray(entry, "assistantRoles") ?? DEFAULT_ASSISTANT_ROLES,
+      userRoles: stringArray(entry, "userRoles") ?? USER_ROLES,
+      assistantRoles: stringArray(entry, "assistantRoles") ?? ASSISTANT_ROLES,
     });
   });
   return out;
@@ -181,25 +199,12 @@ function stringArray(record: Record<string, unknown>, key: string): string[] | n
   return out.length > 0 ? out : null;
 }
 
-function fileMatches(spec: CustomSource): (name: string) => boolean {
-  const glob = spec.glob;
-  if (!glob) {
-    const suffix = spec.format === "jsonl" ? ".jsonl" : ".json";
-    return (name) => name.endsWith(suffix);
-  }
-  // Only the suffix matters for a flat recursive walk; a pattern naming
-  // directories is not supported rather than half-honoured.
-  const last = glob.split("/").pop() ?? "";
-  const suffix = last.startsWith("*.") ? last.slice(1) : last;
-  return (name) => name.endsWith(suffix);
-}
-
 export function customAdapter(spec: CustomSource): Adapter {
-  const matches = fileMatches(spec);
+  /** Both message-file shapes are collected; the extension decides how to read. */
+  const matches = (name: string): boolean => name.endsWith(".jsonl") || name.endsWith(".json");
 
   async function list(): Promise<SessionRef[]> {
-    const files = walkFiles(spec.root, matches);
-    return files.map((file) => {
+    return walkFiles(spec.root, matches).map((file) => {
       const name = basename(file.path);
       const dot = name.lastIndexOf(".");
       const externalId = dot > 0 ? name.slice(0, dot) : name;
@@ -222,8 +227,9 @@ export function customAdapter(spec: CustomSource): Adapter {
       return null;
     }
 
+    const format = spec.format ?? (ref.sourcePath.endsWith(".jsonl") ? "jsonl" : "json");
     let records: unknown[];
-    if (spec.format === "jsonl") {
+    if (format === "jsonl") {
       records = [];
       for (const line of raw.split("\n")) {
         if (!line.trim()) continue;
@@ -233,13 +239,13 @@ export function customAdapter(spec: CustomSource): Adapter {
     } else {
       const doc = objectValue(parseJson(raw));
       if (!doc) return null;
-      const value = field(doc, spec.messages ?? "messages");
+      const value = at(doc, spec.messages ?? "messages");
       records = Array.isArray(value) ? value : [];
     }
     if (records.length === 0) return null;
 
-    const userRoles = new Set(spec.userRoles ?? DEFAULT_USER_ROLES);
-    const assistantRoles = new Set(spec.assistantRoles ?? DEFAULT_ASSISTANT_ROLES);
+    const userRoles = new Set(spec.userRoles ?? USER_ROLES);
+    const assistantRoles = new Set(spec.assistantRoles ?? ASSISTANT_ROLES);
     const turns: ParsedTurn[] = [];
     let current: ParsedTurn | null = null;
     let projectPath = "";
@@ -251,25 +257,25 @@ export function customAdapter(spec: CustomSource): Adapter {
       const record = objectValue(rawRecord);
       if (!record) continue;
 
-      if (!projectPath && spec.cwd) {
-        const value = field(record, spec.cwd);
+      if (!projectPath) {
+        const value = pick(record, spec.cwd, CWD_KEYS);
         if (typeof value === "string") projectPath = value;
       }
-      if (!title && spec.title) {
-        const value = field(record, spec.title);
+      if (!title) {
+        const value = pick(record, spec.title, TITLE_KEYS);
         if (typeof value === "string") title = value;
       }
-      if (!startedAt && spec.startedAt) startedAt = toMillis(field(record, spec.startedAt));
+      if (!startedAt && spec.startedAt) startedAt = toMillis(at(record, spec.startedAt));
       if (spec.updatedAt) {
-        const stamp = toMillis(field(record, spec.updatedAt));
+        const stamp = toMillis(at(record, spec.updatedAt));
         if (stamp > updatedAt) updatedAt = stamp;
       }
 
-      const roleValue = field(record, spec.role ?? "role");
+      const roleValue = pick(record, spec.role, ROLE_KEYS);
       const role = (typeof roleValue === "string" ? roleValue : "").toLowerCase();
-      const body = textOf(field(record, spec.text ?? "content")).trim();
+      const body = textOf(pick(record, spec.text, TEXT_KEYS)).trim();
       if (!body) continue;
-      const ts = spec.time ? toMillis(field(record, spec.time)) : 0;
+      const ts = toMillis(pick(record, spec.time, TIME_KEYS));
 
       if (userRoles.has(role)) {
         const capped = capText(body);
@@ -321,7 +327,7 @@ export function customAdapter(spec: CustomSource): Adapter {
     };
   }
 
-  return { id: spec.id, label: spec.label || spec.id, version: 1, list, load };
+  return { id: spec.id, label: spec.label || spec.id, version: 2, list, load };
 }
 
 /** Ids declared in sources.json, or [] when there is no readable config. */

@@ -188,3 +188,52 @@ test("a configured source is indexed and searchable end to end", async () => {
     db.close();
   }
 });
+
+test("a two-field declaration is enough", async () => {
+  const dir = freshDir();
+  const sessions = join(dir, "sessions");
+  mkdirSync(sessions, { recursive: true });
+  // Only the fields agents actually use: role + content + timestamp.
+  writeJsonl(sessions, "s.jsonl", [
+    { role: "user", content: "why did the build break", timestamp: 1763000000 },
+    { role: "assistant", content: "a stale lock file", timestamp: 1763000010 },
+  ]);
+
+  const config = join(dir, "sources.json");
+  writeFileSync(config, JSON.stringify({ sources: [{ id: "tiny", root: sessions }] }));
+
+  const [spec] = loadCustomSources(config);
+  expect(spec.format).toBeUndefined();
+  expect(spec.role).toBeUndefined();
+
+  const adapter = customAdapter(spec);
+  const [ref] = await adapter.list();
+  const session = await adapter.load(ref);
+  expect(session?.turns.length).toBe(1);
+  expect(session?.turns[0].userText).toBe("why did the build break");
+  expect(session?.turns[0].assistantText).toBe("a stale lock file");
+  // 1763000000 is epoch seconds, so it must be read as seconds, not millis.
+  expect(session?.turns[0].ts).toBe(1763000000000);
+});
+
+test("the format follows the file extension when it is not declared", async () => {
+  const dir = freshDir();
+  const sessions = join(dir, "sessions");
+  mkdirSync(sessions, { recursive: true });
+  writeJsonl(sessions, "line.jsonl", [{ role: "user", content: "from jsonl" }]);
+  writeFileSync(join(sessions, "doc.json"), JSON.stringify({
+    messages: [{ sender: "human", message: "from json" }],
+  }));
+
+  const adapter = customAdapter({ id: "mixed", root: sessions });
+  const refs = await adapter.list();
+  expect(refs.length).toBe(2);
+
+  const texts: string[] = [];
+  for (const ref of refs) {
+    const session = await adapter.load(ref);
+    if (session) texts.push(session.turns[0].userText);
+  }
+  // The .json file uses sender/message rather than role/content.
+  expect(texts.sort()).toEqual(["from json", "from jsonl"]);
+});

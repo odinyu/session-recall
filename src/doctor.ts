@@ -397,14 +397,28 @@ export async function runDoctorCli(argv: string[]): Promise<number> {
   const options = parsed;
 
   const checks: Check[] = [];
+  // Tracing exists because a check that hangs produces no output until the end,
+  // which makes a stuck run indistinguishable from a slow one.
+  const trace = process.env.SESSION_RECALL_DOCTOR_TRACE === "1";
+  const step = (label: string): void => {
+    if (trace) console.error("[doctor] " + label);
+  };
+
+  step("index");
   checks.push(...checkIndex());
+  step("prefs");
   checks.push(checkPrefs());
+  step("lock");
   checks.push(checkLock());
+  step("app");
   checks.push(...checkApp());
+  step("deep-link");
   checks.push(checkDeepLink());
+  step("mcp wiring");
   checks.push(...checkMcpWiring(options.home));
 
   if (options.handshake) {
+    step("handshake");
     const command = resolveMcpCommand();
     if (command) checks.push(await handshake(command));
     else checks.push({ id: "handshake", label: "handshake", status: "skip",

@@ -40,4 +40,17 @@ cask "session-recall" do
     "~/Library/Caches/com.odin.session-recall",
     "~/Library/WebKit/com.odin.session-recall",
   ]
+
+  caveats <<~EOS
+    This build is ad-hoc signed, so macOS quarantines it. The app opens anyway,
+    but the `session-recall` command will hang instead of failing until the
+    attribute is cleared once:
+
+      xattr -dr com.apple.quarantine "#{appdir}/Session Recall.app"
+
+    Then finish the setup:
+
+      session-recall setup
+      session-recall doctor
+  EOS
 end

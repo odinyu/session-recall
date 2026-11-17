@@ -9,11 +9,12 @@ release workflow builds the macOS app from the tag.
 
 ## Unreleased — agent support becomes declarative
 
-- **Two adapters removed: Kimi Code and Copilot CLI.** Both were written against
-  documentation and had never parsed a single real session on any machine here
-  (the other eleven all had live sessions). An unverified parser is not free: it
-  is code that has to keep matching a store nobody is testing. They can come
-  back as a three-line declaration.
+- **Five adapters removed: Kimi Code, Copilot CLI, Gemini CLI, Qwen Code and
+  Goose.** All five were written against documentation and had never parsed a
+  single real session on any machine here; the remaining eight all had live
+  sessions. An unverified parser is not free: it is code that has to keep
+  matching a store nobody is testing. Every removed agent comes back as a
+  two-line declaration, so the coverage is not lost, only the untested code.
 
 - **`sources.json` declares custom agents.** One JSON document in the app data
   directory describes a store — directory, file format, dot paths for the role,
@@ -26,8 +27,18 @@ release workflow builds the macOS app from the tag.
   list plus whatever `sources.json` declares, and the UI falls back to the raw id
   when it has no label for one.
 
-- **Docs and landing page** now say eleven agents and point at
-  `doc/sources.example.json`, which documents every field.
+- **A declaration is two fields.** `id` and `root` are the whole required
+  surface: the file format follows the extension, and role, text, time, title and
+  project fall back through the names agents actually use. Every fallback has an
+  explicit override for stores that name their fields differently.
+
+- **Docs and landing page** now say eight agents and point at
+  `doc/sources.example.json`, which documents every optional field.
+
+- **The Homebrew cask says what it means.** Homebrew quarantines what it
+  downloads, and a quarantined ad-hoc-signed build cannot run its CLI — the
+  command hangs rather than failing. The cask now carries a caveat with the one
+  `xattr` line, and the README no longer claims Homebrew skips that step.
 
 ## 1.9.0 — 2026-11-17
 

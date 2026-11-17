@@ -6,9 +6,6 @@ import { almaAdapter } from "./adapters/alma.ts";
 import { cindyAdapter } from "./adapters/cindy.ts";
 import { claudeCodeAdapter } from "./adapters/claude-code.ts";
 import { codexAdapter } from "./adapters/codex.ts";
-import { geminiCliAdapter } from "./adapters/gemini-cli.ts";
-import { qwenCodeAdapter } from "./adapters/qwen-code.ts";
-import { gooseAdapter } from "./adapters/goose.ts";
 import { customAdapters } from "./adapters/custom.ts";
 import type { Adapter, SessionRef } from "./adapters/types.ts";
 import {
@@ -66,9 +63,6 @@ export async function scan(
     cindyAdapter(),
     claudeCodeAdapter(),
     codexAdapter(),
-    geminiCliAdapter(),
-    qwenCodeAdapter(),
-    gooseAdapter(),
     // Declarative sources last: they are user config, not built-in coverage.
     ...customAdapters(),
   ],

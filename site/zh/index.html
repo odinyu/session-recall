@@ -189,9 +189,6 @@
         <li class="agent agent--cindy"><i></i><span>Cindy</span></li>
         <li class="agent agent--claude-code"><i></i><span>Claude Code</span></li>
         <li class="agent agent--codex"><i></i><span>Codex</span></li>
-        <li class="agent agent--gemini-cli"><i></i><span>Gemini CLI</span></li>
-        <li class="agent agent--qwen-code"><i></i><span>Qwen Code</span></li>
-        <li class="agent agent--goose"><i></i><span>Goose</span></li>
       </ul>
     </div>
   </section>
@@ -558,9 +555,8 @@ bun run mcp</code></pre>
         <details>
           <summary>支持哪些 Agent？</summary>
           <div class="a">
-            十一个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、Gemini CLI、
-            Qwen Code 和 Goose。omp 和官方 pi 共用一套 JSONL 格式；
-            Gemini CLI、Qwen Code 各自一种格式，其余的从各自的存储读取。
+            八个：omp、pi、OpenCode、Cursor、Alma、Cindy、Claude Code 和 Codex。其他 agent
+            两行 JSON 就能加进来。omp 和官方 pi 共用一套 JSONL 格式，其余的从各自的存储读取。
             每个适配器都是只读的，也都会跳过该 Agent 的私密记录。
           </div>
         </details>

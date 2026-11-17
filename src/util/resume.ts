@@ -58,9 +58,6 @@ const LAUNCH: Partial<Record<AgentId, string>> = {
   "claude-code": "claude",
   codex: "codex",
   cursor: "cursor",
-  "gemini-cli": "gemini",
-  "qwen-code": "qwen",
-  goose: "goose",
 };
 
 export interface Continuation {

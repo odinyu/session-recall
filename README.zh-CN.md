@@ -8,7 +8,7 @@
 **上个月你已经解决过这个问题。现在一键找回来。**
 
 一个面向本机 coding agent 会话的本地只读索引。一个搜索框，找回当时的提问、回答、
-agent、项目和日期 —— 覆盖 11 个 agent，不需要账号，不联网。任意 App 里按 `⌥⌘R`
+agent、项目和日期 —— 覆盖 8 个 agent，不需要账号，不联网。任意 App 里按 `⌥⌘R`
 唤出。
 
 > *「那个 websocket 重连当时怎么修的？」* → 直接跳回你修它的那次会话，连先走过的
@@ -27,9 +27,8 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 - **从不写入。** agent 的会话记录以只读方式打开并带 busy timeout；它只创建自己的索引。
 - **中文和代码同一个查询。** trigram 索引，半句中文和 `reconnect_backoff` 都能命中，
   就在同一个搜索框里。
-- **11 个 agent，一个索引。** omp · pi · OpenCode · Cursor · Alma · Cindy ·
-  Claude Code · Codex · Gemini CLI · Qwen Code · Goose —— 其他 agent 写一段 JSON
-  就能加进来（见下方「自己加一个 agent」）。
+- **8 个 agent，一个索引。** omp · pi · OpenCode · Cursor · Alma · Cindy ·
+  Claude Code · Codex —— 其他 agent 两行 JSON 就能加进来（见下方「自己加一个 agent」）。
 - **不只是搜索，还有报告。** 日报、周报、月报，以及把上下文带进新会话的交接卡。
 - **你的 agent 也能用。** 内置 stdio MCP server 和可移植 skill，`setup` 一条命令都接上。
 
@@ -40,14 +39,17 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 | Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——29.9 MB |
 
-或者交给 Homebrew —— 它还会把 `session-recall` 命令行放进 PATH，并免掉下面的
-quarantine 步骤：
+或者交给 Homebrew —— 它还会把 `session-recall` 命令行放进 PATH：
 
 ```bash
 brew tap odinyu/tap
 brew trust odinyu/tap          # 一次性：Homebrew 7 加载第三方 tap 前需要信任
 brew install --cask session-recall
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
 ```
+
+Homebrew 会给下载的东西打 quarantine，而带 quarantine 的 ad-hoc 签名构建**跑不了命令行**
+—— 它不会报错，而是直接卡住，所以最后那行不是可选的。下面的 zip 方式同理。
 
 也可以解压后把 **Session Recall** 拖进 `/Applications`，首次启动前清除一次 quarantine
 标记（构建是 ad-hoc 签名、未公证）：
@@ -66,38 +68,35 @@ open -a "Session Recall"
 
 ## 自己加一个 agent
 
-11 个 agent 是手写解析器。其余的不用改代码、不用重新打包 —— 在
-`~/Library/Application Support/session-recall/sources.json` 里声明就行：
+8 个 agent 是手写解析器。其余的不用改代码、不用重新打包 —— 在
+`~/Library/Application Support/session-recall/sources.json` 里加两行：
 
 ```json
 {
   "sources": [
-    {
-      "id": "mytool",
-      "label": "My Tool",
-      "format": "jsonl",
-      "root": "~/.mytool/sessions",
-      "role": "role",
-      "text": "content",
-      "time": "created_at",
-      "cwd": "meta.cwd",
-      "title": "meta.title"
-    }
+    { "id": "mytool", "root": "~/.mytool/sessions" }
   ]
 }
 ```
 
-这覆盖了绝大多数 agent 的存储形状：一个会话一个 JSON / JSONL 文档，里面是消息列表。
-`format` 是 `jsonl`（一行一个对象）或 `json`（一个文档，数组在 `messages` 下），`root`
-是目录，其余字段都是记录里的点路径。`userRoles` / `assistantRoles` 可以覆盖默认值
-（`user`/`human`/`prompt` 和 `assistant`/`agent`/`ai`/`model`/`bot`）。文本可以是字符串，
-也可以是 `text` 字段的块数组；时间戳可以是 epoch 秒、毫秒或 ISO 字符串。
+这就是全部声明，其余都有兜底：
+
+- **格式**看扩展名 —— `.jsonl` 是一行一条消息，`.json` 是一个文档、数组在 `messages` 下。
+- **角色**依次读 `role`、`sender`、`who`、`author`、`type`、`from`，匹配
+  `user`/`human`/`prompt` 和 `assistant`/`agent`/`ai`/`model`/`bot`。
+- **文本**依次读 `content`、`text`、`message`、`body`、`parts`、`payload`，可以是字符串，
+  也可以是带 `text` 字段的块数组。
+- **时间**依次读 `timestamp`、`time`、`created_at`、`createdAt`、`ts`、`sentAt`、`date`，
+  支持 epoch 秒、毫秒和 ISO 字符串。
+- **项目与标题**读 `cwd`/`working_dir`/`project` 和 `title`/`name`/`summary`。
+
+如果这个存储一个都不沾，就自己报名字 —— 每个默认值都有对应覆盖项（`role`、`text`、
+`time`、`title`、`cwd`、`messages`、`format`、`userRoles`、`assistantRoles`），
+完整带注释的示例见 [`doc/sources.example.json`](doc/sources.example.json)。
 
 下次扫描就会索引它，`--agent mytool` 能筛它，配置写坏了 `session-recall doctor` 会报出来
 而不是默默什么都不索引。两个边界：`id` 不能和内置 agent 重名；SQLite 存储仍然需要
 `src/adapters/` 里的解析器。
-
-每个字段都有注释的完整示例见 [`doc/sources.example.json`](doc/sources.example.json)。
 
 ## 截图
 
@@ -163,7 +162,7 @@ SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
 </details>
 
 <details>
-<summary><b>索引哪些内容</b>——11 个 agent 与它们的本地存储</summary>
+<summary><b>索引哪些内容</b>——8 个 agent 与它们的本地存储</summary>
 
 | Agent | 来源 | 提取 |
 |---|---|---|
@@ -175,13 +174,11 @@ SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
 | Cindy | `~/Library/Application Support/CindyGlobal/cindy-*.db` | `sessions` + `messages`；thinking/tool 行变成过程事件；回退与清除前的消息排除 |
 | Claude Code | `~/.claude/projects/<project-slug>/<sessionId>.jsonl` | 文本、thinking 和工具调用；`tool_result` 挂到对应调用；子代理 sidechain 跳过 |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`，以及 Cindy 的 `codex-home` | `session_meta` + `turn_context`；消息、调用和推理变成 turn + 过程事件 |
-| Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | 用户/gemini 消息、thoughts 和工具调用；编辑记录和子代理对话跳过 |
-| Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` | Gemini 一脉记录；`message.parts`、thought 和 function call 变成 turn + 事件 |
-| Goose | `~/Library/Application Support/goose/sessions/sessions.db` | `sessions` + `messages`；text/thinking/tool 块，隐藏行跳过 |
+
 
 索引单位是 **turn**：一次用户提问，加上下一个提问之前的助手文本。工具调用和推理作为
-该 turn 下的过程事件存储。每个 turn 还会在 agent 记录时保存所用模型；Cursor 和 Goose
-的限制见「已知限制」。
+该 turn 下的过程事件存储。每个 turn 还会在 agent 记录时保存所用模型；Cursor 的限制见
+「已知限制」。
 
 </details>
 
