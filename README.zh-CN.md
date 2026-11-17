@@ -38,7 +38,7 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 | Mac | 下载 |
 | --- | --- |
 | Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——27.2 MB |
-| Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——31.4 MB |
+| Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——29.9 MB |
 
 或者交给 Homebrew —— 它还会把 `session-recall` 命令行放进 PATH，并免掉下面的
 quarantine 步骤：
