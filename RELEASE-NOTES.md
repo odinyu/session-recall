@@ -17,6 +17,12 @@ Rules for an entry:
 The developer-facing record — every functional change, fix and refactor — lives
 in `CHANGELOG.md` and is never shown to users.
 
+## 1.9.0 — 2026-11-17
+
+现在一条命令就能把你本机的 agent 接上：`setup` 写入 MCP 配置和 skill，`doctor` 逐项自检并真的和 MCP 服务握手。也支持 `brew install --cask odinyu/tap/session-recall`，命令行工具会进 PATH。
+
+One command now connects the agents on your Mac: `setup` writes the MCP config and the skill, and `doctor` checks everything, including a real handshake with the MCP server. You can also `brew install --cask odinyu/tap/session-recall`, which puts the CLI on your PATH.
+
 ## 1.8.1 — 2026-11-16
 
 修复 macOS 菜单栏缺少应用菜单和 ⌘Q；「检查更新」在已是最新或失败时也会给出提示，快捷键可以逐项改绑。中文短语被换行拆开时仍能搜到，项目筛选不再混入 Cindy 的临时目录，界面细节继续打磨。

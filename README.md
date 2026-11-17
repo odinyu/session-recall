@@ -40,10 +40,19 @@ takes you to the question that provoked it — and the answer that resolved it.
 
 | Mac | Download |
 | --- | --- |
-| Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 28.5 MB |
+| Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip) — 31.4 MB |
 
-Unzip, drag **Session Recall** into `/Applications`, and clear the quarantine
+Or let Homebrew do it, which also puts the `session-recall` CLI on your PATH
+and skips the quarantine step below:
+
+```bash
+brew tap odinyu/tap
+brew trust odinyu/tap          # one-time: Homebrew 7 asks before loading a tap
+brew install --cask session-recall
+```
+
+Otherwise unzip, drag **Session Recall** into `/Applications`, and clear the quarantine
 flag once (the build is ad-hoc signed, not notarized):
 
 ```bash

@@ -36,10 +36,19 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 
 | Mac | 下载 |
 | --- | --- |
-| Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——28.5 MB |
+| Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——31.4 MB |
 
-解压后把 **Session Recall** 拖进 `/Applications`，首次启动前清除一次 quarantine
+或者交给 Homebrew —— 它还会把 `session-recall` 命令行放进 PATH，并免掉下面的
+quarantine 步骤：
+
+```bash
+brew tap odinyu/tap
+brew trust odinyu/tap          # 一次性：Homebrew 7 加载第三方 tap 前需要信任
+brew install --cask session-recall
+```
+
+也可以解压后把 **Session Recall** 拖进 `/Applications`，首次启动前清除一次 quarantine
 标记（构建是 ad-hoc 签名、未公证）：
 
 ```bash

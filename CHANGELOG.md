@@ -7,6 +7,46 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.9.0 — 2026-11-17
+
+- **`session-recall setup` connects your agents.** It writes the
+  `session-recall` entry into each client's MCP config and installs an agent
+  skill into every skill folder found on the machine. Only clients whose entry
+  shape was verified against a live config are written (Cursor, Alma, Claude
+  Code, Gemini CLI, Qwen Code, OpenCode); Codex is TOML and unverified, so it
+  gets a paste-ready snippet instead of a guess. Every config file is copied to
+  `<file>.session-recall.bak-<timestamp>` first and replaced by an atomic
+  rename, a file that is not valid JSON is reported and left byte-identical,
+  and `--remove` takes back only our entry.
+
+- **`session-recall doctor` self-checks the install.** Index stats and
+  integrity, schema version, per-agent coverage and recorded scan errors, MCP
+  wiring per client, app version and architecture, deep-link registration,
+  prefs, a stale scan lock — and a real `initialize` + `tools/list` handshake
+  against the MCP server, so "configured" means it answered rather than that a
+  file looked right.
+
+- **A skill channel beside MCP.** One `SKILL.md` is written into
+  `~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills`,
+  `~/.cursor/skills` and `~/.config/opencode/skills`. Same bytes everywhere, so
+  there is no per-client schema to maintain, and it reaches clients that cannot
+  take an MCP entry at all. A managed copy carries `.session-recall.json`; a
+  `SKILL.md` without that marker is treated as the user's own and never
+  overwritten. `--no-skill` / `--no-mcp` narrow the run to one channel.
+
+- **A Homebrew cask** at `odinyu/tap` (`brew install --cask
+  odinyu/tap/session-recall`) that also links the CLI onto PATH. A tap rather
+  than `homebrew/cask`: that repository requires the app to pass Homebrew's
+  Gatekeeper checks without bypassing Gatekeeper, which an ad-hoc-signed build
+  cannot do.
+
+- **README rewritten** around one scenario instead of a feature list, with a
+  "why not just grep" section; the download table and stale tool counts are
+  fixed, and the MCP section documents the two channels.
+
+- Tests: 312 (up from 284). The 28 new ones drive setup/doctor against a
+  temporary home, so they never read or write a real agent config.
+
 ## 1.8.1 — 2026-11-16
 
 - **A File menu holds the update entries.** `Check for Updates…` (⌘U) and
