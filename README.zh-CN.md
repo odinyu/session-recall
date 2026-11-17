@@ -5,12 +5,32 @@
 [![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
 [![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
 
-**所有会话，一搜即得。** 一个面向本机 coding agent 会话的本地、只读全文索引。想起
-半句中文或一个代码标识符，就能找回当时的提问、回答、agent、项目和日期。
+**上个月你已经解决过这个问题。现在一键找回来。**
 
-为 **omp**、**pi**、**OpenCode**、**Cursor**、**Alma**、**Cindy**、
-**Claude Code**、**Codex**、**Gemini CLI**、**Qwen Code**、**Kimi Code**、
-**Copilot CLI** 和 **Goose** 积累的会话而做。它从不写入 agent 自己的存储。
+一个面向本机 coding agent 会话的本地只读索引。一个搜索框，找回当时的提问、回答、
+agent、项目和日期 —— 覆盖 13 个 agent，不需要账号，不联网。任意 App 里按 `⌥⌘R`
+唤出。
+
+> *「那个 websocket 重连当时怎么修的？」* → 直接跳回你修它的那次会话，连先走过的
+> 死路一起看。
+
+## 为什么不直接 grep 会话文件？
+
+grep 只能找字符串。它分不清一次提问和一次工具调用，不会按相关度排序，也没法告诉你
+某个回答属于哪个问题。Session Recall 把 turn 和 tool event 分开建索引，所以命中一段
+堆栈时，它把你带到引出这段堆栈的那个问题，以及最终解决它的回答。
+
+## 它做什么
+
+- **不用配置。** 首次启动就索引磁盘上已有的东西：没有账号、没有云、没有 API key、
+  没有配置文件。
+- **从不写入。** agent 的会话记录以只读方式打开并带 busy timeout；它只创建自己的索引。
+- **中文和代码同一个查询。** trigram 索引，半句中文和 `reconnect_backoff` 都能命中，
+  就在同一个搜索框里。
+- **13 个 agent，一个索引。** omp · pi · OpenCode · Cursor · Alma · Cindy ·
+  Claude Code · Codex · Gemini CLI · Qwen Code · Kimi Code · Copilot CLI · Goose。
+- **不只是搜索，还有报告。** 日报、周报、月报，以及把上下文带进新会话的交接卡。
+- **你的 agent 也能用。** 内置 stdio MCP server 和可移植 skill，`setup` 一条命令都接上。
 
 ## 下载
 

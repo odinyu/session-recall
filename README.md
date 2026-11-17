@@ -5,15 +5,36 @@
 [![License: MIT](https://img.shields.io/github/license/odinyu/session-recall?label=license)](LICENSE)
 [![CI](https://github.com/odinyu/session-recall/actions/workflows/ci.yml/badge.svg)](https://github.com/odinyu/session-recall/actions/workflows/ci.yml)
 
-**Total recall for all your AI agents.** A local, read-only full-text index
-over the coding-agent sessions on this Mac. Search a half-remembered Chinese
-phrase or a code identifier and get back the question, the answer, the agent,
-the project, and the date.
+**You already solved this last month. Find it again in one keystroke.**
 
-Built for sessions across **omp**, **pi**, **OpenCode**, **Cursor**, **Alma**,
-**Cindy**, **Claude Code**, **Codex**, **Gemini CLI**, **Qwen Code**,
-**Kimi Code**, **Copilot CLI**, and **Goose**. It never writes to an agent's
-own storage.
+A local, read-only index over every coding-agent session on this Mac. One
+search box for the question, the answer, the agent, the project and the date —
+across 13 agents, with no account and no network call. Press `⌥⌘R` from any app.
+
+> *"How did we fix the websocket reconnect?"* → the session where you did, with
+> the answer and the dead end you tried first.
+
+## Why not just grep the session files?
+
+grep finds strings. It does not know a turn from a tool call, does not rank by
+relevance, and cannot tell you which question an answer belongs to. Session
+Recall indexes turns and tool events separately, so a hit inside a stack trace
+takes you to the question that provoked it — and the answer that resolved it.
+
+## What it does
+
+- **Nothing to set up.** First launch indexes what is already on disk: no
+  account, no cloud, no API key, no config file.
+- **Never writes.** Agent transcripts are opened read-only with a busy timeout;
+  the only thing it creates is its own index.
+- **Chinese and code in one query.** A trigram index, so 半句中文 and
+  `reconnect_backoff` both land, in the same box.
+- **Thirteen agents, one index.** omp · pi · OpenCode · Cursor · Alma · Cindy ·
+  Claude Code · Codex · Gemini CLI · Qwen Code · Kimi Code · Copilot CLI · Goose.
+- **Reports, not just search.** Daily standups, weekly and monthly reports, and a
+  handoff card that carries the context into a new agent session.
+- **Your agents can use it too.** A stdio MCP server and a portable skill;
+  `setup` wires both into the agents installed here.
 
 ## Download
 
