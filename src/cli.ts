@@ -12,6 +12,7 @@ import {
 import type { BriefFormat, BriefLang } from "./brief.ts";
 import { runSearchCli } from "./cli-search.ts";
 import { runSavedCli } from "./cli-saved.ts";
+import { runDoctorCli } from "./doctor.ts";
 import { forgetSession, openDb, splitSessionId, unforgetSession } from "./db.ts";
 import { runMcpServer } from "./mcp.ts";
 import { readPrefs } from "./prefs.ts";
@@ -19,6 +20,7 @@ import { scan } from "./scan.ts";
 import type { ScanReport } from "./scan.ts";
 import { acquireScanLock, scanLockPath } from "./scan-lock.ts";
 import { serve } from "./server.ts";
+import { runSetupCli } from "./setup.ts";
 
 
 export type BriefCli =
@@ -213,6 +215,10 @@ if (command === "scan") {
   process.exitCode = runSavedCli(process.argv.slice(3));
 } else if (command === "mcp") {
   await runMcpServer();
+} else if (command === "setup") {
+  process.exitCode = await runSetupCli(process.argv.slice(3));
+} else if (command === "doctor") {
+  process.exitCode = await runDoctorCli(process.argv.slice(3));
 } else if (command === "forget" || command === "unforget") {
   const target = (process.argv[3] ?? "").trim();
   const parsed = splitSessionId(target);
@@ -262,7 +268,7 @@ if (command === "scan") {
   }
 } else {
   console.error(
-    "usage: bun run src/cli.ts [scan|serve|brief|search|saved|mcp|forget <agent>:<id>|unforget <agent>:<id>]",
+    "usage: bun run src/cli.ts [scan|serve|brief|search|saved|mcp|setup|doctor|forget <agent>:<id>|unforget <agent>:<id>]",
   );
   process.exit(1);
 }
