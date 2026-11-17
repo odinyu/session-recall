@@ -1,0 +1,52 @@
+{
+  "_comment": [
+    "Copy this to ~/Library/Application Support/session-recall/sources.json and edit.",
+    "One entry per agent. The next scan indexes it; `session-recall doctor` reports",
+    "anything wrong with it instead of silently indexing nothing.",
+    "",
+    "id             required  slug used in the UI and in --agent; must not match a built-in agent",
+    "label          optional  name shown in the UI (defaults to id)",
+    "format         required  \"jsonl\" (one JSON object per line) or \"json\" (one document per file)",
+    "root           required  directory to scan; ~/ is expanded",
+    "glob           optional  file-name filter, only the suffix is used (defaults from format)",
+    "messages       json only dot path to the message array (default \"messages\")",
+    "role           optional  dot path to the role field (default \"role\")",
+    "text           optional  dot path to the message text (default \"content\")",
+    "time           optional  dot path to the message timestamp",
+    "cwd            optional  dot path to the project directory, read from the first record that has it",
+    "title          optional  dot path to a session title, read the same way",
+    "startedAt      optional  dot path to the session start time",
+    "updatedAt      optional  dot path to the session update time",
+    "userRoles      optional  roles that open a new turn (default user, human, prompt)",
+    "assistantRoles optional  roles appended to the current turn (default assistant, agent, ai, model, bot)",
+    "",
+    "Timestamps may be epoch seconds, epoch milliseconds or ISO strings.",
+    "Text may be a string or a list of blocks where the text sits under \"text\".",
+    "SQLite sources cannot be expressed here; those need an adapter in src/adapters/."
+  ],
+  "sources": [
+    {
+      "id": "mytool",
+      "label": "My Tool",
+      "format": "jsonl",
+      "root": "~/.mytool/sessions",
+      "role": "role",
+      "text": "content",
+      "time": "created_at",
+      "cwd": "meta.cwd",
+      "title": "meta.title",
+      "userRoles": ["user"],
+      "assistantRoles": ["assistant"]
+    },
+    {
+      "id": "another",
+      "label": "Another Agent",
+      "format": "json",
+      "root": "~/Library/Application Support/AnotherAgent/chats",
+      "messages": "conversation.messages",
+      "role": "sender",
+      "text": "payload.text",
+      "time": "sentAt"
+    }
+  ]
+}

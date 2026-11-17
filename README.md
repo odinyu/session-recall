@@ -9,7 +9,7 @@
 
 A local, read-only index over every coding-agent session on this Mac. One
 search box for the question, the answer, the agent, the project and the date —
-across 13 agents, with no account and no network call. Press `⌥⌘R` from any app.
+across 11 agents, with no account and no network call. Press `⌥⌘R` from any app.
 
 > *"How did we fix the websocket reconnect?"* → the session where you did, with
 > the answer and the dead end you tried first.
@@ -29,8 +29,9 @@ takes you to the question that provoked it — and the answer that resolved it.
   the only thing it creates is its own index.
 - **Chinese and code in one query.** A trigram index, so 半句中文 and
   `reconnect_backoff` both land, in the same box.
-- **Thirteen agents, one index.** omp · pi · OpenCode · Cursor · Alma · Cindy ·
-  Claude Code · Codex · Gemini CLI · Qwen Code · Kimi Code · Copilot CLI · Goose.
+- **Eleven agents, one index.** omp · pi · OpenCode · Cursor · Alma · Cindy ·
+  Claude Code · Codex · Gemini CLI · Qwen Code · Goose — plus any other agent you
+  declare in a small JSON file (see *Adding your own agent* below).
 - **Reports, not just search.** Daily standups, weekly and monthly reports, and a
   handoff card that carries the context into a new agent session.
 - **Your agents can use it too.** A stdio MCP server and a portable skill;
@@ -68,6 +69,46 @@ On first launch it scans the agent stores on this Mac, builds
 `~/Library/Application Support/session-recall/index.db`, and refreshes every 90
 seconds. There is no setup: projects, agents and dates come from what is already
 on disk.
+
+## Adding your own agent
+
+Eleven agents ship with a hand-written parser. For anything else, declare the
+store in `~/Library/Application Support/session-recall/sources.json` — no code,
+no rebuild:
+
+```json
+{
+  "sources": [
+    {
+      "id": "mytool",
+      "label": "My Tool",
+      "format": "jsonl",
+      "root": "~/.mytool/sessions",
+      "role": "role",
+      "text": "content",
+      "time": "created_at",
+      "cwd": "meta.cwd",
+      "title": "meta.title"
+    }
+  ]
+}
+```
+
+That covers a store shaped like most of them: one JSON or JSONL document per
+session, a list of messages inside. `format` is `jsonl` (one object per line) or
+`json` (one document, array at `messages`), `root` is the directory, and every
+other field is a dot path into a record. `userRoles` and `assistantRoles`
+override the defaults (`user`/`human`/`prompt` and
+`assistant`/`agent`/`ai`/`model`/`bot`). Text can be a string or a list of
+blocks under `text`; timestamps can be epoch seconds, milliseconds or ISO.
+
+The next scan picks it up, `--agent mytool` filters by it, and
+`session-recall doctor` reports a broken declaration instead of quietly indexing
+nothing. Two limits worth knowing: the `id` cannot collide with a built-in
+agent, and a SQLite store still needs an adapter in `src/adapters/`.
+
+A filled-in example with every field documented lives in
+[`doc/sources.example.json`](doc/sources.example.json).
 
 ## Screenshots
 
@@ -146,7 +187,7 @@ expose it yet.
 </details>
 
 <details>
-<summary><b>What gets indexed</b> — 13 agents and their local stores</summary>
+<summary><b>What gets indexed</b> — 11 agents and their local stores</summary>
 
 | Agent | Source | Extract |
 |---|---|---|
@@ -160,14 +201,12 @@ expose it yet.
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, plus Cindy's `codex-home` | `session_meta` + `turn_context`; response items, calls and reasoning become turns + process events |
 | Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | user/gemini messages, thoughts and tool calls; edit records and subagent chats skipped |
 | Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` | Gemini-lineage records; `message.parts`, thoughts and function calls become turns + events |
-| Kimi Code | `~/.kimi/sessions/<workdir-digest>/<sessionId>/wire.jsonl`, plus `~/.kimi-code` | prompt/text/tool envelopes; control and UI events skipped |
-| Copilot CLI | `~/.copilot/session-state/<session-id>/events.jsonl` | user/assistant messages, tool requests and completions; encrypted payloads skipped |
 | Goose | `~/Library/Application Support/goose/sessions/sessions.db` | `sessions` + `messages`; text/thinking/tool blocks, hidden rows skipped |
 
 The index unit is a **turn**: one prompt plus the assistant text before the next
 prompt. Tool calls and reasoning live as process events under that turn. Each
-turn also stores the model when the agent records one; Cursor, Goose and Kimi
-Code limitations are listed under Known limits.
+turn also stores the model when the agent records one; Cursor and Goose
+limitations are listed under Known limits.
 
 </details>
 
@@ -290,8 +329,7 @@ status line.
   not indexed separately.
 - **Codex format**: follows the documented rollout format; field names may drift
   between Codex releases.
-- **Kimi Code** records no model. **WorkBuddy** stores metadata only, so it is
-  not indexed.
+- **WorkBuddy** stores metadata only, so it is not indexed.
 - **Archived chats** are included; there is no archive filter yet.
 
 </details>

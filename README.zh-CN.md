@@ -8,7 +8,7 @@
 **上个月你已经解决过这个问题。现在一键找回来。**
 
 一个面向本机 coding agent 会话的本地只读索引。一个搜索框，找回当时的提问、回答、
-agent、项目和日期 —— 覆盖 13 个 agent，不需要账号，不联网。任意 App 里按 `⌥⌘R`
+agent、项目和日期 —— 覆盖 11 个 agent，不需要账号，不联网。任意 App 里按 `⌥⌘R`
 唤出。
 
 > *「那个 websocket 重连当时怎么修的？」* → 直接跳回你修它的那次会话，连先走过的
@@ -27,8 +27,9 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 - **从不写入。** agent 的会话记录以只读方式打开并带 busy timeout；它只创建自己的索引。
 - **中文和代码同一个查询。** trigram 索引，半句中文和 `reconnect_backoff` 都能命中，
   就在同一个搜索框里。
-- **13 个 agent，一个索引。** omp · pi · OpenCode · Cursor · Alma · Cindy ·
-  Claude Code · Codex · Gemini CLI · Qwen Code · Kimi Code · Copilot CLI · Goose。
+- **11 个 agent，一个索引。** omp · pi · OpenCode · Cursor · Alma · Cindy ·
+  Claude Code · Codex · Gemini CLI · Qwen Code · Goose —— 其他 agent 写一段 JSON
+  就能加进来（见下方「自己加一个 agent」）。
 - **不只是搜索，还有报告。** 日报、周报、月报，以及把上下文带进新会话的交接卡。
 - **你的 agent 也能用。** 内置 stdio MCP server 和可移植 skill，`setup` 一条命令都接上。
 
@@ -62,6 +63,41 @@ open -a "Session Recall"
 首次启动会扫描本机的 agent 存储，建立
 `~/Library/Application Support/session-recall/index.db`，之后每 90 秒刷新。没有任何
 配置步骤：侧栏里的项目、agent 和日期都来自磁盘上已有的内容。
+
+## 自己加一个 agent
+
+11 个 agent 是手写解析器。其余的不用改代码、不用重新打包 —— 在
+`~/Library/Application Support/session-recall/sources.json` 里声明就行：
+
+```json
+{
+  "sources": [
+    {
+      "id": "mytool",
+      "label": "My Tool",
+      "format": "jsonl",
+      "root": "~/.mytool/sessions",
+      "role": "role",
+      "text": "content",
+      "time": "created_at",
+      "cwd": "meta.cwd",
+      "title": "meta.title"
+    }
+  ]
+}
+```
+
+这覆盖了绝大多数 agent 的存储形状：一个会话一个 JSON / JSONL 文档，里面是消息列表。
+`format` 是 `jsonl`（一行一个对象）或 `json`（一个文档，数组在 `messages` 下），`root`
+是目录，其余字段都是记录里的点路径。`userRoles` / `assistantRoles` 可以覆盖默认值
+（`user`/`human`/`prompt` 和 `assistant`/`agent`/`ai`/`model`/`bot`）。文本可以是字符串，
+也可以是 `text` 字段的块数组；时间戳可以是 epoch 秒、毫秒或 ISO 字符串。
+
+下次扫描就会索引它，`--agent mytool` 能筛它，配置写坏了 `session-recall doctor` 会报出来
+而不是默默什么都不索引。两个边界：`id` 不能和内置 agent 重名；SQLite 存储仍然需要
+`src/adapters/` 里的解析器。
+
+每个字段都有注释的完整示例见 [`doc/sources.example.json`](doc/sources.example.json)。
 
 ## 截图
 
@@ -127,7 +163,7 @@ SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
 </details>
 
 <details>
-<summary><b>索引哪些内容</b>——13 个 agent 与它们的本地存储</summary>
+<summary><b>索引哪些内容</b>——11 个 agent 与它们的本地存储</summary>
 
 | Agent | 来源 | 提取 |
 |---|---|---|
@@ -141,13 +177,11 @@ SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`，以及 Cindy 的 `codex-home` | `session_meta` + `turn_context`；消息、调用和推理变成 turn + 过程事件 |
 | Gemini CLI | `~/.gemini/tmp/<project>/chats/session-*.jsonl` | 用户/gemini 消息、thoughts 和工具调用；编辑记录和子代理对话跳过 |
 | Qwen Code | `~/.qwen/projects/<project>/chats/<sessionId>.jsonl` | Gemini 一脉记录；`message.parts`、thought 和 function call 变成 turn + 事件 |
-| Kimi Code | `~/.kimi/sessions/<workdir-digest>/<sessionId>/wire.jsonl`，以及 `~/.kimi-code` | prompt/text/工具信封；控制与 UI 事件跳过 |
-| Copilot CLI | `~/.copilot/session-state/<session-id>/events.jsonl` | 用户/助手消息、工具请求与完成；加密载荷跳过 |
 | Goose | `~/Library/Application Support/goose/sessions/sessions.db` | `sessions` + `messages`；text/thinking/tool 块，隐藏行跳过 |
 
 索引单位是 **turn**：一次用户提问，加上下一个提问之前的助手文本。工具调用和推理作为
-该 turn 下的过程事件存储。每个 turn 还会在 agent 记录时保存所用模型；Cursor、Goose
-和 Kimi Code 的限制见「已知限制」。
+该 turn 下的过程事件存储。每个 turn 还会在 agent 记录时保存所用模型；Cursor 和 Goose
+的限制见「已知限制」。
 
 </details>
 
@@ -251,7 +285,7 @@ SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
 - **Cindy 配对**：结果没有工具 id，输出按到达顺序挂到最老的未回答调用。
 - **Claude Code 子代理**：`isSidechain` 记录跳过，其工作不会被单独索引。
 - **Codex 格式**：遵循文档化的 rollout 格式，字段名仍可能随版本漂移。
-- **Kimi Code** 不记录模型；**WorkBuddy** 只存元数据，暂不索引。
+- **WorkBuddy** 只存元数据，暂不索引。
 - **归档聊天** 会包含；目前没有归档过滤。
 
 </details>

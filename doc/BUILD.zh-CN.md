@@ -94,7 +94,8 @@ bun run build     # bundle web/app.ts -> web/dist
 ```text
 src/
   adapters/       omp/pi、OpenCode、Cursor、Alma、Cindy、Claude Code、Codex、
-                  Gemini CLI、Qwen Code、Kimi Code、Copilot CLI、Goose 解析器
+                  Gemini CLI、Qwen Code、Goose 解析器，以及 custom.ts（读
+                  sources.json 的声明式数据源）
   brief.ts        日报 standup / archive / 周报 / 月报生成
   cli-search.ts   search 子命令：参数解析、文本/JSON 输出
   config.ts       路径和端口（APP_DIR 遵循 SESSION_RECALL_HOME）

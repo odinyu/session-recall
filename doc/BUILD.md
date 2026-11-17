@@ -104,7 +104,8 @@ No runtime dependencies. `bun:sqlite` provides FTS5 with both tokenizers.
 ```text
 src/
   adapters/       omp/pi, OpenCode, Cursor, Alma, Cindy, Claude Code, Codex,
-                  Gemini CLI, Qwen Code, Kimi Code, Copilot CLI, Goose parsers
+                  Gemini CLI, Qwen Code, Goose parsers, plus custom.ts for
+                  declarative sources.json sources
   brief.ts        daily standup / archive / weekly / monthly report generation
   cli-search.ts   search subcommand: arg parsing, text/JSON output
   config.ts       paths and port (APP_DIR honours SESSION_RECALL_HOME)

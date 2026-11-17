@@ -32,8 +32,6 @@ type AgentId =
   | "codex"
   | "gemini-cli"
   | "qwen-code"
-  | "kimi-code"
-  | "copilot-cli"
   | "goose";
 type Role = "all" | "user" | "assistant";
 type Scope = "qa" | "process";
@@ -186,8 +184,6 @@ const AGENT_LABEL: Record<AgentId, string> = {
   codex: "Codex",
   "gemini-cli": "Gemini CLI",
   "qwen-code": "Qwen Code",
-  "kimi-code": "Kimi Code",
-  "copilot-cli": "Copilot CLI",
   goose: "Goose",
 };
 
@@ -202,8 +198,6 @@ const AGENTS: AgentId[] = [
   "cindy",
   "gemini-cli",
   "qwen-code",
-  "kimi-code",
-  "copilot-cli",
   "goose",
 ];
 /** Filter ids; their labels come from the dictionary at render time. */

@@ -9,9 +9,9 @@ export type AgentId =
   | "codex"
   | "gemini-cli"
   | "qwen-code"
-  | "kimi-code"
-  | "copilot-cli"
-  | "goose";
+  | "goose"
+  /** Any slug a user declared in sources.json. */
+  | (string & {});
 
 /** Every id in the `AgentId` union, for validation and help text. */
 export const AGENT_IDS = [
@@ -25,13 +25,11 @@ export const AGENT_IDS = [
   "codex",
   "gemini-cli",
   "qwen-code",
-  "kimi-code",
-  "copilot-cli",
   "goose",
 ] as const;
 
 /** Human-facing names, shared by the brief, handoff card and MCP tools. */
-export const AGENT_LABELS: Record<AgentId, string> = {
+export const AGENT_LABELS: Record<string, string> = {
   omp: "omp",
   pi: "pi",
   opencode: "OpenCode",
@@ -42,10 +40,13 @@ export const AGENT_LABELS: Record<AgentId, string> = {
   codex: "Codex",
   "gemini-cli": "Gemini CLI",
   "qwen-code": "Qwen Code",
-  "kimi-code": "Kimi Code",
-  "copilot-cli": "Copilot CLI",
   goose: "Goose",
 };
+
+/** Human label for any agent id, falling back to the id itself. */
+export function agentLabel(id: string): string {
+  return AGENT_LABELS[id] ?? id;
+}
 
 export function isAgentId(value: unknown): value is AgentId {
   return typeof value === "string" && (AGENT_IDS as readonly string[]).includes(value);

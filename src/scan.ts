@@ -8,9 +8,8 @@ import { claudeCodeAdapter } from "./adapters/claude-code.ts";
 import { codexAdapter } from "./adapters/codex.ts";
 import { geminiCliAdapter } from "./adapters/gemini-cli.ts";
 import { qwenCodeAdapter } from "./adapters/qwen-code.ts";
-import { kimiCodeAdapter } from "./adapters/kimi-code.ts";
-import { copilotCliAdapter } from "./adapters/copilot-cli.ts";
 import { gooseAdapter } from "./adapters/goose.ts";
+import { customAdapters } from "./adapters/custom.ts";
 import type { Adapter, SessionRef } from "./adapters/types.ts";
 import {
   clearScanError,
@@ -69,9 +68,9 @@ export async function scan(
     codexAdapter(),
     geminiCliAdapter(),
     qwenCodeAdapter(),
-    kimiCodeAdapter(),
-    copilotCliAdapter(),
     gooseAdapter(),
+    // Declarative sources last: they are user config, not built-in coverage.
+    ...customAdapters(),
   ],
   options: ScanOptions = {},
 ): Promise<ScanReport> {

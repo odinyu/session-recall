@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { AGENT_IDS, isAgentId } from "./adapters/types.ts";
+import { customAgentIds } from "./adapters/custom.ts";
 import type { AgentId } from "./adapters/types.ts";
 import { localDateKey } from "./brief.ts";
 import { DB_PATH, HOME } from "./config.ts";
@@ -142,10 +143,10 @@ export function parseSearchArgs(argv: string[]): ParseOutcome {
       if (flag.consumed) index += 1;
       for (const part of flag.value.split(",").map((value) => value.trim())) {
         if (!part) continue;
-        if (!isAgentId(part)) {
+        if (!isAgentId(part) && !customAgentIds().includes(part)) {
           return {
             kind: "error",
-            message: `unknown agent "${part}": choose one of ${AGENT_IDS.join(", ")}`,
+            message: `unknown agent "${part}": choose one of ${AGENT_IDS.concat(customAgentIds()).join(", ")}`,
           };
         }
         if (!seenAgents.has(part)) {

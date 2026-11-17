@@ -7,6 +7,28 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## Unreleased — agent support becomes declarative
+
+- **Two adapters removed: Kimi Code and Copilot CLI.** Both were written against
+  documentation and had never parsed a single real session on any machine here
+  (the other eleven all had live sessions). An unverified parser is not free: it
+  is code that has to keep matching a store nobody is testing. They can come
+  back as a three-line declaration.
+
+- **`sources.json` declares custom agents.** One JSON document in the app data
+  directory describes a store — directory, file format, dot paths for the role,
+  text and timestamp fields — and the next scan indexes it. No rebuild, no code.
+  Malformed declarations fail loudly with a reason, surface in `doctor`, and a
+  file that cannot be parsed yields a failing adapter instead of silence.
+  Covered end to end by `test/custom-source.test.ts` (config → scan → search).
+
+- **`AgentId` accepts declared slugs.** `--agent` validates against the built-in
+  list plus whatever `sources.json` declares, and the UI falls back to the raw id
+  when it has no label for one.
+
+- **Docs and landing page** now say eleven agents and point at
+  `doc/sources.example.json`, which documents every field.
+
 ## 1.9.0 — 2026-11-17
 
 - **`session-recall setup` connects your agents.** It writes the

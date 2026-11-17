@@ -60,8 +60,6 @@ const LAUNCH: Partial<Record<AgentId, string>> = {
   cursor: "cursor",
   "gemini-cli": "gemini",
   "qwen-code": "qwen",
-  "kimi-code": "kimi",
-  "copilot-cli": "copilot",
   goose: "goose",
 };
 
