@@ -137,6 +137,24 @@ bun run sr "$@" --json --limit 5
 
 因为 `search` 只读且离线，交给 agent 是安全的：它从不扫描、不修改索引，也不碰 agent 自己的存储。（下面的 `forget` / `unforget` 是唯一会写入的命令，不要交给你不信任其修改索引的 agent。）
 
+## 接入 agent（setup / doctor）
+
+```bash
+sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$sr" setup --dry-run              # 只打印计划
+"$sr" setup --yes                  # 写入（每个文件旁留备份）
+"$sr" setup --agent cursor         # 只处理一个客户端
+"$sr" setup --remove               # 只摘掉我们这一条
+"$sr" setup --json                 # 机器可读的计划
+"$sr" setup --no-skill            # 只装 MCP
+"$sr" setup --no-mcp              # 只装 skill
+"$sr" doctor                       # 自检整个安装
+"$sr" doctor --no-handshake        # 不启动 MCP server 做握手
+```
+
+退出码：`setup` 写入失败返回 1，参数错误返回 2。`doctor` 只在真的检查失败时返回 1——
+某个客户端没装只是警告，不算失败。
+
 ## 报告
 
 `brief` 生成日报 standup、旧的 archive dump 或周报：

@@ -38,6 +38,44 @@ Agent context 很贵：**MCP 默认紧凑**，深入查看用 `recall_session` �
 - 每个结果都带 `indexAgeMs`（现在 − 上次成功扫描），agent 可以判断是否可能缺少最近几分钟。
 - `recall_scan` 触发显式刷新并返回扫描统计。
 
+## 接入一个客户端
+
+`setup` 把 `session-recall` 条目写进本机每个 agent 的 MCP 配置，`doctor` 检查结果——
+包括真正的 `initialize` + `tools/list` 握手，所以「已配置」意味着服务真的应答了。
+
+```bash
+sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$sr" setup --dry-run   # 只打印计划，不写任何文件
+"$sr" setup             # 确认后写入（每个文件旁留一份备份）
+"$sr" doctor            # 自检；每个非 ok 项都带修复命令
+```
+
+两条通道，因为一条不够：
+
+- **MCP**——把 `session-recall` 条目写进各客户端配置，给 agent 结构化的工具调用。
+- **skill**——把一份 `SKILL.md` 写进本机找到的每个 skill 目录（`~/.agents/skills`、
+  `~/.claude/skills`、`~/.codex/skills`、`~/.cursor/skills`、
+  `~/.config/opencode/skills`）。到哪儿都是同一份字节，不需要按客户端维护 schema，
+  而且能覆盖我们根本写不进 MCP 配置的客户端。`--no-skill` 只装 MCP，`--no-mcp` 只装
+  skill。
+
+托管安装的 skill 旁边会放一个 `.session-recall.json`。没有这个标记的 `SKILL.md` 视为
+用户自己的，绝不覆盖。
+
+它保证的事：
+
+- **只碰配置文件。** agent 的会话记录永远不以写方式打开，只读承诺同样覆盖 setup。
+- **只写已验证的形状。** Cursor、Alma、Claude Code、Gemini CLI、Qwen Code、
+  OpenCode 自动写入。Codex 是 TOML，没有真实文件可确认，所以只给可直接粘贴的片段，
+  不猜。
+- **可回退。** 每次写入前先复制成 `<file>.session-recall.bak-<时间戳>`，再用 rename
+  原子替换。不是合法 JSON 的文件只报告、原样保留。`setup --remove` 只摘掉我们这一条，
+  其他 server 原封不动。
+
+手写也仍然可以：`mcpServers` -> `session-recall` ->
+`{ "command": "<二进制路径>", "args": ["mcp"] }`；OpenCode 多一层，写在
+`mcp.servers` 下，带 `"type": "local"`，`command` 是一个数组。
+
 ## MCP 工具面（刻意很小）
 
 MCP server：`session-recall mcp`，通过 **stdio**，只读，无网络。
@@ -49,6 +87,8 @@ MCP server：`session-recall mcp`，通过 **stdio**，只读，无网络。
 | `recall_facets` | — | 带计数的 agent 和项目 |
 | `recall_handoff` | `sessionId`、可选 `targetAgent` | Markdown 交接卡；带 `targetAgent` 时包含该 agent 的恢复或新会话命令 |
 | `recall_scan` | — | 刷新索引，返回统计 |
+| `recall_saved_searches` | — | 收藏的搜索（名称、查询、筛选条件） |
+| `recall_brief` | `format`（`standup`/`archive`/`week`/`month`）、可选 `date`/`week`/`month` | 已生成报告的 Markdown |
 
 设计规则：默认紧凑、截断回答、总是附带 `deepLink`、包含 `indexAgeMs`、保持总 payload 小。
 

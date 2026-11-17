@@ -179,26 +179,33 @@ handoff card supplies the context.
 </details>
 
 <details>
-<summary><b>MCP server</b> — let an agent search your history</summary>
+<summary><b>Connect your agents</b> — one command, two channels</summary>
 
-The bundle includes a stdio MCP server (newline-delimited JSON-RPC 2.0, no
-network port). Point an MCP client at it:
+The app ships a stdio MCP server and an agent skill. Point both at every agent
+on this machine:
 
-```json
-{
-  "mcpServers": {
-    "session-recall": {
-      "command": "/Applications/Session Recall.app/Contents/MacOS/session-recall",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$sr" setup --dry-run   # show the plan, write nothing
+"$sr" setup             # write the MCP entry and the skill (backups included)
+"$sr" doctor            # verify - including a real MCP initialize + tools/list
 ```
 
-Change the path if the app lives elsewhere. Tools: `recall_search`,
-`recall_session`, `recall_facets`, `recall_handoff`, `recall_scan`. Read tools
-open the index read-only and refresh it in the background when the last scan is
-older than five minutes; every reply reports `refresh` and `indexAgeMs`.
+`setup` writes the MCP entry only for clients whose config shape is verified
+(Cursor, Alma, Claude Code, Gemini CLI, Qwen Code, OpenCode) and prints a
+paste-ready snippet for the rest. The skill is the portable channel: the same
+`SKILL.md` lands in `~/.agents/skills`, `~/.claude/skills`, `~/.codex/skills`,
+`~/.cursor/skills` and `~/.config/opencode/skills`, so agents with shell access
+can use the CLI even when they cannot take an MCP entry.
+
+Neither channel touches your transcripts. Every config file is backed up before
+it is edited, a file that is not valid JSON is reported and left alone, and
+`setup --remove` takes back only what it installed.
+
+Tools: `recall_search`, `recall_session`, `recall_facets`, `recall_handoff`,
+`recall_scan`, `recall_saved_searches`, `recall_brief`. Read tools open the index
+read-only and refresh it in the background when the last scan is older than five
+minutes; every reply reports `refresh` and `indexAgeMs`.
 
 </details>
 

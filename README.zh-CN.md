@@ -157,25 +157,29 @@ rollout 文件末尾的 uuid。跨 agent 交接不能传递 session id——目�
 </details>
 
 <details>
-<summary><b>MCP server</b>——让 agent 来查你的历史</summary>
+<summary><b>接入你的 agent</b>——一条命令，两条通道</summary>
 
-应用包内置 stdio MCP server（换行分隔的 JSON-RPC 2.0，不占网络端口）。把 MCP 客户端
-指向它：
+应用包内置 stdio MCP server 和一份 agent skill。一条命令接上本机所有 agent：
 
-```json
-{
-  "mcpServers": {
-    "session-recall": {
-      "command": "/Applications/Session Recall.app/Contents/MacOS/session-recall",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$sr" setup --dry-run   # 只打印计划，不写任何文件
+"$sr" setup             # 写入 MCP 条目和 skill（自动备份）
+"$sr" doctor            # 自检，含真实的 MCP initialize + tools/list 握手
 ```
 
-应用不在 `/Applications` 时改成实际路径。工具：`recall_search`、`recall_session`、
-`recall_facets`、`recall_handoff`、`recall_scan`。读工具以只读方式打开索引；上次扫描
-超过 5 分钟时在后台刷新，每次回复都带 `refresh` 和 `indexAgeMs`。
+`setup` 只为形状已验证的客户端写 MCP 条目（Cursor、Alma、Claude Code、Gemini CLI、
+Qwen Code、OpenCode），其余的给可直接粘贴的片段。skill 是可移植的那条通道：同一份
+`SKILL.md` 落到 `~/.agents/skills`、`~/.claude/skills`、`~/.codex/skills`、
+`~/.cursor/skills`、`~/.config/opencode/skills`，所以有 shell 权限的 agent 即使接不了
+MCP 条目也能用 CLI。
+
+两条通道都不碰你的会话记录。每个被改的配置文件都先备份；不是合法 JSON 的文件只报告、
+原样保留；`setup --remove` 只收回它自己装的东西。
+
+工具：`recall_search`、`recall_session`、`recall_facets`、`recall_handoff`、
+`recall_scan`、`recall_saved_searches`、`recall_brief`。读工具以只读方式打开索引；
+上次扫描超过 5 分钟时在后台刷新，每次回复都带 `refresh` 和 `indexAgeMs`。
 
 </details>
 

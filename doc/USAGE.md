@@ -155,6 +155,25 @@ it never scans, mutates the index, or touches an agent's own store. (`forget` /
 `unforget`, below, are the only commands that write, so do not hand those to an
 agent you would not trust with the index.)
 
+## Connecting your agents (setup / doctor)
+
+```bash
+sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
+"$sr" setup --dry-run              # plan only
+"$sr" setup --yes                  # write (backup next to each file)
+"$sr" setup --agent cursor         # one client only
+"$sr" setup --remove               # take only our entry back out
+"$sr" setup --json                 # machine-readable plan
+"$sr" setup --no-skill            # MCP entries only
+"$sr" setup --no-mcp              # skill only
+"$sr" doctor                       # self-check the whole install
+"$sr" doctor --no-handshake        # skip spawning the MCP server
+```
+
+Exit codes: `setup` returns 1 when a write failed, 2 on bad arguments.
+`doctor` returns 1 only when a check actually failed - a client that is simply
+not installed is a warning, never a failure.
+
 ## Reports
 
 `brief` writes the daily standup, the legacy archive dump or a weekly rollup:
