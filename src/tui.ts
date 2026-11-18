@@ -13,11 +13,12 @@
 
 import { appendFileSync } from "node:fs";
 import type { AgentId } from "./adapters/types.ts";
+import { agentLabel } from "./adapters/types.ts";
 import { openDb } from "./db.ts";
 import { DB_PATH } from "./config.ts";
 import { refreshInBackground } from "./freshness.ts";
 import { generateHandoff } from "./handoff.ts";
-import { getSessionDetail, searchTurns } from "./search.ts";
+import { facets, getSessionDetail, searchTurns } from "./search.ts";
 import type { SearchSession } from "./search.ts";
 
 export type TuiScope = "qa" | "process";
@@ -27,6 +28,8 @@ export interface TuiState {
   scope: TuiScope;
   /** `null` searches every agent. */
   agent: AgentId | null;
+  /** Every agent id the index knows about, for the ^A cycle. */
+  knownAgents: AgentId[];
   /** Index into {@link TuiState.sessions}. */
   selected: number;
   /** First session row on screen. */
@@ -70,6 +73,7 @@ export type TuiKey =
   | { kind: "clear" }
   | { kind: "rescan" }
   | { kind: "handoff" }
+  | { kind: "agent-cycle" }
   | { kind: "interrupt" };
 
 /**
@@ -80,7 +84,7 @@ export type TuiKey =
 export const TUI_SESSION_LIMIT = 1000;
 
 export const KEYMAP =
-  "type to search · ↑↓ move · ⏎ open · esc back · tab scope · ^Y handoff · ^R rescan · ^C quit";
+  "type to search · ↑↓ move · ⏎ open · esc back · tab scope · ^A agent · ^Y handoff · ^R rescan · ^C quit";
 
 /* ------------------------------------------------------------------ width -- */
 
@@ -329,6 +333,11 @@ export function decodeKeys(input: Uint8Array): { keys: TuiKey[]; rest: Uint8Arra
       i += 1;
       continue;
     }
+    if (byte === 0x01) {
+      keys.push({ kind: "agent-cycle" });
+      i += 1;
+      continue;
+    }
     if (byte === 0x19) {
       keys.push({ kind: "handoff" });
       i += 1;
@@ -356,6 +365,7 @@ export function initialState(width: number, height: number): TuiState {
     query: "",
     scope: "qa",
     agent: null,
+    knownAgents: [],
     selected: 0,
     scroll: 0,
     sessions: [],
@@ -463,6 +473,17 @@ export function reduceKey(
       const scope: TuiScope = state.scope === "qa" ? "process" : "qa";
       return {
         state: { ...state, scope, selected: 0, scroll: 0, status: `scope: ${scope}` },
+        effect: { kind: "search" },
+      };
+    }
+    case "agent-cycle": {
+      // Cycle every agent seen in the current index, ending back at "all".
+      const ids = [...state.knownAgents, null];
+      const at = ids.indexOf(state.agent);
+      const next = ids[(at + 1) % ids.length] ?? null;
+      const label = next ? agentLabel(next) : "all agents";
+      return {
+        state: { ...state, agent: next, selected: 0, scroll: 0, status: `agent: ${label}` },
         effect: { kind: "search" },
       };
     }
@@ -612,7 +633,8 @@ export function buildFrameSegments(state: TuiState): FrameSegment[][] {
   const rows: FrameSegment[][] = [];
 
   const title = ` session-recall `;
-  const meta = `${state.totalSessions} sessions · ${Math.round(state.tookMs)}ms · ${state.modeLabel} · ${state.scope} `;
+  const filter = state.agent ? ` · ${agentLabel(state.agent)}` : "";
+  const meta = `${state.totalSessions} sessions · ${Math.round(state.tookMs)}ms · ${state.modeLabel} · ${state.scope}${filter} `;
   const titleBar = `┌${title}${"─".repeat(Math.max(0, inner - displayWidth(title) - displayWidth(meta)))}${meta}┐`;
   rows.push([{ col: 1, text: padCells(titleBar, width) }]);
 
@@ -703,6 +725,33 @@ export function renderTurns(
   return lines;
 }
 
+/** A tool event as the process pane draws it: one status-marked block. */
+export function renderProcessEvents(
+  events: {
+    turn_idx: number;
+    name: string;
+    status: string;
+    input: string | null;
+    error_text: string | null;
+  }[],
+  cols: number,
+): string[] {
+  const lines: string[] = [];
+  const mark = (status: string) =>
+    status === "error" ? "✗" : status === "ok" ? "✓" : "·";
+  for (const event of events) {
+    lines.push(`${mark(event.status)} ${event.name}  (turn ${(event.turn_idx ?? 0) + 1})`);
+    const body = (event.error_text || event.input || "").trim();
+    if (body) {
+      // One screen of the command/output is usually all the reader wants; the
+      // full text is a keystroke away in the GUI or the CLI.
+      for (const line of wrapCells(body, cols - 4).slice(0, 6)) lines.push(`  ${line}`);
+    }
+    lines.push("");
+  }
+  return lines;
+}
+
 /* -------------------------------------------------------------------- tty -- */
 
 function out(text: string): void {
@@ -780,6 +829,14 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
   };
   let state = initialState(size().width, size().height);
 
+  // The ^A cycle needs the agent list; facets() is one indexed query.
+  try {
+    const f = facets(db);
+    state = { ...state, knownAgents: f.agents.map((a) => a.id) };
+  } catch {
+    // An empty or unborn index still gets a working UI without the filter.
+  }
+
   const search = (current: TuiState): TuiState => {
     const result = searchTurns(db, {
       q: current.query,
@@ -801,10 +858,30 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
   };
 
   const loadDetail = (current: TuiState, id: string): Partial<TuiState> => {
+    const cols = Math.max(10, current.width - listCols(current) - 3);
+    if (current.scope === "process") {
+      // Process scope reads tool events, not turns: that is what the user is
+      // hunting for when they search tool names, commands and error text.
+      // `event_search` is the tool-only projection; the raw `event` table has
+      // neither `status` nor `error_text` — querying it for those columns is a
+      // hard crash, which is exactly what the first version did.
+      const rows = db
+        .query(
+          `SELECT turn_idx, name, status, input, error_text FROM event_search
+           WHERE session_id = ? ORDER BY turn_idx DESC, seq DESC LIMIT 30`,
+        )
+        .all(id) as {
+        turn_idx: number;
+        name: string;
+        status: string;
+        input: string | null;
+        error_text: string | null;
+      }[];
+      return { detailLines: renderProcessEvents(rows, cols) };
+    }
     const detail = getSessionDetail(db, id) as
       | { turns: { idx: number; user_text: string; assistant_text: string }[] }
       | null;
-    const cols = Math.max(10, current.width - listCols(current) - 3);
     // The newest turns are the ones worth reading when picking up old work.
     const recent = detail ? detail.turns.slice(-40) : [];
     return { detailLines: renderTurns(recent, cols) };
@@ -862,6 +939,16 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
     render(state);
   };
 
+  // Peek at what follows a held-back ESC. Terminals split `ESC` and `[B` across
+  // two reads more often than any fixed timer can guess; a bounded second read
+  // settles it. Returns null when nothing arrives in time.
+  const peekAfterEscape = async (): Promise<Uint8Array | null> => {
+    const timer = new Promise<null>((resolve) => setTimeout(() => resolve(null), 40));
+    const next = reader.read().then((r) => (r.done ? null : r.value ?? null));
+    const value = await Promise.race([next, timer]);
+    return value as Uint8Array | null;
+  };
+
   try {
     process.stdin.setRawMode?.(true);
     while (!state.quit) {
@@ -871,7 +958,7 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
       const merged = new Uint8Array(pending.length + value.length);
       merged.set(pending);
       merged.set(value, pending.length);
-      const { keys, rest } = decodeKeys(merged);
+      let { keys, rest } = decodeKeys(merged);
       trace(`chunk=[${Array.from(merged).join(",")}] keys=${keys.map((k) => k.kind).join("|")} rest=${rest.length}`);
       pending = rest;
       if (escTimer) {
@@ -879,7 +966,26 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
         escTimer = null;
       }
       if (pending.length === 1 && pending[0] === 0x1b) {
-        escTimer = setTimeout(flushLoneEscape, 35);
+        // A bare ESC so far. Either the rest of a sequence is coming in the
+        // next read, or this is the Escape key. Peek briefly instead of
+        // trusting a timer, then fall back to the timer.
+        const follow = await peekAfterEscape();
+        if (follow) {
+          const retry = new Uint8Array(pending.length + follow.length);
+          retry.set(pending);
+          retry.set(follow, pending.length);
+          const decoded = decodeKeys(retry);
+          trace(`peek=[${Array.from(follow).join(",")}] -> ${decoded.keys.map((k) => k.kind).join("|")}`);
+          keys = decoded.keys;
+          pending = decoded.rest;
+          if (pending.length === 1 && pending[0] === 0x1b) {
+            escTimer = setTimeout(flushLoneEscape, 35);
+          }
+        } else {
+          trace("peek timeout -> escape");
+          pending = new Uint8Array();
+          keys = [{ kind: "escape" }];
+        }
       }
       for (const key of keys) {
         const { state: next, effect } = reduceKey(state, key);

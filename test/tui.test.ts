@@ -10,6 +10,7 @@ import {
   listCols,
   padCells,
   reduceKey,
+  renderProcessEvents,
   renderTurns,
   sessionRow,
   truncateCells,
@@ -270,6 +271,48 @@ test("the list scrolls past the first screenful of sessions", () => {
   // The window followed the cursor instead of pinning at the bottom.
   expect(state.scroll).toBe(state.selected - rows + 1);
   expect(state.scroll).toBeGreaterThan(0);
+});
+
+test("^A cycles agents and lands back on all", () => {
+  let state: TuiState = { ...stateWith([]), knownAgents: ["omp", "alma", "cindy"] as never[] };
+  const seen: string[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    const { state: next, effect } = reduceKey(state, { kind: "agent-cycle" });
+    state = next;
+    seen.push(state.agent ?? "all");
+    expect(effect).toEqual({ kind: "search" });
+    expect(state.selected).toBe(0);
+  }
+  // omp → alma → cindy → all → omp …
+  expect(seen).toEqual(["omp", "alma", "cindy", "all", "omp"]);
+});
+
+test("the header shows the active agent filter", () => {
+  const state = { ...stateWith([]), agent: "cindy" as never };
+  // agentLabel renders the display name, capitalized.
+  expect(buildFrame(state)[0]).toContain("Cindy");
+});
+
+test("process events render with a status mark and capped output", () => {
+  const lines = renderProcessEvents(
+    [
+      { turn_idx: 3, name: "bash", status: "ok", input: "ls -la /long/path", error_text: null },
+      {
+        turn_idx: 4,
+        name: "edit",
+        status: "error",
+        input: null,
+        error_text: "file not found: ".padEnd(400, "x"),
+      },
+    ],
+    30,
+  );
+  expect(lines[0]).toContain("✓ bash");
+  expect(lines[0]).toContain("turn 4");
+  expect(lines.some((line) => line.startsWith("✗ edit"))).toBe(true);
+  // The 400-char error is capped, not dumped.
+  expect(lines.filter((line) => line.startsWith("  ")).length).toBeLessThanOrEqual(7);
+  for (const line of lines) expect(displayWidth(line)).toBeLessThanOrEqual(30);
 });
 
 test("a session row fits the list column", () => {
