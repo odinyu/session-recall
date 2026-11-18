@@ -20,40 +20,43 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: darwin-arm64
-            bun: bun-darwin-arm64
-          - target: darwin-x64
-            bun: bun-darwin-x64
-          - target: linux-arm64
-            bun: bun-linux-arm64
-          - target: linux-x64
-            bun: bun-linux-x64
+          # Darwin targets are built ON macOS. Cross-compiling them from Linux
+          # embeds a different (85 MB, vs 61 MB) Bun runtime — same source, 39 MB
+          # download instead of 27 MB. One macOS runner covers both slices;
+          # cross-compiling darwin-x64 from an arm64 Mac gives the right size.
+          - os: macos-14
+            targets: darwin-arm64 darwin-x64
+          - os: ubuntu-latest
+            targets: linux-arm64 linux-x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Build ${{ matrix.target }}
+      - name: Build ${{ matrix.targets }}
+        shell: bash
         run: |
-          mkdir -p dist/pkg
-          bun build src/cli.ts --compile --target=${{ matrix.bun }} --outfile dist/pkg/session-recall
-          # The formula runs `bin.install "session-recall"`, so the archive must
-          # hold the binary at its top level under that exact name.
-          # Plain `tar -czf` defaults to gzip -6 and turns the 60 MB binary into
-          # a 39 MB download; -9 gets it to 27 MB, matching the app zip.
-          tar -I 'gzip -9' -cf "dist/session-recall_${{ matrix.target }}.tar.gz" -C dist/pkg session-recall
-          ls -lh "dist/session-recall_${{ matrix.target }}.tar.gz"
+          mkdir -p dist
+          for target in ${{ matrix.targets }}; do
+            rm -rf dist/pkg && mkdir -p dist/pkg
+            bun build src/cli.ts --compile --target=bun-$target --outfile dist/pkg/session-recall
+            # The formula runs `bin.install "session-recall"`, so the archive
+            # must hold the binary at its top level under that exact name.
+            # Plain `tar -czf` defaults to gzip -6 (39 MB); -9 matches the zip.
+            tar -I 'gzip -9' -cf "dist/session-recall_${target}.tar.gz" -C dist/pkg session-recall
+            ls -lh "dist/session-recall_${target}.tar.gz"
+          done
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cli-${{ matrix.target }}
-          path: dist/session-recall_${{ matrix.target }}.tar.gz
+          name: cli-${{ matrix.os }}
+          path: dist/session-recall_*.tar.gz
           if-no-files-found: error
 
   publish:
