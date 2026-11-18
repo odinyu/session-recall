@@ -1,0 +1,84 @@
+# The terminal build: one self-contained binary per platform, attached to the
+# same GitHub release the app is published to. This is what the Homebrew formula
+# downloads — `releases/latest/download/<stable name>` means the formula never
+# needs a version bump, and a formula download is not quarantined, so the CLI and
+# the TUI need neither notarization nor an xattr incantation.
+name: cli
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to attach the CLI binaries to (e.g. v1.9.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            bun: bun-darwin-arm64
+          - target: darwin-x64
+            bun: bun-darwin-x64
+          - target: linux-arm64
+            bun: bun-linux-arm64
+          - target: linux-x64
+            bun: bun-linux-x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build ${{ matrix.target }}
+        run: |
+          mkdir -p dist/pkg
+          bun build src/cli.ts --compile --target=${{ matrix.bun }} --outfile dist/pkg/session-recall
+          # The formula runs `bin.install "session-recall"`, so the archive must
+          # hold the binary at its top level under that exact name.
+          tar -czf "dist/session-recall_${{ matrix.target }}.tar.gz" -C dist/pkg session-recall
+          ls -lh "dist/session-recall_${{ matrix.target }}.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: dist/session-recall_${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: cli-*
+          merge-multiple: true
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          echo "tag: $TAG"
+          # The macOS app job creates the release; this one only attaches to it.
+          # 80 × 15s covers a slow macOS runner queue.
+          for i in $(seq 1 80); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "release $TAG is up (attempt $i)"
+              break
+            fi
+            echo "waiting for release $TAG (attempt $i)"
+            sleep 15
+          done
+          gh release upload "$TAG" dist/*.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
+          gh release view "$TAG" --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY"
