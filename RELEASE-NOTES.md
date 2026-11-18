@@ -17,6 +17,12 @@ Rules for an entry:
 The developer-facing record — every functional change, fix and refactor — lives
 in `CHANGELOG.md` and is never shown to users.
 
+## 1.9.1 — 2026-11-18
+
+内置 agent 精简为 8 个真正在用的，其他 agent 现在两行 JSON 就能自己加；Homebrew 安装说明补上了必须清除 quarantine 的那一行，Cindy 的会话库也不会再挑到残包。
+
+The built-in agent list is trimmed to the eight that actually have data here, and any other agent can now be added with two lines of JSON. The Homebrew instructions include the quarantine step that is genuinely required, and Cindy's session store is picked reliably.
+
 ## 1.9.0 — 2026-11-17
 
 现在一条命令就能把你本机的 agent 接上：`setup` 写入 MCP 配置和 skill，`doctor` 逐项自检并真的和 MCP 服务握手。也支持 `brew install --cask odinyu/tap/session-recall`，命令行工具会进 PATH。

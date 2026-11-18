@@ -7,7 +7,7 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
-## Unreleased — agent support becomes declarative
+## 1.9.1 — 2026-11-18
 
 - **Five adapters removed: Kimi Code, Copilot CLI, Gemini CLI, Qwen Code and
   Goose.** All five were written against documentation and had never parsed a
@@ -39,6 +39,14 @@ release workflow builds the macOS app from the tag.
   downloads, and a quarantined ad-hoc-signed build cannot run its CLI — the
   command hangs rather than failing. The cask now carries a caveat with the one
   `xattr` line, and the README no longer claims Homebrew skips that step.
+
+- **Cindy's store is chosen by content, not just by mtime.** The profile
+  directory holds 4 KB stubs and migration artefacts next to the live database,
+  so newest-file-wins could pick one that opens but fails on the first statement
+  — surfacing as `cindy: unable to open database file`. Candidates are now
+  checked for the SQLite header first, falling back to mtime order when none
+  match, and the `busy_timeout` pragma moved inside the open's try block so a
+  bad store degrades to "no sessions" instead of escaping as a scan error.
 
 ## 1.9.0 — 2026-11-17
 
