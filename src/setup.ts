@@ -443,6 +443,11 @@ export const SKILL_TARGETS: SkillTarget[] = [
     installed: (home) => existsSync(join(home, ".agents", "skills")),
   },
   {
+    id: "alma", label: "Alma",
+    dir: (home) => join(home, ".config", "alma", "skills", "session-recall"),
+    installed: (home) => existsSync(join(home, ".config", "alma", "skills")),
+  },
+  {
     id: "claude-code", label: "Claude Code",
     dir: (home) => join(home, ".claude", "skills", "session-recall"),
     installed: (home) => existsSync(join(home, ".claude", "skills")),
@@ -471,8 +476,8 @@ export function skillContent(command: McpCommand | null): string {
     "name: session-recall",
     "description: Search this machine's past coding-agent sessions (omp, OpenCode,",
     "  Cursor, Claude Code, Codex, Alma, Cindy, Pi, plus any source declared in",
-    "  sources.json) when earlier decisions, failed",
-    "  error messages could matter. Use before re-solving a problem, when resuming",
+    "  sources.json) when earlier decisions, failed attempts, commands or error",
+    "  messages could matter. Use before re-solving a problem, when resuming",
     "  earlier work, when the user asks how something was fixed before, or when you",
     "  need a path, command or class name that was probably explored already.",
     "---",

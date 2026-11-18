@@ -236,6 +236,20 @@ test("installs the skill into every agent skill folder that exists", () => {
   expect(readFileSync(join(dir, "SKILL.md"), "utf8")).toContain("/bin/echo");
 });
 
+test("covers Alma's own skill folder, not just the other agents'", () => {
+  const home = freshHome();
+  mkdirSync(join(home, ".config", "alma", "skills"), { recursive: true });
+  const plans = planSkills(options(home));
+  const alma = plans.find((plan) => plan.id === "skill:alma");
+  expect(alma?.action).toBe("add");
+
+  applySkills(plans, options(home));
+  const dir = join(home, ".config", "alma", "skills", "session-recall");
+  expect(existsSync(join(dir, "SKILL.md"))).toBe(true);
+  // Alma reads the frontmatter name to register the skill.
+  expect(readFileSync(join(dir, "SKILL.md"), "utf8")).toContain("name: session-recall");
+});
+
 test("a second skill install is a no-op", () => {
   const home = freshHome();
   mkdirSync(join(home, ".claude", "skills"), { recursive: true });
