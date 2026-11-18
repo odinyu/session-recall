@@ -7,14 +7,58 @@
 
 **You already solved this last month. Find it again in one keystroke.**
 
-A local, read-only index over every coding-agent session on this Mac. One
-search box for the question, the answer, the agent, the project and the date —
-across 8 agents, with no account and no network call. Press `⌥⌘R` from any app.
+A local, read-only search over every coding-agent session on this Mac — in the
+terminal, where you already are. Type half a question, a file name, or the error
+string you half-remember, and jump back to the session where it happened.
+Across 8 agents, no account, no network call.
 
 <img src="docs/tui-demo.gif" alt="The terminal UI: search as you type, sessions on the left, turns on the right" width="980">
 
 > *"How did we fix the websocket reconnect?"* → the session where you did, with
 > the answer and the dead end you tried first.
+
+## Install
+
+```bash
+brew tap odinyu/tap
+brew trust odinyu/tap          # one-time: Homebrew 7 asks before loading a tap
+brew install session-recall
+session-recall scan            # build the index from what's already on disk
+session-recall tui             # the terminal UI
+```
+
+One self-contained binary (~22 MB): the **terminal UI**, the CLI and the **MCP
+server**. A formula download is not quarantined, so there is no notarization and
+no `xattr` step. Linux builds ship on the same release page; the index lands in
+`~/Library/Application Support/session-recall/` and refreshes on its own.
+
+Prefer a window? The macOS app is a separate cask (ad-hoc signed, so it needs a
+one-time quarantine clear):
+
+```bash
+brew install --cask session-recall-app
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+```
+
+## The terminal UI
+
+Everything is one keystroke away, and nothing hides behind a menu:
+
+- **Type to search.** Results update on every keystroke — a query across 588
+  sessions takes a few milliseconds.
+- **`↑↓`** moves through sessions; the right pane shows the turns, newest last.
+- **`Tab`** switches scope: *qa* searches questions and answers, *process*
+  searches tool commands, inputs and error text — where a debugging session
+  actually lives.
+- **`^A`** cycles the agent filter (omp, Claude Code, Cursor, …) and shows it in
+  the header.
+- **`^Y`** copies a **handoff card** for the selected session: project, resume
+  command, last prompts, last answer, files touched, tool errors — paste it into
+  a new agent and keep working.
+- **`^R`** rescans in the background; **`^C`** quits.
+
+Chinese works like you'd type it: 数据库打不开 is searched as 数据库 AND 打不开,
+not as one literal string. Half a phrase is usually enough.
 
 ## Why not just grep the session files?
 
@@ -39,50 +83,19 @@ takes you to the question that provoked it — and the answer that resolved it.
 - **Your agents can use it too.** A stdio MCP server and a portable skill;
   `setup` wires both into the agents installed here.
 
-## Download
+## The macOS app
+
+The GUI is the same index with a window: quick search from any app on `⌥⌘R`,
+session pages with deep links, reports in a sidebar, and **Copy handoff** on
+every session. Install it from the cask above or grab a zip:
 
 | Mac | Download |
 | --- | --- |
 | Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip) — 29.9 MB |
 
-Or install with Homebrew. The terminal build — CLI, terminal UI and the MCP server
-in one binary — is a **formula**, so nothing is quarantined and there is nothing to
-clear:
-
-```bash
-brew tap odinyu/tap
-brew trust odinyu/tap          # one-time: Homebrew 7 asks before loading a tap
-brew install session-recall
-session-recall scan            # build the index
-session-recall tui             # or: session-recall setup, to wire up your agents
-```
-
-The macOS app is a **cask**, and Homebrew quarantines cask downloads. The app opens
-anyway, but anything run out of the bundle hangs rather than failing, so clear the
-flag once:
-
-```bash
-brew install --cask session-recall-app
-xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
-```
-
-Otherwise unzip, drag **Session Recall** into `/Applications`, and clear the quarantine
-flag once (the build is ad-hoc signed, not notarized):
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
-open -a "Session Recall"
-```
-
-You can also right-click the app and choose **Open**. Requires macOS 11 or
-later. Session Recall carries its own runtime — nothing else to install, no
-account to create. Updates live under **File → Check for Updates…**.
-
-On first launch it scans the agent stores on this Mac, builds
-`~/Library/Application Support/session-recall/index.db`, and refreshes every 90
-seconds. There is no setup: projects, agents and dates come from what is already
-on disk.
+On first launch it builds the same index the TUI reads — whichever you install
+first, the other sees it immediately.
 
 ## Adding your own agent
 
@@ -166,8 +179,7 @@ Monthly reports and period comparisons come from the command-line tool bundled
 inside the app:
 
 ```bash
-SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$SR" brief --month 2026-11
+session-recall brief --month 2026-11
 ```
 
 Reports are written under `~/Library/Application Support/session-recall/brief/`
@@ -263,10 +275,9 @@ The app ships a stdio MCP server and an agent skill. Point both at every agent
 on this machine:
 
 ```bash
-sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$sr" setup --dry-run   # show the plan, write nothing
-"$sr" setup             # write the MCP entry and the skill (backups included)
-"$sr" doctor            # verify - including a real MCP initialize + tools/list
+session-recall setup --dry-run   # show the plan, write nothing
+session-recall setup             # write the MCP entry and the skill (backups included)
+session-recall doctor            # verify - including a real MCP initialize + tools/list
 ```
 
 `setup` writes the MCP entry only for clients whose config shape is verified
@@ -311,9 +322,8 @@ minutes; every reply reports `refresh` and `indexAgeMs`.
 Drop a session without touching its transcript:
 
 ```bash
-SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$SR" forget omp:2026-11-10T01-13-16-427Z_01a1c304    # rows + FTS
-"$SR" unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
+session-recall forget omp:2026-11-10T01-13-16-427Z_01a1c304    # rows + FTS
+session-recall unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
 ```
 
 The same action is **Forget this session** on the session page, with Undo in the

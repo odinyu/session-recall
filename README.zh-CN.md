@@ -7,14 +7,51 @@
 
 **上个月你已经解决过这个问题。现在一键找回来。**
 
-一个面向本机 coding agent 会话的本地只读索引。一个搜索框，找回当时的提问、回答、
-agent、项目和日期 —— 覆盖 8 个 agent，不需要账号，不联网。任意 App 里按 `⌥⌘R`
-唤出。
+一个面向本机 coding agent 会话的本地只读搜索 —— 就在终端里，你本来工作的地方。
+打半句问题、一个文件名、或者记不清的报错串，跳回它发生的那次会话。覆盖 8 个
+agent，不需要账号，不联网。
 
 <img src="docs/tui-demo.gif" alt="终端界面：边打字边搜，左侧会话，右侧对话" width="980">
 
 > *「那个 websocket 重连当时怎么修的？」* → 直接跳回你修它的那次会话，连先走过的
 > 死路一起看。
+
+## 安装
+
+```bash
+brew tap odinyu/tap
+brew trust odinyu/tap          # 一次性：Homebrew 7 加载第三方 tap 前需要信任
+brew install session-recall
+session-recall scan            # 从磁盘上已有的东西建索引
+session-recall tui             # 终端界面
+```
+
+一个自包含二进制（约 22 MB）：**终端界面**、CLI 和 **MCP server**。formula 下载不打
+quarantine，无需公证、没有 xattr 那一步。Linux 包在同一个 release 页；索引建在
+`~/Library/Application Support/session-recall/`，自己会刷新。
+
+想要窗口？macOS app 是单独的 cask（ad-hoc 签名，要清一次 quarantine）：
+
+```bash
+brew install --cask session-recall-app
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+```
+
+## 终端界面
+
+每个动作一个按键，没有藏在菜单里的功能：
+
+- **打字即搜。** 每敲一个键都出结果 —— 588 个会话的全量查询只要几毫秒。
+- **`↑↓`** 在会话间移动，右侧显示轮次，最新的在下面。
+- **`Tab`** 切范围：*qa* 搜提问和回答，*process* 搜工具命令、输入和报错 —— 调试
+  会话真正的样子在这里。
+- **`^A`** 循环 agent 过滤（omp、Claude Code、Cursor…），标题栏显示当前过滤。
+- **`^Y`** 复制选中会话的**交接卡**：项目、resume 命令、最后的提问、最后的回答、
+  动过的文件、工具报错 —— 粘给一个新 agent 就能接着干。
+- **`^R`** 后台重扫；**`^C`** 退出。
+
+中文按你脑子里的切法搜：数据库打不开 是 数据库 AND 打不开，不是一整串字面量。
+半句话通常就够。
 
 ## 为什么不直接 grep 会话文件？
 
@@ -34,46 +71,17 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 - **不只是搜索，还有报告。** 日报、周报、月报，以及把上下文带进新会话的交接卡。
 - **你的 agent 也能用。** 内置 stdio MCP server 和可移植 skill，`setup` 一条命令都接上。
 
-## 下载
+## macOS app
+
+GUI 是同一个索引加了窗口：任意 App 里 `⌥⌘R` 快速搜索、带深链的会话页、侧栏报告、
+每个会话页上的「复制交接」。用上面的 cask 装，或者直接下 zip：
 
 | Mac | 下载 |
 | --- | --- |
 | Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——29.9 MB |
 
-或者交给 Homebrew。**终端版**（CLI + 终端界面 + MCP server，一个二进制）是 **formula**，
-下载不打 quarantine，没有任何要手动清的东西：
-
-```bash
-brew tap odinyu/tap
-brew trust odinyu/tap          # 一次性：Homebrew 7 加载第三方 tap 前需要信任
-brew install session-recall
-session-recall scan            # 建索引
-session-recall tui             # 或者 session-recall setup 把 agent 接上
-```
-
-**macOS app** 是 cask，而 Homebrew 会给 cask 下载打 quarantine。app 照样能打开，但包里的
-任何命令会**卡住**而不是报错，所以清一次标记：
-
-```bash
-brew install --cask session-recall-app
-xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
-```
-
-也可以解压后把 **Session Recall** 拖进 `/Applications`，首次启动前清除一次 quarantine
-标记（构建是 ad-hoc 签名、未公证）：
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
-open -a "Session Recall"
-```
-
-也可以右键应用选「打开」。需要 macOS 11 或更高版本。Session Recall 自带运行环境，
-不需要额外安装任何东西，也不需要账号。更新在菜单 **文件 → 检查更新…**。
-
-首次启动会扫描本机的 agent 存储，建立
-`~/Library/Application Support/session-recall/index.db`，之后每 90 秒刷新。没有任何
-配置步骤：侧栏里的项目、agent 和日期都来自磁盘上已有的内容。
+首次启动建的是同一个索引 —— 先装哪个都一样，另一个立刻就能看到。
 
 ## 自己加一个 agent
 
@@ -144,8 +152,7 @@ agent 或草稿区：项目、agent、时间范围、恢复命令（或 Alma 深
 月报与周期对比使用应用包里的命令行工具：
 
 ```bash
-SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$SR" brief --month 2026-11
+session-recall brief --month 2026-11
 ```
 
 报告写在 `~/Library/Application Support/session-recall/brief/`（`daily/`、
@@ -231,8 +238,7 @@ rollout 文件末尾的 uuid。跨 agent 交接不能传递 session id——目�
 应用包内置 stdio MCP server 和一份 agent skill。一条命令接上本机所有 agent：
 
 ```bash
-sr="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$sr" setup --dry-run   # 只打印计划，不写任何文件
+session-recall setup --dry-run   # 只打印计划，不写任何文件
 "$sr" setup             # 写入 MCP 条目和 skill（自动备份）
 "$sr" doctor            # 自检，含真实的 MCP initialize + tools/list 握手
 ```
@@ -271,9 +277,8 @@ MCP 条目也能用 CLI。
 不想再被搜索的会话可以在不碰原始 transcript 的情况下移出索引：
 
 ```bash
-SR="/Applications/Session Recall.app/Contents/MacOS/session-recall"
-"$SR" forget omp:2026-11-10T01-13-16-427Z_01a1c304    # rows + FTS
-"$SR" unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
+session-recall forget omp:2026-11-10T01-13-16-427Z_01a1c304    # rows + FTS
+session-recall unforget omp:2026-11-10T01-13-16-427Z_01a1c304  # undo
 ```
 
 同一操作也是会话页上的「忘记此会话」，状态行提供「撤销」。
