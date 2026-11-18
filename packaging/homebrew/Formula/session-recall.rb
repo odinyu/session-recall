@@ -15,6 +15,7 @@ class SessionRecall < Formula
   desc "Local, read-only full-text recall across coding-agent sessions"
   homepage "https://github.com/odinyu/session-recall"
   version :latest
+  sha256 :no_check
   license "MIT"
 
   # The asset names are stable across releases (`releases/latest/download/…`),
@@ -37,8 +38,6 @@ class SessionRecall < Formula
     end
   end
 
-  sha256 :no_check
-
   def install
     bin.install "session-recall"
   end
@@ -58,8 +57,8 @@ class SessionRecall < Formula
   end
 
   test do
-    # No index exists yet in the test sandbox, so this only checks the binary
-    # runs and reports its own usage rather than a library error.
-    assert_match "usage", shell_output("#{bin}/session-recall 2>&1", 1)
+    # `--help` prints the command list and exits 1. Do NOT invoke the bare
+    # binary here: with no subcommand it starts `serve` and blocks until killed.
+    assert_match "usage", shell_output("#{bin}/session-recall --help 2>&1", 1)
   end
 end

@@ -45,7 +45,9 @@ jobs:
           bun build src/cli.ts --compile --target=${{ matrix.bun }} --outfile dist/pkg/session-recall
           # The formula runs `bin.install "session-recall"`, so the archive must
           # hold the binary at its top level under that exact name.
-          tar -czf "dist/session-recall_${{ matrix.target }}.tar.gz" -C dist/pkg session-recall
+          # Plain `tar -czf` defaults to gzip -6 and turns the 60 MB binary into
+          # a 39 MB download; -9 gets it to 27 MB, matching the app zip.
+          tar -I 'gzip -9' -cf "dist/session-recall_${{ matrix.target }}.tar.gz" -C dist/pkg session-recall
           ls -lh "dist/session-recall_${{ matrix.target }}.tar.gz"
 
       - uses: actions/upload-artifact@v4

@@ -1,6 +1,8 @@
-# Homebrew cask for Session Recall.
+# The macOS app, as a cask. The command line lives in the formula next door
+# (Formula/session-recall.rb) — one token each, so the two never fight over
+# /opt/homebrew/bin/session-recall.
 #
-# Lives in the tap at github.com/odinyu/homebrew-tap (Casks/session-recall.rb);
+# Lives in the tap at github.com/odinyu/homebrew-tap (Casks/session-recall-app.rb);
 # this copy is the source of truth and is kept under version control with the
 # app. After editing it here, copy it into the tap repo and push.
 #
@@ -12,7 +14,7 @@
 # version :latest + sha256 :no_check is deliberate. The release workflow
 # publishes both zips under stable, version-less names, so this cask keeps
 # working across releases and never needs a bump commit.
-cask "session-recall" do
+cask "session-recall-app" do
   version :latest
   sha256 :no_check
 
@@ -30,10 +32,6 @@ cask "session-recall" do
   depends_on :macos
 
   app "Session Recall.app"
-  # The bundle ships the CLI next to the shell binary. Linking it puts
-  # `session-recall` on PATH, which is what makes `session-recall setup` and
-  # `session-recall doctor` usable without typing a bundle path.
-  binary "#{appdir}/Session Recall.app/Contents/MacOS/session-recall"
 
   zap trash: [
     "~/Library/Application Support/session-recall",
@@ -43,14 +41,15 @@ cask "session-recall" do
 
   caveats <<~EOS
     This build is ad-hoc signed, so macOS quarantines it. The app opens anyway,
-    but the `session-recall` command will hang instead of failing until the
+    but anything run out of the bundle will hang rather than fail until the
     attribute is cleared once:
 
       xattr -dr com.apple.quarantine "#{appdir}/Session Recall.app"
 
-    Then finish the setup:
+    For the command line and the terminal UI, install the formula instead — it
+    is not quarantined and needs no such step:
 
-      session-recall setup
-      session-recall doctor
+      brew install odinyu/tap/session-recall
+      session-recall tui
   EOS
 end
