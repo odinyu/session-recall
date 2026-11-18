@@ -11,6 +11,8 @@ A local, read-only index over every coding-agent session on this Mac. One
 search box for the question, the answer, the agent, the project and the date —
 across 8 agents, with no account and no network call. Press `⌥⌘R` from any app.
 
+<img src="docs/tui-demo.gif" alt="The terminal UI: search as you type, sessions on the left, turns on the right" width="980">
+
 > *"How did we fix the websocket reconnect?"* → the session where you did, with
 > the answer and the dead end you tried first.
 
