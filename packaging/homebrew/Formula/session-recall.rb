@@ -14,28 +14,28 @@
 class SessionRecall < Formula
   desc "Local, read-only full-text recall across coding-agent sessions"
   homepage "https://github.com/odinyu/session-recall"
-  version "1.9.2"
+  version "1.9.3"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/odinyu/session-recall/releases/download/v1.9.2/session-recall_darwin-arm64.tar.gz"
-      sha256 "359b8ff321a59e8a8a47caa06f6289cd41bfd374281e22f225da624890f2708e"
+      url "https://github.com/odinyu/session-recall/releases/download/v1.9.3/session-recall_darwin-arm64.tar.gz"
+      sha256 "4abfebbd13b9c9d5802d50ca2ff38fcec17d11b7350dc2f78cbce6a83bb270ba"
     end
     on_intel do
-      url "https://github.com/odinyu/session-recall/releases/download/v1.9.2/session-recall_darwin-x64.tar.gz"
-      sha256 "5277aa9e21c9bb63e062778e67916b8f672446529d98867fe0054dac2b2d93d1"
+      url "https://github.com/odinyu/session-recall/releases/download/v1.9.3/session-recall_darwin-x64.tar.gz"
+      sha256 "bd333366b5fd24175005b256cee8e2d9c1a3c91420770006d3846fb8d50f6a4d"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/odinyu/session-recall/releases/download/v1.9.2/session-recall_linux-arm64.tar.gz"
-      sha256 "a6d66aa1a157b7781f3617bcb26c9eb4469e4166108820ec44c19c454e4c9c1f"
+      url "https://github.com/odinyu/session-recall/releases/download/v1.9.3/session-recall_linux-arm64.tar.gz"
+      sha256 "92db350ec60bb4642ecefd5ea7098cb7e1111683c4f09e85028d0965e7b2ea4a"
     end
     on_intel do
-      url "https://github.com/odinyu/session-recall/releases/download/v1.9.2/session-recall_linux-x64.tar.gz"
-      sha256 "452bf8e768925a271368614ee807a3f9a236556d69cd0a4fde3a5023b627a8e2"
+      url "https://github.com/odinyu/session-recall/releases/download/v1.9.3/session-recall_linux-x64.tar.gz"
+      sha256 "ea137f6f605ca35ae29d20651113e868fb23cf236d8ab9c2c95cd282dfb32d72"
     end
   end
 
