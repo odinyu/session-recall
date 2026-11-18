@@ -21,6 +21,7 @@ import type { ScanReport } from "./scan.ts";
 import { acquireScanLock, scanLockPath } from "./scan-lock.ts";
 import { serve } from "./server.ts";
 import { runSetupCli } from "./setup.ts";
+import { runTui } from "./tui.ts";
 
 
 export type BriefCli =
@@ -209,6 +210,8 @@ if (command === "scan") {
   }
 } else if (command === "serve") {
   serve();
+} else if (command === "tui") {
+  process.exitCode = await runTui();
 } else if (command === "search") {
   process.exitCode = runSearchCli(process.argv.slice(3));
 } else if (command === "saved") {
@@ -268,7 +271,7 @@ if (command === "scan") {
   }
 } else {
   console.error(
-    "usage: bun run src/cli.ts [scan|serve|brief|search|saved|mcp|setup|doctor|forget <agent>:<id>|unforget <agent>:<id>]",
+    "usage: bun run src/cli.ts [scan|serve|tui|brief|search|saved|mcp|setup|doctor|forget <agent>:<id>|unforget <agent>:<id>]",
   );
   process.exit(1);
 }
