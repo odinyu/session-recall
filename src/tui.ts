@@ -72,12 +72,23 @@ export type TuiKey =
   | { kind: "handoff" }
   | { kind: "interrupt" };
 
+/**
+ * How many sessions a search may return. The list scrolls past the screen, so
+ * this is a "you will never hit it" ceiling rather than a page size — 1000 sits
+ * under the server's own 5000 cap and covers this Mac's ~600 sessions whole.
+ */
+export const TUI_SESSION_LIMIT = 1000;
+
 export const KEYMAP =
   "type to search · ↑↓ move · ⏎ open · esc back · tab scope · ^Y handoff · ^R rescan · ^C quit";
 
 /* ------------------------------------------------------------------ width -- */
 
-/** East Asian wide/fullwidth ranges, as terminal cells. */
+/**
+ * Code points that occupy two terminal cells: CJK, Hangul, fullwidth forms and
+ * the emoji planes. `🛡` (U+1F6E1) matters here — it lives past the old
+ * 1F300–1F64F range, so an emoji title used to shift every border on the row.
+ */
 function isWide(cp: number): boolean {
   return (
     (cp >= 0x1100 && cp <= 0x115f) ||
@@ -87,33 +98,85 @@ function isWide(cp: number): boolean {
     (cp >= 0xfe30 && cp <= 0xfe6f) ||
     (cp >= 0xff00 && cp <= 0xff60) ||
     (cp >= 0xffe0 && cp <= 0xffe6) ||
-    (cp >= 0x1f300 && cp <= 0x1f64f) ||
-    (cp >= 0x1f900 && cp <= 0x1f9ff) ||
+    (cp >= 0x2600 && cp <= 0x26ff) || // misc symbols, emoji presentation
+    (cp >= 0x1f000 && cp <= 0x1faff) || // mahjong/cards/emoji pictographs
     (cp >= 0x20000 && cp <= 0x3fffd)
   );
 }
 
-/** Terminal cells a string occupies. Tabs count as one, newlines are ignored. */
-export function displayWidth(text: string): number {
-  let cells = 0;
-  for (const ch of text) {
-    if (ch === "\n" || ch === "\r") continue;
-    cells += isWide(ch.codePointAt(0) ?? 0) ? 2 : 1;
-  }
-  return cells;
+/**
+ * Code points that add no cell of their own: variation selectors (U+FE0F is what
+ * turns `🛡` into `🛡️`), the zero-width joiner, skin-tone modifiers and the
+ * combining marks that ride along with a base character.
+ */
+function isZeroWidth(cp: number): boolean {
+  return (
+    (cp >= 0x0300 && cp <= 0x036f) ||
+    (cp >= 0x0483 && cp <= 0x0489) ||
+    (cp >= 0x200b && cp <= 0x200f) ||
+    (cp >= 0x20d0 && cp <= 0x20f0) ||
+    (cp >= 0xfe00 && cp <= 0xfe0f) ||
+    (cp >= 0xfeff && cp <= 0xfeff) ||
+    (cp >= 0x1ab0 && cp <= 0x1aff) ||
+    (cp >= 0x1dc0 && cp <= 0x1dff) ||
+    (cp >= 0x1f3fb && cp <= 0x1f3ff) ||
+    (cp >= 0xe0100 && cp <= 0xe01ef)
+  );
 }
 
-/** Cut to at most `cells` display cells, adding `…` when something was lost. */
-export function truncateCells(text: string, cells: number): string {
-  if (cells <= 0) return "";
-  if (displayWidth(text) <= cells) return text;
+/** A display cluster: what the terminal draws as one glyph, and how wide it is. */
+export interface Cell {
+  text: string;
+  width: number;
+}
+
+/**
+ * Split into display clusters. A base character carries its combining marks,
+ * and an emoji ZWJ sequence — `👨‍👩‍👧` — counts as one two-cell glyph rather
+ * than three, which is what the terminal draws.
+ */
+export function cells(text: string): Cell[] {
+  const out: Cell[] = [];
+  let current: { text: string; width: number; join: boolean } | null = null;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (current === null) {
+      current = { text: ch, width: isZeroWidth(cp) ? 0 : isWide(cp) ? 2 : 1, join: false };
+      continue;
+    }
+    if (isZeroWidth(cp)) {
+      current.text += ch;
+      if (cp === 0x200d) current.join = true;
+      continue;
+    }
+    if (current.join) {
+      // The ZWJ asked for the next glyph to be drawn on top of this cluster.
+      current.text += ch;
+      current.join = false;
+      continue;
+    }
+    out.push(current);
+    current = { text: ch, width: isWide(cp) ? 2 : 1, join: false };
+  }
+  if (current) out.push(current);
+  return out;
+}
+
+/** Terminal cells a string occupies. Newlines are ignored. */
+export function displayWidth(text: string): number {
+  return cells(text).reduce((sum, cell) => sum + cell.width, 0);
+}
+
+/** Cut to at most `budget` display cells, adding `…` when something was lost. */
+export function truncateCells(text: string, budget: number): string {
+  if (budget <= 0) return "";
+  if (displayWidth(text) <= budget) return text;
   let out = "";
   let used = 0;
-  for (const ch of text) {
-    const w = isWide(ch.codePointAt(0) ?? 0) ? 2 : 1;
-    if (used + w > cells - 1) break;
-    out += ch;
-    used += w;
+  for (const cell of cells(text)) {
+    if (used + cell.width > budget - 1) break;
+    out += cell.text;
+    used += cell.width;
   }
   return `${out}…`;
 }
@@ -189,6 +252,22 @@ export function decodeKeys(input: Uint8Array): { keys: TuiKey[]; rest: Uint8Arra
           0x48: { kind: "home" },
           0x46: { kind: "end" },
         };
+        if (code === 0x3c) {
+          // SGR mouse: ESC [ < button ; x ; y (M|m). Without this branch the
+          // payload ("64;20;5M") would be typed into the query as text.
+          let j = i + 3;
+          let params = "";
+          while (j < input.length && input[j] !== 0x4d && input[j] !== 0x6d) {
+            params += String.fromCharCode(input[j]);
+            j += 1;
+          }
+          if (j >= input.length) return { keys, rest: input.slice(i) };
+          const button = Number(params.split(";")[0]);
+          if (button === 64) keys.push({ kind: "up" });
+          else if (button === 65) keys.push({ kind: "down" });
+          i = j + 1;
+          continue;
+        }
         if (code >= 0x30 && code <= 0x39) {
           // Extended form: ESC [ <n> ~
           let j = i + 2;
@@ -581,9 +660,15 @@ function out(text: string): void {
 
 function render(state: TuiState): void {
   const frame = buildFrame(state);
-  // Home, then each line followed by an erase so a shorter line cannot leave
-  // the tail of a longer previous one behind.
-  out(`\x1b[H${frame.map((line, i) => (i === 0 ? line : line)).join("\x1b[K\r\n")}\x1b[K`);
+  // Position each row absolutely instead of leaning on newlines: a line that
+  // fills the last column leaves the terminal in "pending wrap", and the next
+  // frame would then start on the same row — two borders on one line. Every
+  // row is followed by an erase so a shorter line cannot leave a stale tail.
+  let buffer = "";
+  for (let i = 0; i < frame.length; i += 1) {
+    buffer += `\x1b[${i + 1};1H${frame[i]}\x1b[K`;
+  }
+  out(buffer);
 }
 
 function copyToClipboard(text: string): boolean {
@@ -644,7 +729,10 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
       to: null,
       role: "all",
       scope: current.scope,
-      limit: Math.max(20, listRows(current)),
+      // Fetch the whole result set, not one screenful: the list scrolls, and a
+      // limit of "rows × 1" made every session older than the visible window
+      // unreachable by keyboard.
+      limit: TUI_SESSION_LIMIT,
       offset: 0,
     });
     const next = applySearch(current, result);
@@ -663,7 +751,7 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
   };
 
   const restore = () => {
-    out("\x1b[?25h\x1b[?1049l");
+    out("\x1b[?1006l\x1b[?1000l\x1b[?25h\x1b[?1049l");
     try {
       process.stdin.setRawMode?.(false);
     } catch {
@@ -671,7 +759,9 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
     }
   };
 
-  out("\x1b[?1049h\x1b[?25l");
+  // Alternate screen, hidden cursor, and wheel events in SGR encoding so a
+  // long list scrolls with the mouse too.
+  out("\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1006h");
   process.on("SIGWINCH", () => {
     const s = size();
     state = { ...state, width: s.width, height: s.height };

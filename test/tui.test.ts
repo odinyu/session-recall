@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   applySearch,
   buildFrame,
+  cells,
   decodeKeys,
   displayWidth,
   initialState,
@@ -51,6 +52,30 @@ test("counts CJK as two cells and latin as one", () => {
   expect(displayWidth("中文")).toBe(4);
   expect(displayWidth("a中")).toBe(3);
   expect(displayWidth("")).toBe(0);
+});
+
+test("emoji count as one two-cell glyph, variation selectors as nothing", () => {
+  // U+1F6E1 sits past the old 1F300–1F64F range; counting it as one cell used
+  // to push every border on an emoji title out by a column.
+  expect(displayWidth("🛡️")).toBe(2);
+  expect(displayWidth("🛡")).toBe(2);
+  expect(displayWidth("🏷️ ALIAS")).toBe(8);
+  // A ZWJ sequence is drawn as one glyph, not three.
+  expect(displayWidth("👨‍👩‍👧")).toBe(2);
+  // A lone variation selector occupies nothing.
+  expect(displayWidth("\ufe0f")).toBe(0);
+  expect(displayWidth("a\ufe0f")).toBe(1);
+});
+
+test("truncation cuts between clusters, never inside one", () => {
+  const cut = truncateCells("🛡️🛡️🛡️", 5);
+  // Two whole shields plus the ellipsis: 2 + 2 + 1 cells.
+  expect(cut).toBe("🛡️🛡️…");
+  expect(displayWidth(cut)).toBe(5);
+  // No cluster lost its variation selector in the cut.
+  for (const cell of cells(cut)) {
+    if (cell.text.startsWith("🛡")) expect(cell.text).toBe("🛡️");
+  }
 });
 
 test("truncation never exceeds the cell budget and marks the cut", () => {
@@ -195,6 +220,40 @@ test("every frame line is exactly the terminal width", () => {
       expect(displayWidth(strip(line))).toBe(width);
     }
   }
+});
+
+test("an emoji title keeps every border in its column", () => {
+  const sessions = [
+    sessionRowFixture("omp:1", "🛡️ STRUTS: 升级 Struts 至 6.11.0"),
+    sessionRowFixture("omp:2", "🏷️ ALIAS: 批量上传第4步别名对齐引用"),
+  ];
+  const frame = buildFrame({ ...stateWith(sessions, 100, 28) });
+  for (const line of frame) {
+    expect(displayWidth(strip(line))).toBe(100);
+  }
+});
+
+test("the mouse wheel decodes to movement, not to typed text", () => {
+  const enc = (s: string) => new TextEncoder().encode(s);
+  expect(decodeKeys(enc("\x1b[<64;20;5M")).keys).toEqual([{ kind: "up" }]);
+  expect(decodeKeys(enc("\x1b[<65;20;5M")).keys).toEqual([{ kind: "down" }]);
+  // A partial sequence is held back rather than leaked into the query.
+  const partial = decodeKeys(enc("\x1b[<64;20"));
+  expect(partial.keys).toEqual([]);
+  expect(partial.rest.length).toBeGreaterThan(0);
+});
+
+test("the list scrolls past the first screenful of sessions", () => {
+  const many = Array.from({ length: 100 }, (_, i) => sessionRowFixture(`omp:${i}`, `s${i}`));
+  let state = stateWith(many, 100, 24);
+  const rows = state.height - 5;
+  for (let i = 0; i < rows + 10; i += 1) {
+    state = reduceKey(state, { kind: "down" }).state;
+  }
+  expect(state.selected).toBe(rows + 10);
+  // The window followed the cursor instead of pinning at the bottom.
+  expect(state.scroll).toBe(state.selected - rows + 1);
+  expect(state.scroll).toBeGreaterThan(0);
 });
 
 test("a session row fits the list column", () => {
