@@ -17,6 +17,12 @@ Rules for an entry:
 The developer-facing record — every functional change, fix and refactor — lives
 in `CHANGELOG.md` and is never shown to users.
 
+## 1.9.2 — 2026-11-18
+
+中文词连在一起写的时候会搜不到（比如「数据库打不开」），现在先按词切开再搜，之前明明存在的会话能找回来了。
+
+Chinese words written without spaces used to come back empty, because the whole run was matched as one phrase. Queries are now split into words first, so a session that was always there is found again.
+
 ## 1.9.1 — 2026-11-18
 
 内置 agent 精简为 8 个真正在用的，其他 agent 现在两行 JSON 就能自己加；Homebrew 安装说明补上了必须清除 quarantine 的那一行，Cindy 的会话库也不会再挑到残包。

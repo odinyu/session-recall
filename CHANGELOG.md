@@ -7,6 +7,22 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.9.2 — 2026-11-18
+
+- **A Chinese run written without spaces finds its sessions again.** Every term
+  was wrapped as an FTS phrase, so 数据库打不开 became one contiguous six-rune
+  string; the text says 数据库一直打不开 and the query returned nothing at all.
+  Before falling back to `LIKE`, a phrase search that finds no row is now retried
+  word by word — ICU segmentation, short pieces merged up to the trigram
+  minimum, so 数据库打不开 is searched as 数据库 AND 打不开. On a real index that
+  query went from 0 sessions to 2, and the reported mode from `like` back to
+  `fts`. The split is display-safe: `terms` in the response is still what the
+  user typed, and an absent word still rules a session out.
+
+- **`setup` also writes Alma's own skill folder.** `~/.config/alma/skills` was
+  the one target missing from the skill channel, so `setup --agent alma` wired
+  the MCP entry and the skill in a single step.
+
 ## 1.9.1 — 2026-11-18
 
 - **Five adapters removed: Kimi Code, Copilot CLI, Gemini CLI, Qwen Code and
