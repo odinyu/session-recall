@@ -1247,6 +1247,9 @@ fn bootstrap(app: AppHandle) {
 
     let mut command = Command::new(&sidecar);
     command
+        // The CLI no longer defaults to `serve` (a bare `session-recall` prints
+        // usage), so the app must name the subcommand it wants.
+        .arg("serve")
         .env("SESSION_RECALL_PORT", port.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())

@@ -157,7 +157,12 @@ async function scanLocked(): Promise<ScanReport> {
   }
 }
 
-const command = process.argv[2] ?? "serve";
+// No subcommand prints usage. It used to start `serve`, which meant a freshly
+// installed `session-recall` appeared to hang: a server was listening on the
+// default port with nothing on screen saying so. The desktop app now asks for
+// `serve` explicitly (src-tauri/src/main.rs), so the default is free to be the
+// help text every command-line tool is expected to print.
+const command = process.argv[2] ?? "";
 
 if (command === "scan") {
   try {
@@ -270,8 +275,27 @@ if (command === "scan") {
     process.exit(1);
   }
 } else {
+  // Name the binary the caller actually ran: the packaged build is
+  // `session-recall`, not `bun run src/cli.ts`.
+  const self = (process.argv[1] ?? "session-recall").split("/").pop() || "session-recall";
+  const name = self === "cli.ts" ? "bun run src/cli.ts" : self;
   console.error(
-    "usage: bun run src/cli.ts [scan|serve|tui|brief|search|saved|mcp|setup|doctor|forget <agent>:<id>|unforget <agent>:<id>]",
+    [
+      `usage: ${name} <command> [options]`,
+      "",
+      "  tui                 search and read past sessions in the terminal",
+      "  search <query>      one query; add --json, --scope process, --agent <id>",
+      "  scan                rebuild the index now",
+      "  serve               run the local server the desktop app talks to",
+      "  mcp                 run the MCP server on stdio (for agent clients)",
+      "  setup               wire this tool into the agents on this machine",
+      "  doctor              check the index, the agents and the MCP wiring",
+      "  brief               write a usage report (standup, week, month)",
+      "  saved               list and run saved searches",
+      "  forget <agent>:<id> / unforget <agent>:<id>",
+      "",
+      `Run \`${name} <command> --help\` for a command's own options.`,
+    ].join("\n"),
   );
   process.exit(1);
 }

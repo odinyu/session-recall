@@ -17,6 +17,12 @@ Rules for an entry:
 The developer-facing record — every functional change, fix and refactor — lives
 in `CHANGELOG.md` and is never shown to users.
 
+## 1.9.3 — 2026-11-18
+
+现在有终端界面了：`session-recall tui` 直接在终端里翻历史，左侧会话、右侧对话、打字即搜。终端版用 `brew install odinyu/tap/session-recall` 安装，不需要公证、也不需要再清 quarantine。
+
+There is a terminal UI now: `session-recall tui` browses your history where you already work — sessions on the left, turns on the right, search as you type. The terminal build installs with `brew install odinyu/tap/session-recall` and needs neither notarization nor a quarantine step.
+
 ## 1.9.2 — 2026-11-18
 
 中文词连在一起写的时候会搜不到（比如「数据库打不开」），现在先按词切开再搜，之前明明存在的会话能找回来了。

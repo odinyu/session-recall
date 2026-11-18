@@ -7,6 +7,40 @@ refactor. The short text users see in the app's update dialog lives in
 Notable changes per release. Versions are tagged `vMAJOR.MINOR.PATCH`; the
 release workflow builds the macOS app from the tag.
 
+## 1.9.3 — 2026-11-18
+
+- **A terminal UI: `session-recall tui`.** Sessions on the left, the selected
+  session's turns on the right, search as you type over the same index the app
+  and the CLI read. `Tab` switches qa/process, `^Y` copies the handoff card,
+  `^R` starts a background scan, mouse wheel scrolls. No dependency, no server,
+  no window — it is the same binary.
+
+- **The terminal build ships as a Homebrew formula**, `brew install
+  odinyu/tap/session-recall`, with prebuilt binaries for darwin-arm64,
+  darwin-x64, linux-arm64 and linux-x64. A formula download is not quarantined,
+  so this path needs no notarization and no `xattr`. The macOS app is now the
+  `session-recall-app` cask (two packages, one binary name, no PATH collision).
+
+- **A bare `session-recall` prints usage** instead of starting `serve` and
+  looking like a hang. The desktop app now names `serve` explicitly.
+
+- **Chinese runs are searched word by word when the phrase misses.** Written
+  without spaces, 数据库打不开 was matched as one contiguous six-rune string; the
+  text says 数据库一直打不开 and the query returned nothing. ICU segmentation plus
+  the trigram minimum turns it into 数据库 AND 打不开.
+
+- **`process` scope returns every session with tool events**, not the handful
+  that owned the newest thousand events (472 vs 11 here). One row per session:
+  its newest event.
+
+- **Terminal borders are positioned, not padded.** `🗂`/`🛡`/`🏷` are
+  East_Asian_Width "N", so each terminal decides whether they take one cell or
+  two; padding by our own estimate drifted a column on exactly those rows. Every
+  border is now emitted with an absolute column.
+
+- **A lone ESC works.** It is the first byte of every arrow sequence, and the
+  decoder used to hold it back indefinitely waiting for the rest.
+
 ## 1.9.2 — 2026-11-18
 
 - **A Chinese run written without spaces finds its sessions again.** Every term
