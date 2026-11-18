@@ -43,22 +43,22 @@ class SessionRecall < Formula
 
   on_macos do
     on_arm do
-      url "{base}/darwin-arm64.tar.gz"
+      url "{base}_darwin-arm64.tar.gz"
       sha256 "{darwin_arm64}"
     end
     on_intel do
-      url "{base}/darwin-x64.tar.gz"
+      url "{base}_darwin-x64.tar.gz"
       sha256 "{darwin_x64}"
     end
   end
 
   on_linux do
     on_arm do
-      url "{base}/linux-arm64.tar.gz"
+      url "{base}_linux-arm64.tar.gz"
       sha256 "{linux_arm64}"
     end
     on_intel do
-      url "{base}/linux-x64.tar.gz"
+      url "{base}_linux-x64.tar.gz"
       sha256 "{linux_x64}"
     end
   end
@@ -118,6 +118,8 @@ def main() -> None:
     tag = args[0]
     version = tag.lstrip("v")
     sha = digests(tag)
+    # Assets are named session-recall_<target>.tar.gz; keep the underscore in
+    # the prefix so `{base}darwin-arm64.tar.gz` resolves.
     base = f"https://github.com/{REPO}/releases/download/{tag}/session-recall"
     body = TEMPLATE.format(
         repo=REPO,
