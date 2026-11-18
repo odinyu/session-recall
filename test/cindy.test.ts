@@ -1,9 +1,10 @@
 import { afterAll, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cindyAdapter } from "../src/adapters/cindy.ts";
+import { cindyDbPath } from "../src/config.ts";
 import { openDb } from "../src/db.ts";
 import { scan } from "../src/scan.ts";
 import { searchTurns } from "../src/search.ts";
@@ -281,4 +282,42 @@ test("Cindy sessions reach the search index without hidden rows", async () => {
 
   db.close();
   fixture.db.close();
+});
+
+test("prefers a real store over a newer stub file", () => {
+  delete process.env.SESSION_RECALL_CINDY_DB;
+  const dir = mkdtempSync(join(root, "pick-"));
+  const good = join(dir, "cindy-old.db");
+  const db = new Database(good);
+  db.run("CREATE TABLE sessions (id TEXT)");
+  db.close();
+
+  // Cindy leaves 4 KB stubs behind; newest-by-mtime would pick this one and
+  // then fail on the first statement.
+  const stub = join(dir, "cindy-new.db");
+  writeFileSync(stub, Buffer.alloc(4096, 0));
+
+  const now = Math.floor(Date.now() / 1000);
+  utimesSync(good, now - 600, now - 600);
+  utimesSync(stub, now, now);
+
+  expect(cindyDbPath(dir)).toBe(good);
+});
+
+test("falls back to newest by mtime when nothing looks like sqlite", () => {
+  delete process.env.SESSION_RECALL_CINDY_DB;
+  const dir = mkdtempSync(join(root, "pick2-"));
+  const a = join(dir, "cindy-a.db");
+  const b = join(dir, "cindy-b.db");
+  writeFileSync(a, Buffer.alloc(4096, 0));
+  writeFileSync(b, Buffer.alloc(4096, 0));
+  utimesSync(a, 1000, 1000);
+  utimesSync(b, 2000, 2000);
+  expect(cindyDbPath(dir)).toBe(b);
+});
+
+test("an empty profile still returns a path instead of throwing", () => {
+  delete process.env.SESSION_RECALL_CINDY_DB;
+  const dir = mkdtempSync(join(root, "pick3-"));
+  expect(cindyDbPath(dir)).toBe(join(dir, "cindy.db"));
 });

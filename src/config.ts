@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "node:fs";
+import { closeSync, openSync, readdirSync, readSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -25,19 +25,44 @@ export const CINDY_DIR =
   process.env.SESSION_RECALL_CINDY_DIR ??
   join(HOME, "Library", "Application Support", "CindyGlobal");
 
-export function cindyDbPath(): string {
+/**
+ * Cindy leaves stubs and partial migration artefacts next to the live store, so
+ * newest-by-mtime alone can pick a 4 KB file that opens but fails on the first
+ * statement ("unable to open database file"). Prefer files that actually start
+ * with the SQLite header; fall back to mtime order when none do, which keeps the
+ * old behaviour for a profile we cannot read.
+ */
+function looksLikeSqlite(path: string): boolean {
+  try {
+    if (statSync(path).size < 512) return false;
+    const fd = openSync(path, "r");
+    try {
+      const header = Buffer.alloc(16);
+      const read = readSync(fd, header, 0, 16, 0);
+      return read === 16 && header.toString("utf8", 0, 15) === "SQLite format 3";
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
+export function cindyDbPath(dir: string = CINDY_DIR): string {
   const explicit = process.env.SESSION_RECALL_CINDY_DB;
   if (explicit) return explicit;
   try {
-    const candidates = readdirSync(CINDY_DIR)
+    const files = readdirSync(dir)
       .filter((name) => /^cindy-.+\.db$/.test(name))
-      .map((name) => join(CINDY_DIR, name))
-      .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
-    if (candidates.length > 0) return candidates[0];
+      .map((name) => join(dir, name));
+    const valid = files.filter(looksLikeSqlite);
+    const pool = valid.length > 0 ? valid : files;
+    pool.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+    if (pool.length > 0) return pool[0];
   } catch {
     // Missing or unreadable profile: the adapter reports no sessions.
   }
-  return join(CINDY_DIR, "cindy.db");
+  return join(dir, "cindy.db");
 }
 
 /** Claude Code: one JSONL per session under `projects/<slug>/`. */

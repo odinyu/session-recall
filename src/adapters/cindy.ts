@@ -144,12 +144,20 @@ export function cindyAdapter(dbPath: string = cindyDbPath()): Adapter {
     if (!existsSync(dbPath)) return null;
     try {
       db = new Database(dbPath, { readonly: true });
+      // Inside the try on purpose: a file that opens but is not a usable store
+      // throws here, and that must degrade to "no sessions" rather than escape
+      // as a scan error.
+      db.run("PRAGMA busy_timeout = 5000");
     } catch {
       // A locked or half-written store is not fatal: report no sessions.
+      try {
+        db?.close();
+      } catch {
+        // Already unusable.
+      }
       db = null;
       return null;
     }
-    db.run("PRAGMA busy_timeout = 5000");
     return db;
   }
 
