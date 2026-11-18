@@ -802,10 +802,19 @@ function executeProcessRecent(
     hits: number;
     sessions: number;
   };
+  // One row per session — its newest event — then `limit` sessions. Ordering the
+  // raw event stream and limiting that instead returned a handful of sessions:
+  // a busy session owns thousands of consecutive events, so `LIMIT 1000` was
+  // spent on ~11 sessions while 472 had events.
   const rows = db
     .query(
       `${processRowQuery(null)}
        WHERE ${where}
+         AND NOT EXISTS (
+           SELECT 1 FROM event_search newer
+           WHERE newer.session_id = es.session_id
+             AND (newer.turn_idx, newer.seq) > (es.turn_idx, es.seq)
+         )
        ORDER BY s.updated_at DESC,
                 COALESCE(NULLIF(t.ts, 0), s.updated_at) DESC,
                 es.seq DESC

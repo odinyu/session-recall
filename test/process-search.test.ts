@@ -141,6 +141,62 @@ test("backfills event_search from existing events on migration", () => {
   }
 });
 
+test("an empty process query returns sessions, not a slice of one busy session", () => {
+  // The regression: the recent path ordered the raw event stream and limited
+  // that, so one session with thousands of events ate the whole budget and 472
+  // sessions came back as 11.
+  const recentDir = mkdtempSync(join(tmpdir(), "session-recall-process-recent-"));
+  const recentDb = openDb(join(recentDir, "index.db"));
+
+  const withEvents = (id: string, events: number, minute: number): ParsedSession => ({
+    agent: "omp",
+    externalId: id,
+    projectPath: "/Users/test/project",
+    title: id,
+    startedAt: Date.UTC(2026, 10, 11, 9),
+    updatedAt: Date.UTC(2026, 10, 11, 9, minute),
+    sourceKind: "jsonl",
+    sourcePath: `/tmp/${id}.jsonl`,
+    fingerprint: "1",
+    turns: [
+      {
+        idx: 0,
+        ts: Date.UTC(2026, 10, 11, 9, minute),
+        userText: "工作",
+        assistantText: "好",
+      },
+    ],
+    events: Array.from({ length: events }, (_, seq) => ({
+      turnIdx: 0,
+      seq,
+      kind: "tool" as const,
+      name: "bash",
+      input: `command ${seq}`,
+      output: `out ${seq}`,
+    })),
+  });
+
+  try {
+    writeSession(recentDb, withEvents("busy", 60, 0));
+    writeSession(recentDb, withEvents("quiet-a", 1, 10));
+    writeSession(recentDb, withEvents("quiet-b", 1, 20));
+
+    const result = searchTurns(recentDb, { ...params(""), limit: 3 });
+    expect(result.totalSessions).toBe(3);
+    expect(result.sessions).toHaveLength(3);
+    // One row per session: the newest event of each, not 60 rows of one.
+    // (`processHitCount` still reports the session's whole hit count.)
+    for (const session of result.sessions) {
+      expect(session.processHits).toHaveLength(1);
+    }
+    // Newest session first.
+    expect(result.sessions[0]?.id).toBe("omp:quiet-b");
+  } finally {
+    recentDb.close();
+    rmSync(recentDir, { recursive: true, force: true });
+  }
+});
+
 test("combines agent and project filters with process FTS", () => {
   const hit = searchTurns(db, {
     ...params("SomeFile.java"),

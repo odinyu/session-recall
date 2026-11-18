@@ -11,7 +11,7 @@
  * touching the tty lives in {@link runTui}.
  */
 
-import type { Database } from "bun:sqlite";
+import { appendFileSync } from "node:fs";
 import type { AgentId } from "./adapters/types.ts";
 import { openDb } from "./db.ts";
 import { DB_PATH } from "./config.ts";
@@ -584,54 +584,105 @@ export function sessionRow(session: SearchSession, cols: number): string {
  * A whole screen as lines, each exactly `width` cells. The caller writes them
  * top to bottom; nothing here touches stdout.
  */
-export function buildFrame(state: TuiState): string[] {
+export type TuiStyle = "dim" | "reverse" | "cyan";
+
+/** A run of text pinned to a column, so the caller can place it absolutely. */
+export interface FrameSegment {
+  /** 1-based terminal column the run must start at. */
+  col: number;
+  text: string;
+  style?: TuiStyle;
+}
+
+/**
+ * The screen as positioned segments rather than padded strings.
+ *
+ * Why: a terminal decides for itself how wide an emoji is, and it does not
+ * always agree with any table we can consult — `🗂️` is two cells in one
+ * terminal and one in another. Padding by our own estimate therefore drifts by
+ * a column on exactly the rows we cannot predict. Handing the renderer an
+ * explicit column for each border takes the estimate out of the loop: the
+ * separator is drawn where it belongs even if a title is a cell wider than we
+ * thought, and the worst case is a clipped character instead of a broken frame.
+ */
+export function buildFrameSegments(state: TuiState): FrameSegment[][] {
   const width = Math.max(20, state.width);
   const height = Math.max(6, state.height);
   const inner = width - 2;
-  const rows: string[] = [];
+  const rows: FrameSegment[][] = [];
 
   const title = ` session-recall `;
   const meta = `${state.totalSessions} sessions · ${Math.round(state.tookMs)}ms · ${state.modeLabel} · ${state.scope} `;
   const titleBar = `┌${title}${"─".repeat(Math.max(0, inner - displayWidth(title) - displayWidth(meta)))}${meta}┐`;
-  rows.push(padCells(titleBar, width));
+  rows.push([{ col: 1, text: padCells(titleBar, width) }]);
 
   const prompt = `> ${state.query}`;
   const caret = state.focus === "query" ? "_" : " ";
-  rows.push(`│${padCells(`${prompt}${caret}`, inner)}│`);
+  rows.push([
+    { col: 1, text: "│" },
+    { col: 2, text: padCells(`${prompt}${caret}`, inner) },
+    { col: width, text: "│" },
+  ]);
 
   const left = listCols(state);
   const right = Math.max(1, inner - left - 1);
   // Five chrome rows: header, prompt, separator, status, bottom border.
   const bodyRows = Math.max(1, height - 5);
+  const midCol = left + 2;
+  const rightCol = midCol + 1;
 
-  // Colour is applied AFTER the cell maths: an escape sequence is zero cells
-  // wide, but counting its bytes as characters would shift every column.
-  const listLines: string[] = [];
+  const listLines: FrameSegment[] = [];
   for (let i = state.scroll; i < Math.min(state.sessions.length, state.scroll + bodyRows); i += 1) {
     const session = state.sessions[i];
-    const isSelected = i === state.selected;
-    const plain = padCells(` ${sessionRow(session, left - 2)}`, left);
-    listLines.push(isSelected ? REVERSE + plain + RESET : DIM + plain + RESET);
+    listLines.push({
+      col: 2,
+      text: padCells(` ${sessionRow(session, left - 2)}`, left),
+      style: i === state.selected ? "reverse" : "dim",
+    });
   }
-  if (listLines.length === 0) listLines.push(DIM + padCells("  no sessions", left) + RESET);
+  if (listLines.length === 0) {
+    listLines.push({ col: 2, text: padCells("  no sessions", left), style: "dim" });
+  }
 
   const detail: string[] = state.detailLines;
 
   for (let row = 0; row < bodyRows; row += 1) {
     const lineIndex = row + state.detailScroll;
-    const leftCell = listLines[row] ?? " ".repeat(left);
-    const plainRight = padCells(detail[lineIndex] ?? "", right);
-    rows.push(`│${leftCell}│${CYAN}${plainRight}${RESET}│`);
+    rows.push([
+      { col: 1, text: "│" },
+      listLines[row] ?? { col: 2, text: " ".repeat(left) },
+      { col: midCol, text: "│" },
+      { col: rightCol, text: padCells(detail[lineIndex] ?? "", right), style: "cyan" },
+      { col: width, text: "│" },
+    ]);
   }
 
   const separator = `├${"─".repeat(left)}┴${"─".repeat(right)}┤`;
-  rows.push(padCells(separator, width));
+  rows.push([{ col: 1, text: padCells(separator, width) }]);
 
-  const status = state.status || KEYMAP;
-  rows.push(`│${padCells(` ${status}`, inner)}│`);
-  rows.push(padCells(`└${"─".repeat(inner)}┘`, width));
+  // Which pane owns the arrow keys, in one word. Without it "esc back" looked
+  // like a no-op: focus moved, nothing on screen said so.
+  const badge =
+    state.focus === "detail" ? "DETAIL" : state.focus === "list" ? "LIST  " : "SEARCH";
+  const status = `${badge}  ${state.status || KEYMAP}`;
+  rows.push([{ col: 1, text: `│${padCells(` ${status}`, inner)}│` }]);
+  rows.push([{ col: 1, text: padCells(`└${"─".repeat(inner)}┘`, width) }]);
 
   return rows.slice(0, height);
+}
+
+/** Segments flattened to one padded line each — the shape tests assert on. */
+export function buildFrame(state: TuiState): string[] {
+  const width = Math.max(20, state.width);
+  return buildFrameSegments(state).map((segments) => {
+    let line = "";
+    for (const segment of segments) {
+      const gap = segment.col - (displayWidth(line) + 1);
+      if (gap > 0) line += " ".repeat(gap);
+      line += segment.text;
+    }
+    return padCells(line, width);
+  });
 }
 
 /**
@@ -658,15 +709,24 @@ function out(text: string): void {
   Bun.write(Bun.stdout, text);
 }
 
+const STYLES: Record<TuiStyle, string> = { dim: DIM, reverse: REVERSE, cyan: CYAN };
+
 function render(state: TuiState): void {
-  const frame = buildFrame(state);
-  // Position each row absolutely instead of leaning on newlines: a line that
-  // fills the last column leaves the terminal in "pending wrap", and the next
-  // frame would then start on the same row — two borders on one line. Every
-  // row is followed by an erase so a shorter line cannot leave a stale tail.
+  const rows = buildFrameSegments(state);
+  // Every row and every segment is positioned absolutely. Newlines would let a
+  // full-width line leave the terminal in "pending wrap" and glue the next
+  // frame onto the same row; padding would let an emoji the terminal draws
+  // differently drag every border left. Columns are not ours to guess.
   let buffer = "";
-  for (let i = 0; i < frame.length; i += 1) {
-    buffer += `\x1b[${i + 1};1H${frame[i]}\x1b[K`;
+  for (let i = 0; i < rows.length; i += 1) {
+    buffer += `\x1b[${i + 1};1H`;
+    for (const segment of rows[i]) {
+      buffer += `\x1b[${segment.col}G`;
+      buffer += segment.style
+        ? `${STYLES[segment.style]}${segment.text}${RESET}`
+        : segment.text;
+    }
+    buffer += "\x1b[K";
   }
   out(buffer);
 }
@@ -778,6 +838,30 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
   const reader = Bun.stdin.stream().getReader();
   let pending = new Uint8Array();
 
+  // A lone ESC is also the first byte of every arrow key, so decodeKeys holds
+  // it back waiting for the rest. Pressed on its own, nothing would ever follow
+  // — the key would appear dead until the user typed something else. Give the
+  // sequence a moment to complete, then read the ESC as what it was.
+  let escTimer: ReturnType<typeof setTimeout> | null = null;
+  // Diagnostics only: which chunk arrived, which key it decoded to, whether the
+  // lone-ESC timer fired. Set SESSION_RECALL_TUI_TRACE=/tmp/tui.trace to use it.
+  const tracePath = process.env.SESSION_RECALL_TUI_TRACE;
+  const trace = (message: string) => {
+    if (tracePath) appendFileSync(tracePath, `${message}\n`);
+  };
+  const flushLoneEscape = () => {
+    escTimer = null;
+    trace(`flush pending=${pending.length} [${Array.from(pending).join(",")}]`);
+    if (pending.length !== 1 || pending[0] !== 0x1b) return;
+    pending = new Uint8Array();
+    state = reduceKey(state, { kind: "escape" }).state;
+    if (state.quit) {
+      void reader.cancel();
+      return;
+    }
+    render(state);
+  };
+
   try {
     process.stdin.setRawMode?.(true);
     while (!state.quit) {
@@ -788,7 +872,15 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
       merged.set(pending);
       merged.set(value, pending.length);
       const { keys, rest } = decodeKeys(merged);
+      trace(`chunk=[${Array.from(merged).join(",")}] keys=${keys.map((k) => k.kind).join("|")} rest=${rest.length}`);
       pending = rest;
+      if (escTimer) {
+        clearTimeout(escTimer);
+        escTimer = null;
+      }
+      if (pending.length === 1 && pending[0] === 0x1b) {
+        escTimer = setTimeout(flushLoneEscape, 35);
+      }
       for (const key of keys) {
         const { state: next, effect } = reduceKey(state, key);
         state = next;
@@ -820,6 +912,7 @@ export async function runTui(options: RunTuiOptions = {}): Promise<number> {
       render(state);
     }
   } finally {
+    if (escTimer) clearTimeout(escTimer);
     reader.releaseLock();
     restore();
     db.close();

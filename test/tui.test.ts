@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   applySearch,
   buildFrame,
+  buildFrameSegments,
   cells,
   decodeKeys,
   displayWidth,
@@ -219,6 +220,21 @@ test("every frame line is exactly the terminal width", () => {
     for (const line of frame) {
       expect(displayWidth(strip(line))).toBe(width);
     }
+  }
+});
+
+test("every border is pinned to a column, whatever the title contains", () => {
+  const sessions = [
+    sessionRowFixture("omp:1", "🗂️ PROJ: Add interest category filtering"),
+    sessionRowFixture("omp:2", "plain title"),
+  ];
+  const state = stateWith(sessions, 100, 24);
+  const left = listCols(state);
+  const rows = buildFrameSegments(state);
+  // Rows 3.. body: │ at 1, list text at 2, separator at left+2, detail at
+  // left+3, closing border at 100 — identical for both rows, emoji or not.
+  for (const row of rows.slice(2, 4)) {
+    expect(row.map((segment) => segment.col)).toEqual([1, 2, left + 2, left + 3, 100]);
   }
 });
 
