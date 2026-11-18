@@ -39,17 +39,24 @@ grep 只能找字符串。它分不清一次提问和一次工具调用，不会
 | Apple 芯片（M1/M2/M3/M4…） | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip)——27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip)——29.9 MB |
 
-或者交给 Homebrew —— 它还会把 `session-recall` 命令行放进 PATH：
+或者交给 Homebrew。**终端版**（CLI + 终端界面 + MCP server，一个二进制）是 **formula**，
+下载不打 quarantine，没有任何要手动清的东西：
 
 ```bash
 brew tap odinyu/tap
 brew trust odinyu/tap          # 一次性：Homebrew 7 加载第三方 tap 前需要信任
-brew install --cask session-recall
-xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+brew install session-recall
+session-recall scan            # 建索引
+session-recall tui             # 或者 session-recall setup 把 agent 接上
 ```
 
-Homebrew 会给下载的东西打 quarantine，而带 quarantine 的 ad-hoc 签名构建**跑不了命令行**
-—— 它不会报错，而是直接卡住，所以最后那行不是可选的。下面的 zip 方式同理。
+**macOS app** 是 cask，而 Homebrew 会给 cask 下载打 quarantine。app 照样能打开，但包里的
+任何命令会**卡住**而不是报错，所以清一次标记：
+
+```bash
+brew install --cask session-recall-app
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+```
 
 也可以解压后把 **Session Recall** 拖进 `/Applications`，首次启动前清除一次 quarantine
 标记（构建是 ad-hoc 签名、未公证）：

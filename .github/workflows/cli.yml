@@ -28,7 +28,7 @@ jobs:
           # embeds a different (85 MB, vs 61 MB) Bun runtime — same source, 39 MB
           # download instead of 27 MB. One macOS runner covers both slices;
           # cross-compiling darwin-x64 from an arm64 Mac gives the right size.
-          - os: macos-14
+          - os: macos-15
             targets: darwin-arm64 darwin-x64
           - os: ubuntu-latest
             targets: linux-arm64 linux-x64

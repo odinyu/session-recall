@@ -44,18 +44,26 @@ takes you to the question that provoked it — and the answer that resolved it.
 | Apple silicon (M1/M2/M3/M4…) | [`Session-Recall_macos-arm64.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-arm64.zip) — 27.2 MB |
 | Intel | [`Session-Recall_macos-intel.zip`](https://github.com/odinyu/session-recall/releases/latest/download/Session-Recall_macos-intel.zip) — 29.9 MB |
 
-Or install with Homebrew, which also puts the `session-recall` CLI on your PATH:
+Or install with Homebrew. The terminal build — CLI, terminal UI and the MCP server
+in one binary — is a **formula**, so nothing is quarantined and there is nothing to
+clear:
 
 ```bash
 brew tap odinyu/tap
 brew trust odinyu/tap          # one-time: Homebrew 7 asks before loading a tap
-brew install --cask session-recall
-xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+brew install session-recall
+session-recall scan            # build the index
+session-recall tui             # or: session-recall setup, to wire up your agents
 ```
 
-Homebrew quarantines what it downloads, and a quarantined ad-hoc-signed build
-cannot run its command line — the CLI hangs instead of failing, so that last line
-is not optional. It is the same reason the zip route below needs it.
+The macOS app is a **cask**, and Homebrew quarantines cask downloads. The app opens
+anyway, but anything run out of the bundle hangs rather than failing, so clear the
+flag once:
+
+```bash
+brew install --cask session-recall-app
+xattr -dr com.apple.quarantine "/Applications/Session Recall.app"
+```
 
 Otherwise unzip, drag **Session Recall** into `/Applications`, and clear the quarantine
 flag once (the build is ad-hoc signed, not notarized):
