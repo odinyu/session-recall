@@ -110,6 +110,54 @@ function ftsTerm(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+const SEGMENTER = new Intl.Segmenter("zh", { granularity: "word" });
+
+/**
+ * Chunk one term the way a reader of Chinese would. ICU knows the words
+ * (数据 / 库 / 打不开); the trigram index needs at least 3 runes, so short
+ * pieces are carried into the next chunk and a short tail folds back into the
+ * previous one. "数据库打不开" becomes 数据库 + 打不开, which is what the query
+ * meant, instead of one 6-rune phrase the text never contains verbatim.
+ * Latin terms come back untouched.
+ */
+function cjkChunks(term: string): string[] {
+  if (!hasCjk(term)) return [term];
+  const parts = [...SEGMENTER.segment(term)]
+    .filter((part) => part.isWordLike)
+    .map((part) => part.segment);
+  if (parts.length <= 1) return [term];
+  const chunks: string[] = [];
+  let pending = "";
+  for (const part of parts) {
+    pending += part;
+    if (runeLength(pending) >= 3) {
+      chunks.push(pending);
+      pending = "";
+    }
+  }
+  if (pending) {
+    if (chunks.length > 0) chunks[chunks.length - 1] += pending;
+    else chunks.push(pending);
+  }
+  return chunks;
+}
+
+/**
+ * The word-split retry for a query the phrase search found nothing for, or
+ * null when splitting would change nothing. A term of 2 runes or fewer stays
+ * out: the trigram index cannot use it, and {@link likeClause} handles it.
+ */
+function cjkRelaxedTerms(terms: string[]): string[] | null {
+  if (!terms.some((term) => hasCjk(term) && runeLength(term) > 3)) return null;
+  const relaxed = terms.flatMap(cjkChunks);
+  // A 4-rune word like 登录不上 keeps one chunk that equals itself: retrying
+  // would re-run the same query.
+  if (relaxed.length === terms.length && relaxed.every((term, i) => term === terms[i])) {
+    return null;
+  }
+  return relaxed.some((term) => runeLength(term) >= 3) ? relaxed : null;
+}
+
 function likePattern(value: string): string {
   return `%${escapeLike(value)}%`;
 }
@@ -847,6 +895,7 @@ function searchProcess(
 ): SearchResult {
   const startedAt = performance.now();
   let mode: "fts" | "like" | "recent" | "process" = "recent";
+  let searchTerms = terms;
   let outcome: {
     rows: ProcessRow[];
     totalHits: number;
@@ -885,6 +934,24 @@ function searchProcess(
       outcome = executeProcessLike(db, params, terms, limit + offset);
     }
     if (outcome.rows.length === 0 && mode !== "like") {
+      const relaxed = cjkRelaxedTerms(terms);
+      if (relaxed) {
+        const retry = executeProcessFts(
+          db,
+          params,
+          relaxed.filter((term) => runeLength(term) >= 3),
+          "event_fts",
+          relaxed.filter((term) => runeLength(term) < 3),
+          limit + offset,
+        );
+        if (retry.rows.length > 0) {
+          outcome = retry;
+          searchTerms = relaxed;
+        }
+      }
+    }
+
+    if (outcome.rows.length === 0 && mode !== "like") {
       mode = "like";
       outcome = executeProcessLike(db, params, terms, limit + offset);
     }
@@ -896,7 +963,7 @@ function searchProcess(
       : outcome.rows.slice(0, limit);
   const sessions = groupProcessRows(
     sliced,
-    terms,
+    searchTerms,
   ).slice(0, limit);
 
   return {
@@ -925,6 +992,10 @@ export function searchTurns(db: Database, params: SearchParams): SearchResult {
   }
 
   let mode: "fts" | "like" | "recent" = "recent";
+  // The terms the matches actually came from: the word-split retry below
+  // searches different strings than the user typed, and the snippet should
+  // centre on what matched.
+  let searchTerms = terms;
   let outcome: { rows: TurnRow[]; totalTurns: number; totalSessions: number };
 
   if (terms.length === 0) {
@@ -947,6 +1018,24 @@ export function searchTurns(db: Database, params: SearchParams): SearchResult {
     }
 
     if (outcome.rows.length === 0 && mode !== "like") {
+      const relaxed = cjkRelaxedTerms(terms);
+      if (relaxed) {
+        const retry = executeFts(
+          db,
+          params,
+          relaxed.filter((term) => runeLength(term) >= 3),
+          "turn_fts",
+          relaxed.filter((term) => runeLength(term) < 3),
+          limit + offset,
+        );
+        if (retry.rows.length > 0) {
+          outcome = retry;
+          searchTerms = relaxed;
+        }
+      }
+    }
+
+    if (outcome.rows.length === 0 && mode !== "like") {
       mode = "like";
       outcome = executeLike(db, params, terms, limit + offset);
     }
@@ -954,7 +1043,7 @@ export function searchTurns(db: Database, params: SearchParams): SearchResult {
 
   const sliced =
     offset > 0 ? outcome.rows.slice(offset, offset + limit) : outcome.rows.slice(0, limit);
-  const sessions = groupRows(sliced, terms, params).slice(0, limit);
+  const sessions = groupRows(sliced, searchTerms, params).slice(0, limit);
 
   // Title pass (QA scope, non-empty query): sessions whose title matches
   // every term appear even when no turn matched. Turn-matched sessions stay

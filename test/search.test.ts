@@ -98,6 +98,38 @@ test("trigram search finds Chinese phrases", () => {
   expect(result.sessions[0]?.id).toBe("omp:alpha");
 });
 
+test("a Chinese run the phrase search misses is retried word by word", () => {
+  const cjkDir = mkdtempSync(join(tmpdir(), "session-recall-cjk-"));
+  const cjkDb = openDb(join(cjkDir, "index.db"));
+  writeSession(
+    cjkDb,
+    session("gamma", [
+      {
+        idx: 0,
+        ts: Date.UTC(2026, 9, 1),
+        userText: "cindy 那个数据库一直打不开，最后发现是路径变了",
+        assistantText: "先看 cindy 的路径",
+      },
+    ]),
+  );
+
+  // The index stores 数据库 and 打不开 apart; the six-rune run is one phrase
+  // the text never contains, so the plain trigram pass comes up empty.
+  const relaxed = searchTurns(cjkDb, { ...base, q: "数据库打不开" });
+  expect(relaxed.sessions.length).toBe(1);
+  // The echo stays what the user typed, not the chunks that matched.
+  expect(relaxed.terms).toEqual(["数据库打不开"]);
+
+  expect(searchTurns(cjkDb, { ...base, q: "cindy 数据库打不开" }).sessions.length).toBe(1);
+
+  // Splitting must not turn into a match-anything: a word that is absent
+  // still rules the session out.
+  expect(searchTurns(cjkDb, { ...base, q: "cindy 数据库打不开 zzzqqq" }).sessions.length).toBe(0);
+
+  cjkDb.close();
+  rmSync(cjkDir, { recursive: true, force: true });
+});
+
 test("two-character Chinese falls back to LIKE", () => {
   const result = searchTurns(db, { ...base, q: "目录" });
   expect(result.mode).toBe("like");
