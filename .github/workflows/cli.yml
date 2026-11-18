@@ -49,7 +49,9 @@ jobs:
             # The formula runs `bin.install "session-recall"`, so the archive
             # must hold the binary at its top level under that exact name.
             # Plain `tar -czf` defaults to gzip -6 (39 MB); -9 matches the zip.
-            tar -I 'gzip -9' -cf "dist/session-recall_${target}.tar.gz" -C dist/pkg session-recall
+            # Piped rather than `-I 'gzip -9'`: BSD tar on macOS reads that
+            # argument as a program path and fails with "Couldn't open gzip -9".
+            tar -cf - -C dist/pkg session-recall | gzip -9 > "dist/session-recall_${target}.tar.gz"
             ls -lh "dist/session-recall_${target}.tar.gz"
           done
 
