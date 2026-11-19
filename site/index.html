@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=22"></script>
-<link rel="stylesheet" href="/assets/site.css?v=22">
+<script src="/assets/theme-init.js?v=23"></script>
+<link rel="stylesheet" href="/assets/site.css?v=23">
 
 <script type="application/ld+json">
 {
@@ -113,9 +113,9 @@
   <!-- ===================== Hero ===================== -->
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow hero__eyebrow">Local-first · Read-only · macOS</p>
+      <p class="eyebrow hero__eyebrow">Local-first · Read-only · Terminal</p>
 
-      <h1><span class="h1__kicker">Every session your AI agents ever had, on this Mac.</span>Find that <span class="hl">conversation</span> again.</h1>
+      <h1><span class="h1__kicker">Every session your AI agents ever had, on this machine.</span>Find that <span class="hl">conversation</span> again.</h1>
       <p class="hero__tag">total recall for all your AI agents</p>
 
       <p class="hero__lede">
@@ -157,50 +157,21 @@
 
       <p class="hero__facts"><b>8</b> agents indexed · <b>1</b> index file · <b>0</b> uploads</p>
 
-      <p class="meta hero__meta">v1.9.3 · macOS 11+ · 27.2 MB · MIT</p>
+      <p class="meta hero__meta">v1.9.3 · macOS + Linux · 22 MB · MIT</p>
 
       <figure class="mac">
         <div class="mac__bar" aria-hidden="true">
           <i></i><i></i><i></i>
-          <span class="mac__title">search results — “reconnect backoff”</span>
+          <span class="mac__title">session-recall tui — 588 sessions, searching as you type</span>
         </div>
-        <img class="shot shot--light" src="/assets/screenshots/en/search-results-1440.webp?v=22"
-             srcset="/assets/screenshots/en/search-results-720.webp?v=22 720w, /assets/screenshots/en/search-results-1440.webp?v=22 1440w"
-             sizes="(max-width: 1200px) 94vw, 1080px"
-             width="1440" height="900" fetchpriority="high" decoding="async"
-             alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
-        <img class="shot shot--dark" src="/assets/screenshots/en/search-results-dark-1440.webp?v=22"
-             srcset="/assets/screenshots/en/search-results-dark-720.webp?v=22 720w, /assets/screenshots/en/search-results-dark-1440.webp?v=22 1440w"
-             sizes="(max-width: 1200px) 94vw, 1080px"
-             width="1440" height="900" decoding="async"
-             alt="The Session Recall search results window. A search for “reconnect backoff” returns two sessions and five turns, with matched terms highlighted in green and the agent, project and date shown for each hit.">
+        <img class="shot" src="/assets/tui-demo.gif?v=23"
+             width="980" height="560" fetchpriority="high" decoding="async"
+             alt="The terminal UI: a query typed into the box, the session list narrowing on the left, and the selected session's turns on the right. Tab switches from questions to tool calls.">
       </figure>
       <p class="figcap">
-        <b>The actual app, over a synthetic index of demo sessions.</b>
-        Type a few words you remember; every match is highlighted with the agent, project and
-        date. One box searches all of your installed agents at once.
-      </p>
-
-      <figure class="mac">
-        <div class="mac__bar" aria-hidden="true">
-          <i></i><i></i><i></i>
-          <span class="mac__title">quick-search palette — “reconnect”</span>
-        </div>
-        <img class="shot shot--light" src="/assets/screenshots/en/palette-1440.webp?v=22"
-             srcset="/assets/screenshots/en/palette-720.webp?v=22 720w, /assets/screenshots/en/palette-1440.webp?v=22 1440w"
-             sizes="(max-width: 1200px) 94vw, 1080px"
-             width="1440" height="900" loading="lazy" decoding="async"
-             alt="The Session Recall quick-search palette in light theme, opened over the search results. The overlay shows the query “reconnect” with two matching sessions listed below, and the hint line ↑↓ move · Enter open · ⌘↵ copy link · Esc close.">
-        <img class="shot shot--dark" src="/assets/screenshots/en/palette-dark-1440.webp?v=22"
-             srcset="/assets/screenshots/en/palette-dark-720.webp?v=22 720w, /assets/screenshots/en/palette-dark-1440.webp?v=22 1440w"
-             sizes="(max-width: 1200px) 94vw, 1080px"
-             width="1440" height="900" loading="lazy" decoding="async"
-             alt="The Session Recall quick-search palette in dark theme, opened over the search results. The overlay shows the query “reconnect” with two matching sessions listed below, and the hint line ↑↓ move · Enter open · ⌘↵ copy link · Esc close.">
-      </figure>
-      <p class="figcap">
-        <b>Search from anywhere, instantly.</b>
-        ⌘⇧K opens a Spotlight-style overlay that searches the whole index as you type —
-        ↑↓ to move, Enter to open, ⌘↵ to copy a session's deep link, Esc to close.
+        <b>The actual terminal UI, over a synthetic index of demo sessions.</b>
+        Type a few words you remember. Sessions on the left, the selected one's turns on the
+        right, one index across every agent installed on this machine.
       </p>
 
     </div>
@@ -345,106 +316,81 @@
     <div class="wrap">
       <span class="anchor" id="workflow" aria-hidden="true"></span>
       <p class="eyebrow">What you get</p>
-      <h2 class="h2" id="workflow-h">Two things people actually use it for.</h2>
+      <h2 class="h2" id="workflow-h">Search first, then everything it feeds.</h2>
       <p class="lede">
-        Search is the core; these two are what it feeds. Both come free with the index —
-        no model call, no summary service, no extra setup.
+        Six things, all read out of the same index — no model call, no summary service, no
+        extra setup.
       </p>
 
       <div class="workflows">
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">01</p>
-          <h3>Find it by its title.</h3>
+          <h3>Type, and the list narrows.</h3>
           <p class="workflow__text">
-            A session you renamed stays findable: <b>session titles are searched along with the
-            conversation</b>, so a phrase that appears only in the title still brings that
-            session back, marked as a <b>title match</b> in the results. No re-index needed —
-            an existing index finds title matches on the very next query.
+            No submit, no spinner: every keystroke re-runs the query. A search across 588
+            sessions takes <b>a few milliseconds</b>, so you can type words until the answer
+            shows up. Chinese works the way you write it — <b>数据库打不开</b> is searched as
+            数据库 AND 打不开, not as one literal string — and code identifiers match
+            mid-word.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">02</p>
-          <h3>Search from anywhere, instantly.</h3>
+          <h3>Questions or tool calls, one Tab apart.</h3>
           <p class="workflow__text">
-            Press <b>⌘⇧K</b>, or summon the window with the global hotkey while it is hidden,
-            and a Spotlight-style overlay opens that searches as you type — <b>↑↓</b> to move,
-            <b>Enter</b> to open a session, <b>⌘↵</b> to copy its deep link, <b>Esc</b> to
-            close. The whole index in front of you without leaving the app you are in.
+            <b>qa</b> searches prompts and answers; <b>process</b> searches the tool calls
+            underneath them — commands, file paths, and the error text that made you stop. That
+            second half is where the session you are looking for usually lives: you remember a
+            stack trace, not the sentence that introduced it.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">03</p>
-          <h3>A report of your own work.</h3>
+          <h3>Carry the session into another agent.</h3>
           <p class="workflow__text">
-            The app writes a <b>daily, weekly and monthly report</b> straight from the index: a
-            per-project table of sessions and turns, the questions you asked in each session,
-            and a resume command for each one, with links back into the app. Read it when you
-            try to remember what you did on Tuesday, hand it to a colleague as context, or see
-            which project ate the week. Weekly and monthly reports <b>compare themselves with
-            the period before</b> — sessions, turns, active projects, per-agent share and the
-            biggest movers — and add rankings of your top projects, agents and busiest
-            hours. Downloadable as Markdown, and it can write them on a local schedule if you
-            want them waiting for you. The same sessions always produce the same report,
-            because it is read out of the index, not summarised by a model. An archive view
-            keeps the past days browsable.
+            <b>^Y</b> copies a handoff card for the selected session: project, resume command,
+            the recent prompts, the last answer, files and commands involved, tool errors. Paste
+            it into a different agent and keep going — the index is the same one every agent
+            reads, so the session you found in one is the session you continue in another.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">04</p>
-          <h3>Sessions that move between agents.</h3>
+          <h3>One filter for the agent, one for the day.</h3>
           <p class="workflow__text">
-            Find the session in the agent that did the work, then continue it somewhere else:
-            copy the <b>handoff card</b> (project, resume command, recent prompts, the last
-            answer, the files and commands involved), or just the resume command or deep link,
-            and carry on in another agent with the full context. The <b>continue-in</b> picker
-            on a session page lists the agents installed on your Mac. A session id only means
-            something to its own agent — that is why the card travels with you.
+            <b>^A</b> cycles the agent filter (omp, Claude Code, Cursor, …) and the header shows
+            what is active. Titles are searched along with the conversation, so a session you
+            renamed is still findable by the phrase that only exists in its title. The same
+            filters exist on the command line — <code>--agent</code>, <code>--from</code>,
+            <code>--to</code>, <code>--scope process</code> — and in the JSON output.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">05</p>
-          <h3>Keep the good ones, clear the noise.</h3>
+          <h3>Reports, without a model in the loop.</h3>
           <p class="workflow__text">
-            <b>Star</b> a session and it sits one click away under the sidebar's Starred view —
-            one of three views (All, Starred, Hidden), each with a live count. <b>Hide</b>
-            tucks a session out of the default view, with Undo right in the status line.
-            <b>Saved searches</b> keep a filter combination by name: save it from the rail,
-            restore the whole view in one click. <b>Forget</b> removes a session from the
-            index — and, as above, never from your agent's own storage.
+            <code>session-recall brief</code> writes a <b>daily, weekly or monthly</b> report
+            from the index: a per-project table of sessions and turns, the questions you asked,
+            and a resume command for each one. Weekly and monthly reports compare themselves
+            with the period before and rank your projects, agents and busiest hours. The same
+            sessions always produce the same report, because it is read out of the index rather
+            than summarised.
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">06</p>
-          <h3>Copy the answer, skip the noise.</h3>
+          <h3>Your agents can search it too.</h3>
           <p class="workflow__text">
-            Every turn carries <b>copy question</b>, <b>copy answer</b> and <b>copy Q&amp;A</b>,
-            and the whole conversation copies as Markdown in order, with a 200 KB cap that notes
-            where it truncated. Paste it into a document, a review, or another agent.
-          </p>
-        </article>
-
-        <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">07</p>
-          <h3>Summon it from anywhere.</h3>
-          <p class="workflow__text">
-            A global shortcut, <b>⌥⌘R</b> by default, brings the window up over whatever you
-            are doing; press it again to hide it. Rebind it or switch it off in settings —
-            ⌘W hides the window, ⌘Q quits cleanly, and clicking the Dock icon brings it back.
-          </p>
-        </article>
-
-        <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">08</p>
-          <h3>Updates without the download ritual.</h3>
-          <p class="workflow__text">
-            When a new version exists, the app tells you: a dialog shows the version, its
-            release notes and a changelog link, and one click installs it — no manual download,
-            no re-clearing the quarantine flag.
+            <code>session-recall setup</code> writes a <b>stdio MCP server</b> entry and an
+            agent <b>skill</b> into the agents installed here, so an agent can look up how
+            something was solved last month before re-solving it. Seven read tools, a real
+            <code>initialize</code> + <code>tools/list</code> handshake in
+            <code>doctor</code>, and nothing uploaded.
           </p>
         </article>
       </div>
@@ -532,10 +478,11 @@ open -a "Session Recall"</code></pre>
         <p class="eyebrow">For people who script things</p>
         <h2 class="h2" id="mcp-h">A bonus, not a requirement.</h2>
         <p class="lede">
-          Everything above works in the app alone. If you also live in the terminal, the same
-          index is available two ways: <code>bun run sr "…"</code> searches it from the shell,
-          and <code>bun run mcp</code> serves it to your coding agent over the MCP protocol —
-          your assistant can then look up past sessions itself, read-only, on this Mac.
+          Everything above works with the binary alone. The same index is also available two
+          other ways: <code>session-recall search "…"</code> queries it from a shell script,
+          and <code>session-recall mcp</code> serves it to your coding agent over the MCP
+          protocol — your assistant can then look up past sessions itself, read-only, on this
+          machine.
         </p>
         <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
           MCP server docs
@@ -616,8 +563,11 @@ open -a "Session Recall"</code></pre>
         <details>
           <summary>What about Windows and Linux?</summary>
           <div class="a">
-            No. Session Recall is a macOS app and reads agent storage from macOS locations. The CLI
-            and the MCP server run under Bun, but there is no Windows or Linux build.
+            <b>Linux, yes.</b> The terminal build (CLI, TUI and MCP) ships linux-arm64 and
+            linux-x64 on the same release page, and <code>brew install</code> works there too.
+            The agents it can read are Claude Code, Codex, OpenCode, omp and Cursor — Alma,
+            Cindy and pi are macOS apps, so there is nothing to read on Linux.
+            <b>Windows, no</b>: the agent stores it reads live under macOS and Linux paths.
           </div>
         </details>
 
@@ -725,6 +675,6 @@ open -a "Session Recall"</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=22" defer></script>
+<script src="/assets/site.js?v=23" defer></script>
 </body>
 </html>

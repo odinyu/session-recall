@@ -36,8 +36,8 @@
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <!-- synchronous, before the stylesheet: sets data-theme so the first paint is
      already the right theme. External file because CSP is script-src 'self'. -->
-<script src="/assets/theme-init.js?v=22"></script>
-<link rel="stylesheet" href="/assets/site.css?v=22">
+<script src="/assets/theme-init.js?v=23"></script>
+<link rel="stylesheet" href="/assets/site.css?v=23">
 
 <script type="application/ld+json">
 {
@@ -74,8 +74,7 @@
 
     <nav class="nav" aria-label="页面导航">
       <a href="#how">工作原理</a>
-      <a href="#screenshots">界面截图</a>
-      <a href="#workflow">不止检索</a>
+      <a href="#workflow">能做什么</a>
       <a href="#install">安装</a>
       <a href="#mcp">给 Agent 用</a>
       <a href="#faq">常见问题</a>
@@ -114,14 +113,14 @@
   <!-- ===================== Hero ===================== -->
   <section class="hero">
     <div class="wrap">
-      <p class="eyebrow hero__eyebrow">本地优先 · 只读 · macOS</p>
+      <p class="eyebrow hero__eyebrow">本地优先 · 只读 · 终端</p>
 
       <h1><span class="h1__kicker">十三个编码 Agent，一份本地索引。</span>把那次<span class="hl">会话</span>找回来。</h1>
       <p class="hero__tag">所有会话，一搜即得</p>
 
       <p class="hero__lede">
         输入你还记得的那几个字，Session Recall 就打开确切的那一轮，恢复命令已经附好，
-        随时交回给你的 Agent。答案从来没有丢，它一直在这台 Mac 上。
+        随时交回给你的 Agent。答案从来没有丢，它一直在这台机器上。
       </p>
 
       <div class="hero__cta">
@@ -148,28 +147,20 @@
 
       <p class="hero__facts"><b>8</b> 个 Agent 建入索引 · <b>1</b> 个索引文件 · <b>0</b> 次上传</p>
 
-      <p class="meta hero__meta">v1.9.3 · macOS 11+ · 27.2 MB · MIT</p>
+      <p class="meta hero__meta">v1.9.3 · macOS + Linux · 22 MB · MIT</p>
 
       <figure class="mac">
         <div class="mac__bar" aria-hidden="true">
           <i></i><i></i><i></i>
-          <span class="mac__title">搜索结果 — “reconnect backoff”</span>
+          <span class="mac__title">session-recall tui — 588 个会话，边打字边搜</span>
         </div>
-        <img class="shot shot--light" src="/assets/screenshots/zh/search-results-1440.webp?v=22"
-             srcset="/assets/screenshots/zh/search-results-720.webp?v=22 720w, /assets/screenshots/zh/search-results-1440.webp?v=22 1440w"
-             sizes="(max-width: 1200px) 94vw, 1080px"
-             width="1440" height="900" fetchpriority="high" decoding="async"
-             alt="Session Recall 的搜索结果窗口。搜索“reconnect backoff”返回 2 次会话、5 个轮次，命中的词以绿色高亮，每条结果都标出 Agent、项目和日期。">
-        <img class="shot shot--dark" src="/assets/screenshots/zh/search-results-dark-1440.webp?v=22"
-             srcset="/assets/screenshots/zh/search-results-dark-720.webp?v=22 720w, /assets/screenshots/zh/search-results-dark-1440.webp?v=22 1440w"
-             sizes="(max-width: 1200px) 94vw, 1080px"
-             width="1440" height="900" decoding="async"
-             alt="Session Recall 的搜索结果窗口。搜索“reconnect backoff”返回 2 次会话、5 个轮次，命中的词以绿色高亮，每条结果都标出 Agent、项目和日期。">
+        <img class="shot" src="/assets/tui-demo.gif?v=23"
+             width="980" height="560" fetchpriority="high" decoding="async"
+             alt="终端界面：在输入框里打字，左侧会话列表随之收窄，右侧显示选中会话的轮次。Tab 在提问和工具调用之间切换。">
       </figure>
       <p class="figcap">
-        <b>真实的 App 界面，索引为合成的演示会话。</b>
-        查询“reconnect backoff”1.2 毫秒返回 2 次会话、5 个轮次，命中的词全部高亮。
-        重排后的侧边栏把问答/过程开关放在最上面，Agent 和项目筛选都是自绘下拉，设置是一枚居中弹窗。
+        <b>真实的终端界面，索引为合成的演示会话。</b>
+        输入你记得的那几个词。左侧会话、右侧对话，一份索引覆盖这台机器上装的所有 agent。
       </p>
 
       <ul class="hero__assure">
@@ -258,186 +249,79 @@
   </section>
 
   <!-- ===================== Screenshots ===================== -->
-  <section class="section" aria-labelledby="shots-h">
-    <div class="wrap">
-      <span class="anchor" id="screenshots" aria-hidden="true"></span>
-      <p class="eyebrow">界面截图</p>
-      <h2 class="h2" id="shots-h">为记不全的查询而做。</h2>
-      <p class="lede">
-        同一份索引的两个视图。一个直接打开你找到的那一轮，一个围绕某次失败去搜进程输出。
-        两个都跑在合成的演示会话索引上。
-      </p>
-
-      <div class="figs">
-        <figure class="fig">
-          <div class="mac">
-            <div class="mac__bar" aria-hidden="true">
-              <i></i><i></i><i></i>
-              <span class="mac__title">会话详情 · 第 02 轮</span>
-            </div>
-            <img class="shot shot--light" src="/assets/screenshots/zh/session-detail-1440.webp?v=22"
-                 srcset="/assets/screenshots/zh/session-detail-720.webp?v=22 720w, /assets/screenshots/zh/session-detail-1440.webp?v=22 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="深色主题下的 Session Recall 会话详情页，打开在第 02 轮，命中的回答已高亮。转写内容上方那条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。">
-            <img class="shot shot--dark" src="/assets/screenshots/zh/session-detail-dark-1440.webp?v=22"
-                 srcset="/assets/screenshots/zh/session-detail-dark-720.webp?v=22 720w, /assets/screenshots/zh/session-detail-dark-1440.webp?v=22 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="深色主题下的 Session Recall 会话详情页，打开在第 02 轮，命中的回答已高亮。转写内容上方那条栏写着 CONTINUE IN Claude Code，后面跟着恢复命令，以及 Copy 和 Copy handoff 两个按钮。">
-          </div>
-          <figcaption class="figcap">
-            <b>会话详情。</b>转写内容上方那条栏放着恢复命令，这里是
-            <code>cd '/Users/demo/demo-app' &amp;&amp; claude --resume</code>，旁边是
-            <b>Copy handoff</b>。下一次提问，就从你找到的这次会话接着走。
-          </figcaption>
-        </figure>
-
-        <figure class="fig">
-          <div class="mac">
-            <div class="mac__bar" aria-hidden="true">
-              <i></i><i></i><i></i>
-              <span class="mac__title">进程搜索 — “timeout”</span>
-            </div>
-            <img class="shot shot--light" src="/assets/screenshots/zh/process-search-1440.webp?v=22"
-                 srcset="/assets/screenshots/zh/process-search-720.webp?v=22 720w, /assets/screenshots/zh/process-search-1440.webp?v=22 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="深色主题下的 Session Recall 进程搜索页。搜索 timeout 返回 3 次会话、3 条进程记录，用时 0.7 毫秒；每条都显示从失败测试中提取的错误行，命中的词已高亮。">
-            <img class="shot shot--dark" src="/assets/screenshots/zh/process-search-dark-1440.webp?v=22"
-                 srcset="/assets/screenshots/zh/process-search-dark-720.webp?v=22 720w, /assets/screenshots/zh/process-search-dark-1440.webp?v=22 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="深色主题下的 Session Recall 进程搜索页。搜索 timeout 返回 3 次会话、3 条进程记录，用时 0.7 毫秒；每条都显示从失败测试中提取的错误行，命中的词已高亮。">
-          </div>
-          <figcaption class="figcap">
-            <b>进程搜索。</b>用 <code>timeout</code> 搜工具调用、命令和错误输出，返回 3 次会话、
-            3 条进程记录，0.7 毫秒。每条记录都标出 Agent、项目和日期。
-          </figcaption>
-        </figure>
-
-        <figure class="fig fig--wide">
-          <div class="mac">
-            <div class="mac__bar" aria-hidden="true">
-              <i></i><i></i><i></i>
-              <span class="mac__title">快速搜索浮窗 — “reconnect”</span>
-            </div>
-            <img class="shot shot--light" src="/assets/screenshots/zh/palette-1440.webp?v=22"
-                 srcset="/assets/screenshots/zh/palette-720.webp?v=22 720w, /assets/screenshots/zh/palette-1440.webp?v=22 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="浅色主题下的 Session Recall 快速搜索浮窗，浮在搜索结果之上。浮窗内显示查询词 reconnect，下方列出两个匹配的会话，底部提示 ↑↓ 移动 · Enter 打开 · ⌘↵ 复制深链 · Esc 关闭。">
-            <img class="shot shot--dark" src="/assets/screenshots/zh/palette-dark-1440.webp?v=22"
-                 srcset="/assets/screenshots/zh/palette-dark-720.webp?v=22 720w, /assets/screenshots/zh/palette-dark-1440.webp?v=22 1440w"
-                 sizes="(max-width: 768px) 94vw, 46vw"
-                 width="1440" height="900" loading="lazy" decoding="async"
-                 alt="深色主题下的 Session Recall 快速搜索浮窗，浮在搜索结果之上。浮窗内显示查询词 reconnect，下方列出两个匹配的会话，底部提示 ↑↓ 移动 · Enter 打开 · ⌘↵ 复制深链 · Esc 关闭。">
-          </div>
-          <figcaption class="figcap">
-            <b>快速搜索浮窗。</b>按 <code>⌘⇧K</code> 打开一个 Spotlight 式浮窗，边输入边搜索
-            整个索引：<code>↑↓</code> 移动，<code>Enter</code> 打开会话，<code>⌘↵</code> 复制
-            会话深链，<code>Esc</code> 关闭。
-          </figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
 
   <!-- ===================== Beyond search ===================== -->
   <section class="section" aria-labelledby="workflow-h">
     <div class="wrap">
       <span class="anchor" id="workflow" aria-hidden="true"></span>
       <p class="eyebrow">不止检索</p>
-      <h2 class="h2" id="workflow-h">搜索只是开始。</h2>
+      <h2 class="h2" id="workflow-h">先能搜，再看它喂饱了什么。</h2>
       <p class="lede">
-        找到会话只是一半。另一半是接下来怎么办：交给另一个 Agent，写进明天的站会，
-        把值得留的收好，再让整个索引在任何应用里随叫随到。
+        六件事，全部读自同一份索引 —— 不调模型、不做摘要服务、不需要额外配置。
       </p>
 
       <div class="workflows">
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">01</p>
-          <h3>按标题也能搜到。</h3>
+          <h3>打字，列表就收窄。</h3>
           <p class="workflow__text">
-            改过名字的会话一样能找到：<b>会话标题和对话一起参与检索</b>，只出现在标题里的词
-            同样能把那次会话带回来，结果里以<b>标题命中</b>标出。不用重新建索引——已有的索引
-            下一次查询就能命中标题。
+            不用回车，没有转圈：每敲一个键都重跑一次查询。588 个会话的全量查询只要
+            <b>几毫秒</b>，所以你可以一直打字打到答案浮出来。中文按你写的样子搜 ——
+            <b>数据库打不开</b> 会拆成 数据库 AND 打不开，而不是一整串字面量；代码标识符
+            支持词中间命中。
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">02</p>
-          <h3>随时随地，随打随搜。</h3>
+          <h3>提问和工具调用，隔一个 Tab。</h3>
           <p class="workflow__text">
-            按 <b>⌘⇧K</b>，或在隐藏状态下用全局快捷键唤起窗口，都会打开一个 Spotlight 式的
-            浮窗，边输入边搜索——<b>↑↓</b> 移动，<b>Enter</b> 打开会话，<b>⌘↵</b> 复制会话的
-            深链，<b>Esc</b> 关闭。不用切回应用，整个索引就在手边。
+            <b>qa</b> 搜提问和回答；<b>process</b> 搜它们底下的工具调用 —— 命令、文件路径，
+            以及让你停下来的那段报错。要找的会话通常就在后半边：你记得的是堆栈，不是引出
+            堆栈的那句话。
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">03</p>
-          <h3>日报、周报和月报。</h3>
+          <h3>把会话带进另一个 Agent。</h3>
           <p class="workflow__text">
-            日报是当天的站会，周报是一周的汇总，<b>月报是一整个月的回顾</b>，都直接从索引读出来。
-            周报和月报还会<b>与上一周期对比</b>——会话数、问答轮次、活跃项目、各 Agent 占比，
-            以及增减最多的项目，另加排行：按轮次排名的项目、按会话排名的 Agent、最活跃的日子和时段。
-            可以在应用里看，也可以下载 Markdown；需要的话还能按本地计划自动生成，不用手动点。
-            不调模型，也没有摘要服务：同样的会话，永远生成同样的报告。章节标题跟着界面语言走：
-            中文界面写中文标题，英文界面写英文标题，报告内容一样。
+            <b>^Y</b> 复制选中会话的交接卡：项目、resume 命令、最近的提问、最后的回答、
+            动过的文件和命令、工具报错。粘给另一个 agent 就能接着干 —— 因为是同一份索引，
+            在一个 agent 里找到的会话，就是在另一个里继续的那个。
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">04</p>
-          <h3>把活接着做下去。</h3>
+          <h3>一个筛选给 Agent，一个给日期。</h3>
           <p class="workflow__text">
-            交接卡把新会话需要的东西一次收齐：项目、恢复命令、最近几次提问、最后一次回答（原文）、
-            工具调用碰过的文件、跑过的命令、遇到的报错，项目是 Git worktree 时还有当前分支。
-            粘进草稿本，或者交给另一个 Agent，活就接着走下去，不用从头再来。跨 Agent 交接会在
-            对方那里开一个新会话，把这张卡当上下文，因为会话 id 只有自己的 Agent 认得。
+            <b>^A</b> 循环 agent 过滤（omp、Claude Code、Cursor…），标题栏显示当前生效的是谁。
+            会话标题和对话一起参与检索，所以改过名字的会话，用只存在于标题里的词也能找回来。
+            同样的筛选在命令行上也有 —— <code>--agent</code>、<code>--from</code>、
+            <code>--to</code>、<code>--scope process</code> —— 以及 JSON 输出。
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">05</p>
-          <h3>好会话收好，干扰的挪开。</h3>
+          <h3>报告，不经过模型。</h3>
           <p class="workflow__text">
-            在会话页点<b>收藏</b>，侧栏「收藏」视图里随手就能找到——侧栏就是 全部 / 收藏 / 隐藏
-            三个视图，各带实时计数。<b>隐藏</b>把会话从默认视图挪开，状态行里直接给<b>撤销</b>：
-            深链仍能打开它，日报周报会跳过它。<b>忘记此会话</b>更进一步——记录从索引里移除，
-            之后的扫描不会再加回来，而 Agent 自己存储里的原始记录原封不动。
-            <b>保存的搜索</b>把一组筛选条件存成名字：从侧栏保存，在设置里管理，
-            一下点回整个视图——CLI（<code>saved list|add|remove</code>）和只读 MCP 工具同样可用。
+            <code>session-recall brief</code> 从索引里写出<b>日报、周报或月报</b>：按项目分组的
+            会话与轮次表、你问过的每个问题，以及每条对应的 resume 命令。周报和月报会
+            <b>与上一周期对比</b>，并对项目、Agent 和最忙时段做排行。同样的会话永远生成同样的
+            报告，因为它是从索引里读出来的，不是模型总结的。
           </p>
         </article>
 
         <article class="workflow">
           <p class="workflow__n" aria-hidden="true">06</p>
-          <h3>随叫随到。</h3>
+          <h3>你的 Agent 也能搜它。</h3>
           <p class="workflow__text">
-            全局快捷键默认是 <b>⌥⌘R</b>，在你正在用的任何应用之上唤起窗口，再按一次隐藏。
-            可以在应用的设置里改成别的组合键，或者完全禁用，改动重启后生效。
-            ⌘W 隐藏窗口，⌘Q 干净退出，点 Dock 图标唤回。
-          </p>
-        </article>
-
-        <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">07</p>
-          <h3>复制答案，跳过噪音。</h3>
-          <p class="workflow__text">
-            每一轮都有<b>复制提问</b>、<b>复制回答</b>和<b>复制问答</b>，整段对话也能按顺序
-            复制成 Markdown，超过 200 KB 会在结尾注明截断。交接卡和恢复命令始终一键可取。
-          </p>
-        </article>
-
-        <article class="workflow">
-          <p class="workflow__n" aria-hidden="true">08</p>
-          <h3>更新不用再走下载流程。</h3>
-          <p class="workflow__text">
-            应用每六小时在后台检查新版本。发现新版本时弹窗展示版本号、发布说明和更新日志链接，
-            一下点击即完成安装——不用手动下载，也不用再清隔离标记。应用菜单新增
-            <b>检查更新…（⌘U）</b>、<b>查看更新日志</b>，以及标准的「编辑」「窗口」「帮助」菜单组。
+            <code>session-recall setup</code> 会往这台机器上装着的 agent 里写一个 <b>stdio MCP
+            server</b> 条目和一份 agent <b>skill</b>，于是 agent 可以在重新解决之前，先查上个月
+            是怎么解的。七个只读工具，<code>doctor</code> 里做真实的 <code>initialize</code> +
+            <code>tools/list</code> 握手，不上传任何东西。
           </p>
         </article>
       </div>
@@ -521,7 +405,7 @@ open -a "Session Recall"</code></pre>
         <p class="eyebrow">给 Agent 用</p>
         <h2 class="h2" id="mcp-h">你的 Agent 也能搜。</h2>
         <p class="lede">
-          <code>bun run mcp</code> 用 stdio 把同一份索引交给任何 MCP 客户端：不开端口，不走网络，
+          <code>session-recall mcp</code> 用 stdio 把同一份索引交给任何 MCP 客户端：不开端口，不走网络，
           也不用再养一份要同步的历史。把客户端指向绝对路径就行：
         </p>
         <a class="band__link" href="https://github.com/odinyu/session-recall/blob/main/README.md#mcp-server" target="_blank" rel="noopener">
@@ -599,8 +483,10 @@ open -a "Session Recall"</code></pre>
         <details>
           <summary>有 Windows 和 Linux 版吗？</summary>
           <div class="a">
-            没有。Session Recall 是 macOS 应用，读的是 macOS 上的 Agent 存储位置。
-            CLI 和 MCP 服务器跑在 Bun 上，但没有 Windows 或 Linux 版本。
+            <b>Linux 有</b>：终端版（CLI + TUI + MCP）在同一页 release 上提供 linux-arm64 和
+            linux-x64 包，<code>brew install</code> 在 Linux 上同样可用。读得到的 Agent 是
+            Claude Code、Codex、OpenCode、omp 和 Cursor —— Alma、Cindy、pi 是 macOS 应用，那边没有数据。
+            <b>Windows 没有</b>：本地 Agent 存储都在 macOS 和 Linux 的路径下。
           </div>
         </details>
 
@@ -702,6 +588,6 @@ open -a "Session Recall"</code></pre>
   <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.2V3.4m0 0L3.6 7.8M8 3.4l4.4 4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </a>
 
-<script src="/assets/site.js?v=22" defer></script>
+<script src="/assets/site.js?v=23" defer></script>
 </body>
 </html>
