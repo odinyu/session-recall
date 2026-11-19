@@ -815,13 +815,20 @@ html:not(.js) .theme-btn {
   width: 100%;
 }
 
-/* The terminal demo is a 980 px recording: keep it at its native size rather
-   than stretching it into the screenshot frame and softening the text. */
-.mac img[src*="tui-demo"] {
-  width: auto;
-  max-width: 100%;
+/* The terminal recording stands on its own — no window chrome around it. */
+.demo {
+  margin-top: clamp(42px, 5vw, 54px);
+}
+
+.demo__gif {
   display: block;
+  width: 100%;
+  max-width: 980px;
+  height: auto;
   margin: 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: #141715;
 }
 
 /* Each figure carries both a light and a dark screenshot. The dark one is
