@@ -815,6 +815,15 @@ html:not(.js) .theme-btn {
   width: 100%;
 }
 
+/* The terminal demo is a 980 px recording: keep it at its native size rather
+   than stretching it into the screenshot frame and softening the text. */
+.mac img[src*="tui-demo"] {
+  width: auto;
+  max-width: 100%;
+  display: block;
+  margin: 0 auto;
+}
+
 /* Each figure carries both a light and a dark screenshot. The dark one is
    aria-hidden, so only one is announced; CSS decides which is painted.
    The page's manual switch sets html[data-theme], and an attribute selector
